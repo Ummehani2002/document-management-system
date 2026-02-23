@@ -3,7 +3,7 @@
 @section('content')
 
 <h2>Upload Documents</h2>
-<p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;">Select Entity → Project number → see project details (DC, client, etc.) → choose folder category → upload. Files are saved in that folder.</p>
+
 
 @if(session('success'))
     <div class="success">{{ session('success') }}</div>
@@ -11,7 +11,7 @@
 
 @if($entities->isEmpty() || $projects->isEmpty())
     <div class="card" style="margin-bottom: 20px; padding: 12px; background: #fffbeb; border-color: #fcd34d;">
-        <strong>No master data yet.</strong> Add at least one <a href="{{ route('entities.create') }}">Entity</a> and one <a href="{{ route('projects.create') }}">Project</a> (in Project Master) so you can select them below. You can still see all the fields.
+        <strong>No master data yet.</strong> Add at least one <a href="{{ route('entities.create') }}">Entity</a> and one <a href="{{ route('projects.create') }}">Project</a> in Project Master first.
     </div>
 @endif
 
@@ -19,7 +19,7 @@
     @csrf
 
     <div class="card" style="margin-bottom: 20px;">
-        <span style="display: inline-block; background: #1e293b; color: white; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; margin-bottom: 8px;">Step 1</span>
+       
         <label style="display: block; margin-bottom: 6px; font-weight: 600;">Select Entity *</label>
         <select name="entity_id" id="entity_id" required style="width: 100%; max-width: 400px; padding: 10px;">
             <option value="">— Select Entity —</option>
@@ -32,12 +32,13 @@
     </div>
 
     <div class="card" style="margin-bottom: 20px;">
-        <span style="display: inline-block; background: #1e293b; color: white; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; margin-bottom: 8px;">Step 2</span>
-        <label style="display: block; margin-bottom: 6px; font-weight: 600;">Select Project Number *</label>
+      
+        <label style="display: block; margin-bottom: 6px; font-weight: 600;">Select Project *</label>
         <select name="project_id" id="project_id" required style="width: 100%; max-width: 400px; padding: 10px;">
-            <option value="">— Select Entity first, then pick project by number —</option>
+            <option value="">— Select entity first, then pick a project —</option>
             @foreach($projects as $p)
                 <option value="{{ $p->id }}" data-entity="{{ $p->entity_id }}"
+                    data-name="{{ e($p->project_name ?? '') }}"
                     data-client="{{ e($p->client_name ?? '') }}"
                     data-consultant="{{ e($p->consultant ?? '') }}"
                     data-pm="{{ e($p->project_manager ?? '') }}"
@@ -49,41 +50,39 @@
         </select>
         @if($projects->isEmpty())<p style="margin-top: 6px; color: #b45309;">Add a <a href="{{ route('projects.create') }}">Project</a> in Project Master first.</p>@endif
         @error('project_id')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
-        <div id="project-details" style="margin-top: 12px; padding: 12px; background: #f8fafc; border-radius: 6px; display: none;">
-            <strong style="display: block; margin-bottom: 8px;">Project details (auto-filled)</strong>
+        <div id="project-details" style="margin-top: 12px; padding: 12px; background: #f1f5f9; border-radius: 6px; display: none;">
+            <strong style="display: block; margin-bottom: 8px;">Project details (from Project Master)</strong>
+            <div><strong>Project name:</strong> <span id="disp-name">—</span></div>
             <div><strong>Client:</strong> <span id="disp-client">—</span></div>
             <div><strong>Consultant:</strong> <span id="disp-consultant">—</span></div>
             <div><strong>Project Manager:</strong> <span id="disp-pm">—</span></div>
-            <div><strong>Document Controller (DC):</strong> <span id="disp-dc">—</span></div>
+            <div><strong>Document Controller:</strong> <span id="disp-dc">—</span></div>
         </div>
     </div>
 
     <div class="card" style="margin-bottom: 20px;">
-        <span style="display: inline-block; background: #1e293b; color: white; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; margin-bottom: 8px;">Step 3</span>
-        <label style="display: block; margin-bottom: 6px; font-weight: 600;">Folder (document category) *</label>
+        <label style="display: block; margin-bottom: 6px; font-weight: 600;">Folder (category) *</label>
         <select name="document_category" id="document_category" required style="width: 100%; max-width: 400px; padding: 10px;">
-            <option value="">— Select folder / category —</option>
+            <option value="">— Select folder —</option>
             @foreach($documentCategories as $cat)
                 <option value="{{ $cat }}" {{ old('document_category') == $cat ? 'selected' : '' }}>{{ $cat }}</option>
             @endforeach
         </select>
-        <small style="color: #64748b;">File will be saved in: Entity / Project number / this folder</small>
+    
         @error('document_category')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
     </div>
 
     <div class="card" style="margin-bottom: 20px;">
-        <span style="display: inline-block; background: #1e293b; color: white; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; margin-bottom: 8px;">Step 4</span>
         <label style="display: block; margin-bottom: 6px; font-weight: 600;">Choose PDF files *</label>
-        <input type="file" name="documents[]" multiple accept=".pdf" required style="width: 100%; padding: 10px;">
+        <input type="file" name="documents[]" id="documents_input" multiple accept=".pdf" required style="width: 100%; padding: 10px;">
+        <p id="suggest-msg" style="margin-top: 8px; font-size: 0.85rem; color: #0f766e; display: none;"></p>
         @error('documents')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
     </div>
 
     <button type="submit">Upload</button>
-</form>
 
-<p style="margin-top: 16px; color: #64748b; font-size: 0.9rem;">
-    Saved in folder: <strong>Entity / Project number / Document category</strong> (e.g. Main Company / PSE20231011 / Method Submittal). Search results show the PDF with its folder name.
-</p>
+
+</form>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -97,6 +96,7 @@ document.addEventListener('DOMContentLoaded', function() {
             value: opt.value,
             entityId: opt.getAttribute('data-entity'),
             text: opt.textContent,
+            name: opt.getAttribute('data-name') || '—',
             client: opt.getAttribute('data-client') || '—',
             consultant: opt.getAttribute('data-consultant') || '—',
             pm: opt.getAttribute('data-pm') || '—',
@@ -112,6 +112,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 var o = document.createElement('option');
                 o.value = opt.value;
                 o.textContent = opt.text;
+                o.setAttribute('data-name', opt.name);
                 o.setAttribute('data-client', opt.client);
                 o.setAttribute('data-consultant', opt.consultant);
                 o.setAttribute('data-pm', opt.pm);
@@ -130,6 +131,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         if (detailsBox) {
             detailsBox.style.display = 'block';
+            document.getElementById('disp-name').textContent = opt.getAttribute('data-name') || '—';
             document.getElementById('disp-client').textContent = opt.getAttribute('data-client') || '—';
             document.getElementById('disp-consultant').textContent = opt.getAttribute('data-consultant') || '—';
             document.getElementById('disp-pm').textContent = opt.getAttribute('data-pm') || '—';
@@ -141,6 +143,44 @@ document.addEventListener('DOMContentLoaded', function() {
     projectSelect.addEventListener('change', showProjectDetails);
     if (entitySelect.value) filterProjects();
     showProjectDetails();
+
+    var suggestMsg = document.getElementById('suggest-msg');
+    var fileInput = document.getElementById('documents_input');
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            var files = this.files;
+            if (!files || files.length === 0) return;
+            var first = files[0].name;
+            if (!first || !first.toLowerCase().endsWith('.pdf')) return;
+            suggestMsg.style.display = 'none';
+            suggestMsg.textContent = '';
+            var url = '{{ route("documents.suggest") }}?filename=' + encodeURIComponent(first);
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.entity_id && data.project_id) {
+                        entitySelect.value = data.entity_id;
+                        filterProjects();
+                        setTimeout(function() {
+                            projectSelect.value = data.project_id;
+                            showProjectDetails();
+                        }, 50);
+                    }
+                    if (data.document_category) {
+                        var catSelect = document.getElementById('document_category');
+                        if (catSelect) {
+                            var opt = Array.from(catSelect.options).find(function(o) { return o.value === data.document_category; });
+                            if (opt) catSelect.value = data.document_category;
+                        }
+                    }
+                    if (data.entity_id || data.document_category) {
+                        suggestMsg.textContent = 'From title: ' + (data.project_number || '') + (data.document_category ? ' → folder ' + data.document_category : '') + '. Check and upload.';
+                        suggestMsg.style.display = 'block';
+                    }
+                })
+                .catch(function() {});
+        });
+    }
 });
 </script>
 @endsection

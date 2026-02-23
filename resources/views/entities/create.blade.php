@@ -3,7 +3,7 @@
 @section('content')
 
 <h2>Add Entity</h2>
-<p style="color: #64748b; margin-bottom: 20px;">Add an entity (e.g. company name). Then add projects under it in Project Master.</p>
+<p style="color: #64748b; margin-bottom: 20px;"><a href="{{ route('entities.index') }}">← Back to Entities</a></p>
 
 @if ($errors->any())
     <div class="card" style="background: #fef2f2; border-color: #fecaca;">

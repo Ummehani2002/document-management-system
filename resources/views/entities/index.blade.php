@@ -5,6 +5,7 @@
 <h2>All Entities</h2>
 <p style="color: #64748b; margin-bottom: 20px;">Add and manage entities (e.g. companies). Then add projects under each in Project Master.</p>
 
+
 @if (session('success'))
     <div class="success">{{ session('success') }}</div>
 @endif

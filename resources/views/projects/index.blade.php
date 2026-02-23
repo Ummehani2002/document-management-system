@@ -3,7 +3,7 @@
 @section('content')
 
 <h2>Project Master</h2>
-<p style="color: #64748b; margin-bottom: 20px;">Add and manage all projects. Select entity when adding. On Upload you select entity and project.</p>
+
 
 @if (session('success'))
     <div class="success">{{ session('success') }}</div>

@@ -2,8 +2,9 @@
 
 @section('content')
 
-<h2>Project Master – Add Project</h2>
-<p style="color: #64748b; margin-bottom: 20px;">Fill in project details. Select an entity first. Then you can select this project on the Upload screen.</p>
+<h2>Add Project</h2>
+<p style="color: #64748b; margin-bottom: 20px;"><a href="{{ route('projects.index') }}">← Back to Project Master</a>. Select entity first, then fill in all project details.</p>
+
 
 @if($entities->isEmpty())
     <div class="card">

@@ -6,6 +6,7 @@ use App\Models\Document;
 use App\Models\Entity;
 use App\Models\Project;
 use App\Jobs\ProcessOCR;
+use App\Services\DocumentFilenameParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -34,6 +35,20 @@ class DocumentController extends Controller
         $projects = Project::with('entity:id,name')->orderBy('project_number')->get();
         $documentCategories = static::documentCategories();
         return view('documents.upload', compact('entities', 'projects', 'documentCategories'));
+    }
+
+    /**
+     * Suggest entity, project, and folder from a document filename (e.g. PSE20231011-PRS-PAR-DTF-00056 R.00 - Monthly Progress Report....pdf).
+     */
+    public function suggestFromFilename(Request $request)
+    {
+        $filename = $request->input('filename', '');
+        $filename = is_string($filename) ? trim($filename) : '';
+        if ($filename === '') {
+            return response()->json(['entity_id' => null, 'project_id' => null, 'document_category' => 'Other', 'message' => 'No filename']);
+        }
+        $suggestion = DocumentFilenameParser::suggestPlacement($filename);
+        return response()->json($suggestion);
     }
 
     public function store(Request $request)

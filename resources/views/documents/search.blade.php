@@ -3,11 +3,11 @@
 @section('content')
 
 <h2>Search Documents</h2>
-<p style="color: #64748b; font-size: 0.9rem; margin-bottom: 16px;">Keyword matches <strong>content</strong> (PDF text), <strong>file name</strong>, and <strong>folder names</strong> (entity, project number, project name, document type). You can also filter by the dropdowns.</p>
+
 @if(isset($documents) && $documents->total() === 0)
     <p style="color: #b45309; font-size: 0.9rem; margin-bottom: 12px; padding: 10px; background: #fffbeb; border-radius: 6px;">
         <strong>Tips:</strong>
-        Keyword matches <strong>file names</strong> and document text. On Upload, select Entity and Project from the dropdowns so files are stored in the correct folder. Run <code>php artisan queue:work</code> for OCR text search.
+        Keyword matches the first page of each PDF and file names. Run <code>php artisan queue:work</code> so new uploads get text indexed for search.
     </p>
 @endif
 
@@ -82,7 +82,7 @@
                 {{ $doc->entity?->name ?? '—' }} / {{ $doc->project?->project_number ?? '—' }}@if($doc->document_type) / {{ $doc->document_type }}@endif
             </span>
             <br>
-            <small style="color: #64748b;">{{ $doc->file_path }}</small><br><br>
+       
 
             @if($doc->project)
                 <strong>Project:</strong> {{ $doc->project->project_name }} ({{ $doc->project->project_number }})<br>

@@ -28,6 +28,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/documents/{id}/download', [DocumentController::class, 'download'])->where('id', '[0-9]+');
     Route::get('/upload', [DocumentController::class, 'create'])->name('documents.upload');
     Route::post('/upload', [DocumentController::class, 'store'])->name('documents.store');
+    Route::get('/upload/suggest', [DocumentController::class, 'suggestFromFilename'])->name('documents.suggest');
     Route::get('/search', [DocumentController::class, 'search'])->name('documents.search');
 });
 
