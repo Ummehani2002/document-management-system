@@ -3,10 +3,10 @@
 namespace App\Jobs;
 
 use App\Models\Document;
+use App\Services\PdfFirstPageOcrService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Storage;
-use Spatie\PdfToText\Pdf;
 
 class ProcessOCR implements ShouldQueue
 {
@@ -24,6 +24,7 @@ class ProcessOCR implements ShouldQueue
 
     /**
      * Execute the job.
+     * Extracts text from the first page: pdftotext first, then Tesseract OCR if image-only.
      */
     public function handle(): void
     {
@@ -41,14 +42,10 @@ class ProcessOCR implements ShouldQueue
 
         $tempPath = null;
         try {
-            // PdfToText requires a local file path; stream from disk to temp for local or S3
             $tempPath = tempnam(sys_get_temp_dir(), 'dms_ocr_') . '.pdf';
             file_put_contents($tempPath, Storage::disk($disk)->get($document->file_path));
 
-            $text = (new Pdf())
-                ->setPdf($tempPath)
-                ->setOptions(['-f 1', '-l 1'])
-                ->text();
+            $text = app(PdfFirstPageOcrService::class)->extractFirstPageText($tempPath);
 
             $document->update(['ocr_text' => $text]);
         } catch (\Throwable $e) {

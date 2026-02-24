@@ -3,13 +3,7 @@
 @section('content')
 
 <h2>Search Documents</h2>
-
-@if(isset($documents) && $documents->total() === 0)
-    <p style="color: #b45309; font-size: 0.9rem; margin-bottom: 12px; padding: 10px; background: #fffbeb; border-radius: 6px;">
-        <strong>Tips:</strong>
-        Keyword matches the first page of each PDF and file names. Run <code>php artisan queue:work</code> so new uploads get text indexed for search.
-    </p>
-@endif
+<p style="color: #64748b; font-size: 0.9rem; margin-bottom: 16px;">Keyword is searched in the <strong>first page</strong> of each PDF, file names, and folder names. Use the dropdowns to filter.</p>
 
 <form method="GET" action="{{ route('documents.search') }}" class="search-form">
     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; align-items: flex-end; margin-bottom: 16px;">
@@ -94,6 +88,19 @@
         </div>
     @empty
         <p>No documents found.</p>
+        @if($totalDocuments > 0)
+            <p style="margin-top: 8px; font-size: 0.9rem; color: #475569;">
+                You have <strong>{{ $totalDocuments }}</strong> document(s) in the system.
+                @if($documentsWithoutOcr > 0)
+                    <strong>{{ $documentsWithoutOcr }}</strong> have no first-page text indexed yet. In your project folder run: <code style="background: #f1f5f9; padding: 2px 6px;">php artisan documents:index-ocr --sync</code> then search again.
+                    <br><span style="font-size: 0.85rem; color: #64748b;">If you already ran that command, the first page may have no extractable text (e.g. scanned/image-only PDF). Keyword search only works on text.</span>
+                @else
+                    First-page text is indexed for all. Try <strong>Doc type: All types</strong> and <strong>Discipline: All disciplines</strong> — your documents may be under a different type than the one selected.
+                @endif
+            </p>
+        @else
+            <p style="margin-top: 8px; font-size: 0.9rem; color: #475569;">There are no documents yet. <a href="{{ route('documents.upload') }}">Upload PDFs</a> first, then run <code>php artisan documents:index-ocr --sync</code> to make them searchable.</p>
+        @endif
     @endforelse
 
     {{ $documents->links() }}

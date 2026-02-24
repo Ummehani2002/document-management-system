@@ -120,20 +120,21 @@ class DocumentController extends Controller
         if ($keyword !== '') {
             $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $keyword) . '%';
             $driver = DB::connection()->getDriverName();
-            // Search in: content (ocr_text), file name, folder names (entity, project number, project name, document type)
+            // Search in: first-page content (ocr_text), file name, folder names (entity, project number, project name, document type). Case-insensitive.
             $query->where(function ($q) use ($keyword, $like, $driver) {
                 if ($driver === 'mysql') {
                     $q->whereRaw('MATCH(ocr_text) AGAINST(? IN NATURAL LANGUAGE MODE)', [$keyword])
-                      ->orWhere('file_name', 'like', $like)
+                      ->orWhereRaw('LOWER(ocr_text) LIKE LOWER(?)', [$like])
+                      ->orWhereRaw('LOWER(file_name) LIKE LOWER(?)', [$like])
                       ->orWhere('document_type', 'like', $like)
-                      ->orWhereHas('entity', fn ($eq) => $eq->where('name', 'like', $like))
-                      ->orWhereHas('project', fn ($pq) => $pq->where('project_number', 'like', $like)->orWhere('project_name', 'like', $like));
+                      ->orWhereHas('entity', fn ($eq) => $eq->whereRaw('LOWER(name) LIKE LOWER(?)', [$like]))
+                      ->orWhereHas('project', fn ($pq) => $pq->whereRaw('LOWER(project_number) LIKE LOWER(?)', [$like])->orWhereRaw('LOWER(project_name) LIKE LOWER(?)', [$like]));
                 } else {
-                    $q->where('ocr_text', 'like', $like)
-                      ->orWhere('file_name', 'like', $like)
+                    $q->whereRaw('LOWER(ocr_text) LIKE LOWER(?)', [$like])
+                      ->orWhereRaw('LOWER(file_name) LIKE LOWER(?)', [$like])
                       ->orWhere('document_type', 'like', $like)
-                      ->orWhereHas('entity', fn ($eq) => $eq->where('name', 'like', $like))
-                      ->orWhereHas('project', fn ($pq) => $pq->where('project_number', 'like', $like)->orWhere('project_name', 'like', $like));
+                      ->orWhereHas('entity', fn ($eq) => $eq->whereRaw('LOWER(name) LIKE LOWER(?)', [$like]))
+                      ->orWhereHas('project', fn ($pq) => $pq->whereRaw('LOWER(project_number) LIKE LOWER(?)', [$like])->orWhereRaw('LOWER(project_name) LIKE LOWER(?)', [$like]));
                 }
             });
         }
@@ -148,9 +149,14 @@ class DocumentController extends Controller
         $documentTypes = Document::whereNotNull('document_type')->where('document_type', '!=', '')
             ->distinct()->orderBy('document_type')->pluck('document_type');
 
+        $totalDocuments = Document::count();
+        $documentsWithoutOcr = Document::where(function ($q) {
+            $q->whereNull('ocr_text')->orWhere('ocr_text', '');
+        })->count();
+
         return view('documents.search', compact(
             'documents', 'keyword', 'projects', 'entities',
-            'disciplines', 'documentTypes'
+            'disciplines', 'documentTypes', 'totalDocuments', 'documentsWithoutOcr'
         ));
     }
 
