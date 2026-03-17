@@ -10,81 +10,94 @@
         body {
             margin: 0;
             font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #1e3a8a, #2563eb);
+            background: #111;
             display: flex;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            color: #fff;
         }
 
-        .company-name {
+        .app-title {
             position: absolute;
             top: 40px;
             left: 0;
             right: 0;
             text-align: center;
-            color: white;
+            color: #fff;
             font-size: 22px;
             font-weight: bold;
         }
 
         .auth-box {
-            background: white;
+            background: #fff;
+            color: #111;
             padding: 40px;
             width: 400px;
-            border-radius: 10px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            border-radius: 6px;
+            border: 1px solid #333;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
 
         .auth-box h2 {
             text-align: center;
             margin: 0 0 24px 0;
             font-size: 1.5rem;
+            font-weight: 600;
+            color: #111;
         }
 
         .auth-box input {
             width: 100%;
             padding: 12px;
             margin-bottom: 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
+            border: 1px solid #333;
+            border-radius: 4px;
             font-size: 1rem;
+            background: #fff;
+            color: #111;
+        }
+
+        .auth-box input::placeholder {
+            color: #666;
         }
 
         .auth-box input:focus {
             outline: none;
-            border-color: #2563eb;
+            border-color: #111;
         }
 
         .auth-box button[type="submit"] {
             width: 100%;
             padding: 12px;
-            background: #2563eb;
-            color: white;
-            border: none;
-            border-radius: 6px;
+            background: #111;
+            color: #fff;
+            border: 1px solid #111;
+            border-radius: 4px;
             font-size: 1rem;
             cursor: pointer;
             margin-top: 8px;
         }
 
         .auth-box button[type="submit"]:hover {
-            background: #1e40af;
+            background: #333;
+            border-color: #333;
         }
 
         .auth-footer {
             text-align: center;
             margin-top: 20px;
             font-size: 0.9rem;
+            color: #111;
         }
 
         .auth-footer a {
-            color: #2563eb;
-            text-decoration: none;
+            color: #111;
+            text-decoration: underline;
         }
 
         .auth-footer a:hover {
-            text-decoration: underline;
+            color: #333;
         }
 
         .error-msg {
@@ -92,25 +105,17 @@
             font-size: 0.875rem;
             margin-bottom: 8px;
         }
-
-        .remember {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-
-        .remember input { width: auto; margin: 0; }
     </style>
 </head>
 <body>
 
-<div class="company-name">
+<div class="app-title">
     Document Management System
 </div>
 
 <div class="auth-box">
     <h2>Login</h2>
+    <p style="text-align: center; color: #444; font-size: 0.9rem; margin: -8px 0 16px 0;">Sign in to continue</p>
 
     @if ($errors->any())
         <div class="error-msg">
@@ -125,11 +130,6 @@
 
         <input type="text" name="username" value="{{ old('username') }}" placeholder="Username" required autofocus autocomplete="username">
         <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
-
-        <div class="remember">
-            <input type="checkbox" name="remember" id="remember">
-            <label for="remember">Remember me</label>
-        </div>
 
         <button type="submit">Sign In</button>
     </form>
