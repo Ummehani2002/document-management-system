@@ -50,3 +50,12 @@ Check: `magick --version` or `convert -version`
 2. Search again; first-page content from scanned PDFs should now be searchable.
 
 If you see “no text extracted” for a document, check `storage/logs/laravel.log` for messages like `PdfFirstPageOcr: pdftoppm failed` or `tesseract failed` to see which tool is missing or failing.
+
+---
+
+## Production (e.g. Laravel Cloud)
+
+- **First-page content is indexed during upload** (synchronously), so search-by-content works without a queue worker.
+- The production runtime must have **pdftotext** on the PATH (from Poppler or xpdf). If the default image doesn't include it, add it via a custom buildpack/Dockerfile or ask your host to include it.
+- For **scanned/image-only** PDFs in production, the server also needs **Tesseract** and **pdftoppm** or **ImageMagick** (see above).
+- Deploy commands include `php artisan documents:index-ocr --sync` so existing documents without text get indexed on each deploy.

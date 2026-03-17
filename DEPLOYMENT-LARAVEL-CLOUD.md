@@ -175,8 +175,10 @@ Use **plain `composer install`** only if the line above fails. Do **not** put `C
 
 ```bash
 php artisan migrate --force
+php artisan documents:index-ocr --sync
 ```
 
+The second line indexes the first page of any PDFs that don’t have text yet (so search-by-content works for existing uploads). New uploads are indexed during the upload request.  
 Do **not** add `php artisan queue:restart` or `php artisan storage:link`.
 
 ---
@@ -202,7 +204,7 @@ php artisan db:seed --force
    - Uploading a PDF (it goes to Object Storage).
    - Searching (MySQL full-text).
    - Downloading / opening a PDF (served from the app).
-3. OCR runs in the background; after a short delay, search by text from the first page should work.
+3. First-page text is indexed during upload; search by keyword (and by file name) should work. For **scanned/image-only** PDFs, the server needs Tesseract and pdftoppm or ImageMagick (see **OCR-SETUP.md**).
 
 ---
 
@@ -264,7 +266,8 @@ COMPOSER_DEV_MODE=0 composer install
 
 - **502 or blank page** — Check **Logs**; fix migrations or env and redeploy.
 - **"File not found" on download** — Ensure Object Storage bucket is attached and default; redeploy.
-- **OCR never runs** — Ensure queue worker is added and environment redeployed.
+- **Search only finds by file name, not by content** — First-page text is extracted during upload. Ensure the production environment has **pdftotext** (from Poppler or xpdf) available on the PATH so the app can extract text. If your PDFs are scanned/image-only, you also need **Tesseract** and **pdftoppm** or **ImageMagick** (see **OCR-SETUP.md**). After adding these, redeploy and run `php artisan documents:index-ocr --sync` from the **Commands** tab to index existing documents.
+- **OCR never runs** — New uploads are indexed synchronously; no queue worker is required for search-by-content. You can still add a queue worker for other jobs.
 - **Database errors** — MySQL must be in the **same region** as the app and attached.
 
 More: [Laravel Cloud docs](https://cloud.laravel.com/docs).

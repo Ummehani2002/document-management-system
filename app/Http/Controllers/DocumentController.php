@@ -87,11 +87,16 @@ class DocumentController extends Controller
                 'file_name'     => $originalName,
                 'file_path'     => $path,
             ]);
-            ProcessOCR::dispatch($document->id);
+            // Run OCR synchronously so first-page content is indexed immediately (works in production without a queue worker)
+            try {
+                (new ProcessOCR($document->id))->handle();
+            } catch (\Throwable $e) {
+                \Log::warning('ProcessOCR on upload failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
+            }
             $uploaded++;
         }
 
-        return back()->with('success', $uploaded . ' file(s) uploaded to ' . $entity->name . ' / ' . $project->project_number . ' / ' . $category . '. OCR running in background.');
+        return back()->with('success', $uploaded . ' file(s) uploaded to ' . $entity->name . ' / ' . $project->project_number . ' / ' . $category . '. First page indexed for search.');
     }
 
     public function search(Request $request)

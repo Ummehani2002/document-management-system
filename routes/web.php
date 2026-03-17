@@ -8,8 +8,8 @@ use App\Http\Controllers\EntityController;
 use App\Http\Controllers\ProjectController;
 
 Route::get('/', function () {
-    return view('welcome');
-});
+    return auth()->check() ? redirect()->route('dashboard') : redirect()->route('login');
+})->name('home');
 
 Route::get('/dashboard', DashboardController::class)->middleware(['auth', 'verified'])->name('dashboard');
 

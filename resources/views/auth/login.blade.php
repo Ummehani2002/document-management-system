@@ -1,10 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Company Document Management System</title>
+    <title>Login — Document Management System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <style>
+        * { box-sizing: border-box; }
         body {
             margin: 0;
             font-family: Arial, sans-serif;
@@ -12,10 +14,21 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
         }
 
-        .login-box {
+        .company-name {
+            position: absolute;
+            top: 40px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: white;
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .auth-box {
             background: white;
             padding: 40px;
             width: 400px;
@@ -23,59 +36,107 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
 
-        h2 {
+        .auth-box h2 {
             text-align: center;
-            margin-bottom: 30px;
+            margin: 0 0 24px 0;
+            font-size: 1.5rem;
         }
 
-        input {
+        .auth-box input {
             width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
+            padding: 12px;
+            margin-bottom: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
         }
 
-        button {
+        .auth-box input:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+        .auth-box button[type="submit"] {
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             background: #2563eb;
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
+            font-size: 1rem;
             cursor: pointer;
+            margin-top: 8px;
         }
 
-        button:hover {
+        .auth-box button[type="submit"]:hover {
             background: #1e40af;
         }
 
-        .company-name {
+        .auth-footer {
             text-align: center;
-            color: white;
-            position: absolute;
-            top: 40px;
-            font-size: 22px;
-            font-weight: bold;
+            margin-top: 20px;
+            font-size: 0.9rem;
         }
+
+        .auth-footer a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .error-msg {
+            color: #b91c1c;
+            font-size: 0.875rem;
+            margin-bottom: 8px;
+        }
+
+        .remember {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .remember input { width: auto; margin: 0; }
     </style>
 </head>
 <body>
 
 <div class="company-name">
-    YOUR COMPANY NAME <br>
     Document Management System
 </div>
 
-<div class="login-box">
+<div class="auth-box">
     <h2>Login</h2>
+
+    @if ($errors->any())
+        <div class="error-msg">
+            @foreach ($errors->all() as $err)
+                {{ $err }}
+            @endforeach
+        </div>
+    @endif
 
     <form method="POST" action="{{ route('login') }}">
         @csrf
 
-        <input type="email" name="email" placeholder="Email" required>
-        <input type="password" name="password" placeholder="Password" required>
+        <input type="text" name="username" value="{{ old('username') }}" placeholder="Username" required autofocus autocomplete="username">
+        <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
+
+        <div class="remember">
+            <input type="checkbox" name="remember" id="remember">
+            <label for="remember">Remember me</label>
+        </div>
 
         <button type="submit">Sign In</button>
     </form>
+
+    <p class="auth-footer">
+        New user? <a href="{{ route('register') }}">Register here</a>
+    </p>
 </div>
 
 </body>
