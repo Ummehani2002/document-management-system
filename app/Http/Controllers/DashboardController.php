@@ -12,9 +12,11 @@ class DashboardController extends Controller
 {
     public function __invoke(Request $request): View
     {
+        $entityId = (int) $request->query('entity_id', 0);
         $totalDocuments = Document::count();
         $totalProjects = Project::count();
         $totalEntities = Entity::count();
+        $entities = Entity::query()->orderBy('name')->get(['id', 'name']);
 
         $documentsPerProject = Project::withCount('documents')
             ->orderByDesc('documents_count')
@@ -30,9 +32,14 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
 
-        $recentDocuments = Document::with(['project', 'entity'])
+        $recentDocumentsQuery = Document::with(['project', 'entity']);
+        if ($entityId > 0) {
+            $recentDocumentsQuery->where('entity_id', $entityId);
+        }
+
+        $recentDocuments = $recentDocumentsQuery
             ->latest()
-            ->limit(10)
+            ->limit(20)
             ->get();
 
         return view('dashboard', [
@@ -41,6 +48,8 @@ class DashboardController extends Controller
             'totalEntities' => $totalEntities,
             'documentsPerProject' => $documentsPerProject,
             'documentsByType' => $documentsByType,
+            'entities' => $entities,
+            'selectedEntityId' => $entityId,
             'recentDocuments' => $recentDocuments,
         ]);
     }

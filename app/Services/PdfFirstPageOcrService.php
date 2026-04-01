@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Smalot\PdfParser\Parser;
 use Spatie\PdfToText\Pdf;
 
 /**
@@ -23,7 +24,34 @@ class PdfFirstPageOcrService
             return $text;
         }
 
+        $text = $this->extractWithPhpParser($pdfPath);
+
+        if (trim($text) !== '') {
+            return $text;
+        }
+
         return $this->extractWithTesseractFallback($pdfPath);
+    }
+
+    /**
+     * Pure-PHP fallback that does not need pdftotext binary.
+     * Reads first page text when possible.
+     */
+    protected function extractWithPhpParser(string $pdfPath): string
+    {
+        try {
+            $pdf = (new Parser())->parseFile($pdfPath);
+            $pages = $pdf->getPages();
+
+            if (!empty($pages)) {
+                return (string) $pages[0]->getText();
+            }
+
+            return (string) $pdf->getText();
+        } catch (\Throwable $e) {
+            \Log::debug('PdfFirstPageOcr: php parser failed', ['path' => $pdfPath, 'error' => $e->getMessage()]);
+            return '';
+        }
     }
 
     protected function extractWithPdftotext(string $pdfPath): string
@@ -74,10 +102,7 @@ class PdfFirstPageOcrService
         }
     }
 
-    /**
-     * Render first PDF page to a PNG file. Tries pdftoppm (poppler) then ImageMagick convert.
-     * Returns path to PNG or null.
-     */
+
     protected function renderFirstPageToPng(string $pdfPath, string $tempDir, string $imagePath): ?string
     {
         // 1) pdftoppm (poppler-utils)
@@ -85,6 +110,7 @@ class PdfFirstPageOcrService
             'pdftoppm -png -f 1 -l 1 -r 300 %s %s 2>&1',
             escapeshellarg($pdfPath),
             escapeshellarg($imagePath)
+            
         );
         exec($cmd, $out, $ret);
         if ($ret === 0) {

@@ -50,7 +50,7 @@
         </select>
         @if($projects->isEmpty())<p style="margin-top: 6px; color: #b45309;">Add a <a href="{{ route('projects.create') }}">Project</a> in Project Master first.</p>@endif
         @error('project_id')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
-        <div id="project-details" style="margin-top: 12px; padding: 12px; background: #f1f5f9; border-radius: 6px; display: none;">
+        <div id="project-details" style="margin-top: 12px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: none;">
             <strong style="display: block; margin-bottom: 8px;">Project details (from Project Master)</strong>
             <div><strong>Project name:</strong> <span id="disp-name">—</span></div>
             <div><strong>Client:</strong> <span id="disp-client">—</span></div>
@@ -61,21 +61,9 @@
     </div>
 
     <div class="card" style="margin-bottom: 20px;">
-        <label style="display: block; margin-bottom: 6px; font-weight: 600;">Folder (category) *</label>
-        <select name="document_category" id="document_category" required style="width: 100%; max-width: 400px; padding: 10px;">
-            <option value="">— Select folder —</option>
-            @foreach($documentCategories as $cat)
-                <option value="{{ $cat }}" {{ old('document_category') == $cat ? 'selected' : '' }}>{{ $cat }}</option>
-            @endforeach
-        </select>
-    
-        @error('document_category')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
-    </div>
-
-    <div class="card" style="margin-bottom: 20px;">
         <label style="display: block; margin-bottom: 6px; font-weight: 600;">Choose PDF files *</label>
         <input type="file" name="documents[]" id="documents_input" multiple accept=".pdf" required style="width: 100%; padding: 10px;">
-        <p id="suggest-msg" style="margin-top: 8px; font-size: 0.85rem; color: #0f766e; display: none;"></p>
+        <p id="suggest-msg" style="margin-top: 8px; font-size: 0.85rem; color: #238651; display: none;"></p>
         @error('documents')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
     </div>
 
@@ -166,15 +154,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             showProjectDetails();
                         }, 50);
                     }
-                    if (data.document_category) {
-                        var catSelect = document.getElementById('document_category');
-                        if (catSelect) {
-                            var opt = Array.from(catSelect.options).find(function(o) { return o.value === data.document_category; });
-                            if (opt) catSelect.value = data.document_category;
-                        }
-                    }
                     if (data.entity_id || data.document_category) {
-                        suggestMsg.textContent = 'From title: ' + (data.project_number || '') + (data.document_category ? ' → folder ' + data.document_category : '') + '. Check and upload.';
+                        suggestMsg.textContent = 'From title: ' + (data.project_number || '') + (data.document_category ? ' → auto folder ' + data.document_category : '') + '. Check project and upload.';
                         suggestMsg.style.display = 'block';
                     }
                 })

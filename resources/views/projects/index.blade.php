@@ -24,7 +24,7 @@
     </form>
 </div>
 
-<p style="margin-bottom: 16px;"><a href="{{ route('projects.create') }}" style="display: inline-block; padding: 10px 20px; background: #1e293b; color: white; text-decoration: none; border-radius: 5px;">Add Project</a></p>
+<p style="margin-bottom: 16px;"><a href="{{ route('projects.create') }}" style="display: inline-block; padding: 10px 20px; background: #212d3e; color: white; text-decoration: none; border-radius: 5px;">Add Project</a></p>
 
 @if($projects->isEmpty())
     <div class="card">
@@ -34,7 +34,7 @@
     <div class="card" style="overflow-x: auto;">
         <table style="width: 100%; border-collapse: collapse;">
             <thead>
-                <tr style="border-bottom: 2px solid #e5e7eb;">
+                <tr style="background: #212d3e; color: #fff; border-bottom: 2px solid #212d3e;">
                     <th style="text-align: left; padding: 10px;">Entity</th>
                     <th style="text-align: left; padding: 10px;">Project #</th>
                     <th style="text-align: left; padding: 10px;">Project Name</th>
@@ -45,7 +45,7 @@
             </thead>
             <tbody>
                 @foreach ($projects as $project)
-                    <tr style="border-bottom: 1px solid #e5e7eb;">
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
                         <td style="padding: 10px;">{{ $project->entity->name ?? '-' }}</td>
                         <td style="padding: 10px;">{{ $project->project_number }}</td>
                         <td style="padding: 10px;">{{ $project->project_name }}</td>

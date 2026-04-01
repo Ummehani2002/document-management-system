@@ -3,13 +3,13 @@
 @section('content')
 
 <h2>Add Project</h2>
-<p style="color: #64748b; margin-bottom: 20px;"><a href="{{ route('projects.index') }}">← Back to Project Master</a>. Select entity first, then fill in all project details.</p>
+<p style="color: #64748b; margin-bottom: 20px;"><a href="{{ route('projects.index') }}">← Back to Project Master</a>.</p>
 
 
 @if($entities->isEmpty())
     <div class="card">
         <p>Create an entity first so you can assign projects to it.</p>
-        <a href="{{ route('entities.create') }}" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #1e293b; color: white; text-decoration: none; border-radius: 5px;">Add Entity</a>
+        <a href="{{ route('entities.create') }}" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #212d3e; color: white; text-decoration: none; border-radius: 5px;">Add Entity</a>
     </div>
 @else
     @if ($errors->any())

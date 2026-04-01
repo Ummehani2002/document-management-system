@@ -1,75 +1,62 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Dashboard') }}
-        </h2>
-    </x-slot>
+@extends('layouts.app')
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-8">
-            {{-- Summary cards --}}
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
-                    <div class="text-gray-500 text-sm font-medium">Total Documents</div>
-                    <div class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($totalDocuments) }}</div>
-                </div>
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
-                    <div class="text-gray-500 text-sm font-medium">Projects</div>
-                    <div class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($totalProjects) }}</div>
-                </div>
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
-                    <div class="text-gray-500 text-sm font-medium">Entities</div>
-                    <div class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($totalEntities) }}</div>
-                </div>
-            </div>
+@section('content')
+    <h2>Home</h2>
 
-            {{-- Documents per project --}}
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 border-b border-gray-200">
-                    <h3 class="font-semibold text-gray-900">Documents per project</h3>
-                </div>
-                <div class="p-6">
-                    @if($documentsPerProject->isEmpty())
-                        <p class="text-gray-500">No projects with documents yet.</p>
-                    @else
-                        <ul class="divide-y divide-gray-200">
-                            @foreach($documentsPerProject as $project)
-                                <li class="py-2 flex justify-between">
-                                    <span class="font-medium">{{ $project->project_name }}</span>
-                                    <span class="text-gray-500">{{ $project->project_number }} — {{ $project->documents_count }} docs</span>
-                                </li>
-                            @endforeach
-                        </ul>
-                    @endif
-                </div>
+    <div class="card" style="padding: 18px 20px; margin-bottom: 18px;">
+        <form method="GET" action="{{ route('dashboard') }}" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+            <div style="min-width: 260px;">
+                <label for="entity_id" style="margin-bottom:6px;">Entity</label>
+                <select id="entity_id" name="entity_id" style="margin:0;">
+                    <option value="">All entities</option>
+                    @foreach($entities as $entity)
+                        <option value="{{ $entity->id }}" {{ (int) $selectedEntityId === (int) $entity->id ? 'selected' : '' }}>
+                            {{ $entity->name }}
+                        </option>
+                    @endforeach
+                </select>
             </div>
-
-            {{-- Recent uploads --}}
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="font-semibold text-gray-900">Recent uploads</h3>
-                    <a href="{{ route('documents.upload') }}" class="text-sm text-indigo-600 hover:text-indigo-800">Upload</a>
-                </div>
-                <div class="p-6">
-                    @if($recentDocuments->isEmpty())
-                        <p class="text-gray-500">No documents yet. <a href="{{ route('documents.upload') }}" class="text-indigo-600 hover:underline">Upload PDFs</a></p>
-                    @else
-                        <ul class="divide-y divide-gray-200">
-                            @foreach($recentDocuments as $doc)
-                                <li class="py-3 flex justify-between items-start gap-4">
-                                    <div class="min-w-0 flex-1">
-                                        <div class="font-medium text-gray-900 truncate">{{ $doc->file_name }}</div>
-                                        <div class="text-sm text-gray-500">
-                                            {{ $doc->project?->project_number ?? '-' }} / {{ $doc->discipline ?? '-' }} / {{ $doc->document_type ?? '-' }}
-                                        </div>
-                                    </div>
-                                    <a href="{{ route('documents.download', $doc) }}" class="shrink-0 text-sm text-indigo-600 hover:text-indigo-800">Download</a>
-                                </li>
-                            @endforeach
-                        </ul>
-                    @endif
-                </div>
-            </div>
-        </div>
+            <button type="submit">Apply</button>
+        </form>
     </div>
-</x-app-layout>
+
+    <div class="card" style="padding:0; overflow:hidden;">
+        <div style="background:#212d3e; color:#fff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="margin:0; font-size:1.05rem;">Recent uploads</h3>
+            <span style="font-size:0.92rem; opacity:0.95;">Total: {{ $recentDocuments->count() }}</span>
+        </div>
+        @if($recentDocuments->isEmpty())
+            <p style="margin: 0; padding: 16px;">No documents yet. <a href="{{ route('documents.upload') }}">Upload PDFs</a>.</p>
+        @else
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+                        <th style="text-align:left; padding:10px 12px;">File</th>
+                        <th style="text-align:left; padding:10px 12px;">Entity</th>
+                        <th style="text-align:left; padding:10px 12px;">Project</th>
+                        <th style="text-align:left; padding:10px 12px;">Folder</th>
+                        <th style="text-align:right; padding:10px 12px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach($recentDocuments as $doc)
+                    <tr style="border-bottom:1px solid #e2e8f0;">
+                        <td style="padding:10px 12px; min-width:0;">
+                            <strong>{{ $doc->file_name }}</strong><br>
+                            <span style="font-size: 0.85rem; color: #64748b;">
+                                {{ optional($doc->created_at)->format('d M Y, h:i A') ?: '-' }}
+                            </span>
+                        </td>
+                        <td style="padding:10px 12px;">{{ $doc->entity?->name ?? '-' }}</td>
+                        <td style="padding:10px 12px;">{{ $doc->project?->project_number ?? '-' }}</td>
+                        <td style="padding:10px 12px;">{{ $doc->document_type ?? '-' }}</td>
+                        <td style="padding:10px 12px; text-align:right; white-space:nowrap;">
+                            <a href="{{ route('documents.download', ['id' => $doc->id], false) }}">Download</a>
+                        </td>
+                    </tr>
+                @endforeach
+                </tbody>
+            </table>
+        @endif
+    </div>
+@endsection

@@ -3,14 +3,13 @@
 @section('content')
 
 <h2>All Entities</h2>
-<p style="color: #64748b; margin-bottom: 20px;">Add and manage entities (e.g. companies). Then add projects under each in Project Master.</p>
 
 
 @if (session('success'))
     <div class="success">{{ session('success') }}</div>
 @endif
 
-<p style="margin-bottom: 16px;"><a href="{{ route('entities.create') }}" style="display: inline-block; padding: 10px 20px; background: #1e293b; color: white; text-decoration: none; border-radius: 5px;">Add Entity</a></p>
+<p style="margin-bottom: 16px;"><a href="{{ route('entities.create') }}" style="display: inline-block; padding: 10px 20px; background: #212d3e; color: white; text-decoration: none; border-radius: 5px;">Add Entity</a></p>
 
 @if($entities->isEmpty())
     <div class="card">
@@ -20,7 +19,7 @@
     <div class="card">
         <ul style="list-style: none; padding: 0; margin: 0;">
             @foreach ($entities as $entity)
-                <li style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+                <li style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
                     <span><strong>{{ $entity->name }}</strong> <span style="color: #64748b;">({{ $entity->projects_count }} project(s))</span></span>
                     <span>
                         <a href="{{ route('projects.index', ['entity_id' => $entity->id]) }}">Projects</a>
