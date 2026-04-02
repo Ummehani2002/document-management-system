@@ -7,6 +7,7 @@ use App\Models\Entity;
 use App\Models\Project;
 use App\Jobs\ProcessOCR;
 use App\Services\DocumentFilenameParser;
+use App\Services\DocumentFileVersioning;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -47,7 +48,7 @@ class DocumentController extends Controller
         if ($filename === '') {
             return response()->json(['entity_id' => null, 'project_id' => null, 'document_category' => 'Other', 'message' => 'No filename']);
         }
-        $suggestion = DocumentFilenameParser::suggestPlacement($filename);
+        $suggestion = DocumentFilenameParser::suggestPlacementMerged($filename, null);
         return response()->json($suggestion);
     }
 
@@ -68,7 +69,7 @@ class DocumentController extends Controller
         $detectedProjects = [];
         foreach ($request->file('documents') as $file) {
             $originalName = $file->getClientOriginalName();
-            $suggestedPlacement = DocumentFilenameParser::suggestPlacement($originalName);
+            $suggestedPlacement = DocumentFilenameParser::suggestPlacementMerged($originalName, null);
             $targetEntity = $entity;
             $targetProject = $project;
 
@@ -88,7 +89,7 @@ class DocumentController extends Controller
                 . Str::slug($targetProject->project_number) . '/'
                 . Str::slug($category);
 
-            $storedFileName = $this->buildVersionedFilename($originalName, $targetProject->id, $category);
+            $storedFileName = DocumentFileVersioning::buildVersionedFilename($originalName, $targetProject->id, $category);
             $path = $file->storeAs($folderPath, $storedFileName);
 
             $document = Document::create([
@@ -111,82 +112,6 @@ class DocumentController extends Controller
         }
 
         return back()->with('success', 'File successfully uploaded');
-    }
-
-    protected function buildVersionedFilename(string $originalName, int $projectId, string $category): string
-    {
-        $extension = pathinfo($originalName, PATHINFO_EXTENSION);
-        $nameWithoutExt = pathinfo($originalName, PATHINFO_FILENAME);
-        $targetKey = $this->versionKey($nameWithoutExt);
-
-        $existingNames = Document::query()
-            ->where('project_id', $projectId)
-            ->where('document_type', $category)
-            ->pluck('file_name');
-
-        $maxVersion = -1;
-        foreach ($existingNames as $existingName) {
-            $existingBase = pathinfo((string) $existingName, PATHINFO_FILENAME);
-            if ($this->versionKey($existingBase) !== $targetKey) {
-                continue;
-            }
-            $maxVersion = max($maxVersion, $this->extractVersionNumber($existingBase));
-        }
-
-        // No match found in this project/folder: keep original filename as first version.
-        if ($maxVersion < 0) {
-            return $originalName;
-        }
-
-        $nextVersion = $maxVersion + 1;
-        $nextBase = $this->injectVersionNumber($nameWithoutExt, $nextVersion);
-
-        return $extension !== '' ? ($nextBase . '.' . $extension) : $nextBase;
-    }
-
-    protected function versionKey(string $baseName): string
-    {
-        $normalized = strtoupper($baseName);
-        $normalized = preg_replace('/\bR\s*NO\.?\s*[-.:]?\s*\d+\b/u', '', $normalized) ?? $normalized;
-        $normalized = preg_replace('/\bR(?:EV(?:ISION)?)?\s*[-.:]?\s*\d+\b/u', '', $normalized) ?? $normalized;
-        $normalized = preg_replace('/\bV(?:ERSION)?\s*[-.:]?\s*\d+\b/u', '', $normalized) ?? $normalized;
-        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
-        return trim($normalized);
-    }
-
-    protected function extractVersionNumber(string $baseName): int
-    {
-        if (preg_match('/\bR\s*NO\.?\s*[-.:]?\s*(\d+)\b/ui', $baseName, $m)) {
-            return (int) $m[1];
-        }
-        if (preg_match('/\bR(?:EV(?:ISION)?)?\s*[-.:]?\s*(\d+)\b/ui', $baseName, $m)) {
-            return (int) $m[1];
-        }
-        if (preg_match('/\bV(?:ERSION)?\s*[-.:]?\s*(\d+)\b/ui', $baseName, $m)) {
-            return (int) $m[1];
-        }
-        return 0;
-    }
-
-    protected function injectVersionNumber(string $baseName, int $version): string
-    {
-        if (preg_match('/\bR\s*NO\.?\s*[-.:]?\s*\d+\b/ui', $baseName)) {
-            return preg_replace('/\bR\s*NO\.?\s*[-.:]?\s*\d+\b/ui', 'R NO ' . $version, $baseName, 1) ?? $baseName;
-        }
-        if (preg_match('/\bR\.\d+\b/ui', $baseName)) {
-            return preg_replace('/\bR\.\d+\b/ui', 'R.' . str_pad((string) $version, 2, '0', STR_PAD_LEFT), $baseName, 1) ?? $baseName;
-        }
-        if (preg_match('/\bREV(?:ISION)?\s*[-.:]?\s*\d+\b/ui', $baseName)) {
-            return preg_replace('/\bREV(?:ISION)?\s*[-.:]?\s*\d+\b/ui', 'REV-' . str_pad((string) $version, 2, '0', STR_PAD_LEFT), $baseName, 1) ?? $baseName;
-        }
-        if (preg_match('/\bR\s*[-.:]?\s*\d+\b/ui', $baseName)) {
-            return preg_replace('/\bR\s*[-.:]?\s*\d+\b/ui', 'R.' . str_pad((string) $version, 2, '0', STR_PAD_LEFT), $baseName, 1) ?? $baseName;
-        }
-        if (preg_match('/\bV(?:ERSION)?\s*[-.:]?\s*\d+\b/ui', $baseName)) {
-            return preg_replace('/\bV(?:ERSION)?\s*[-.:]?\s*\d+\b/ui', 'Version ' . $version, $baseName, 1) ?? $baseName;
-        }
-
-        return $baseName . ' - Version ' . $version;
     }
 
     public function search(Request $request)

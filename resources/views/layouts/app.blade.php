@@ -52,7 +52,22 @@
             margin-left: 20px;
         }
 
-        .navbar a:hover {
+        .navbar .logout-form {
+            display: inline;
+            margin-left: 20px;
+        }
+
+        .navbar .logout-btn {
+            background: transparent;
+            color: #fff;
+            border: none;
+            padding: 0;
+            font: inherit;
+            cursor: pointer;
+        }
+
+        .navbar a:hover,
+        .navbar .logout-btn:hover {
             color: var(--gold);
         }
 
@@ -303,6 +318,10 @@
         <a href="{{ route('projects.index') }}">Project Master</a>
         <a href="{{ route('documents.upload') }}">Upload</a>
         <a href="{{ route('documents.search') }}">Search</a>
+        <form method="POST" action="{{ route('logout') }}" class="logout-form">
+            @csrf
+            <button type="submit" class="logout-btn">Logout</button>
+        </form>
     </div>
 </div>
 

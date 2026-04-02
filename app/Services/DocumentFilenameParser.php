@@ -89,6 +89,108 @@ class DocumentFilenameParser
     }
 
     /**
+     * Classify folder from first-page OCR/text using reference headings (many label/value formats) plus title keywords.
+     */
+    public static function guessSubfolderFromDocumentText(?string $text): string
+    {
+        if ($text === null || trim($text) === '') {
+            return 'Other';
+        }
+
+        $window = substr($text, 0, 14000);
+        $synthetic = self::extractReferenceSyntheticTitle($window);
+        $synthetic = trim($synthetic);
+
+        if ($synthetic !== '') {
+            $cat = self::guessSubfolderFromTitle($synthetic, strtoupper($synthetic));
+            if ($cat !== 'Other') {
+                return $cat;
+            }
+        }
+
+        $base = substr($text, 0, 6000);
+
+        return self::guessSubfolderFromTitle($base, strtoupper($base));
+    }
+
+    /**
+     * Pull reference-like strings from typical title-block labels so codes (DTF, MST, MS, …) can be detected.
+     */
+    protected static function extractReferenceSyntheticTitle(string $window): string
+    {
+        $parts = [];
+        $labelPatterns = [
+            '/REFERENCE\s+NUMBER\s*[:\s]+([^\r\n]{1,220})/ui',
+            '/REF(?:ERENCE)?\s*\.?\s*NO\.?\s*[:\s]+([^\r\n]{1,220})/ui',
+            '/SUBMITTAL\s+(?:NO\.?|REFERENCE)\s*[:\s]+([^\r\n]{1,220})/ui',
+            '/SUBMITTAL\s+REFERENCE\s*[:\s]+([^\r\n]{1,220})/ui',
+            '/METHOD\s+STATEMENT\s+NO\.?\s*[:\s]+([^\r\n]{1,220})/ui',
+            '/DOC(?:UMENT)?\.?\s*TRANS(?:\.|MITTAL)?\s*NO\.?\s*[:\s]+([^\r\n]{1,220})/ui',
+            '/\bREF\s*:\s*([^\r\n]{1,220})/ui',
+            '/\bREF\s*\.?\s*NO\.?\s*[:\s]+([^\r\n]{1,220})/ui',
+            '/PREVIOUS\s+SUBMITTAL\s+REF\s*NO\.?\s*[:\s]+([^\r\n]{1,220})/ui',
+        ];
+
+        foreach ($labelPatterns as $re) {
+            if (preg_match_all($re, $window, $m)) {
+                foreach ($m[1] as $cap) {
+                    $cap = trim(preg_replace('/\s+/', ' ', (string) $cap));
+                    if ($cap !== '') {
+                        $parts[] = $cap;
+                    }
+                }
+            }
+        }
+
+        $merged = implode(' ', array_unique($parts));
+        if (strlen($merged) < 24) {
+            $merged = trim($merged . ' ' . substr($window, 0, 3500));
+        } else {
+            $merged = trim($merged . ' ' . substr($window, 0, 1200));
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Filename parse plus first-page text: OCR wins for category when it finds a non-Other type.
+     *
+     * @return array{entity_id: ?int, project_id: ?int, project_number: ?string, document_category: string, category_source: string}
+     */
+    public static function suggestPlacementMerged(string $filename, ?string $ocrText): array
+    {
+        $fromFile = self::suggestPlacement($filename);
+        $fileCategory = $fromFile['document_category'] ?? 'Other';
+
+        $contentCategory = 'Other';
+        if ($ocrText !== null && trim($ocrText) !== '') {
+            $contentCategory = self::guessSubfolderFromDocumentText($ocrText);
+        }
+
+        $category = $fileCategory;
+        $source = 'filename';
+
+        if ($contentCategory !== 'Other') {
+            $category = $contentCategory;
+            $source = 'ocr';
+        } elseif ($fileCategory !== 'Other') {
+            $category = $fileCategory;
+            $source = 'filename';
+        } else {
+            $category = 'Other';
+            $source = 'none';
+        }
+
+        return [
+            'entity_id' => $fromFile['entity_id'],
+            'project_id' => $fromFile['project_id'],
+            'project_number' => $fromFile['project_number'],
+            'document_category' => $category,
+            'category_source' => $source,
+        ];
+    }
+
+    /**
      * Extract project number: first segment before hyphen (e.g. PSE20231011 from PSE20231011-PRS-PAR-DTF-00056).
      */
     protected static function extractProjectNumber(string $filename): ?string
@@ -111,7 +213,7 @@ class DocumentFilenameParser
     protected static function guessSubfolderFromTitle(string $filename, string $upper): string
     {
         $codeMatches = [];
-        preg_match_all('/(?:^|[^A-Z0-9])(DTF|TRS|TRM|MIR|WIR|MTS|MS|SD|ASB|ABS|MAT|MSA|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
+        preg_match_all('/(?:^|[^A-Z0-9])(DTF|TRS|TRM|MIR|WIR|MTS|MST|MSS|MOS|MS|MT|SD|ASB|ABS|MAT|MSA|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
         $codes = array_unique(array_map('strtoupper', $codeMatches[1] ?? []));
 
         if (in_array('DTF', $codes, true)) {
@@ -129,7 +231,10 @@ class DocumentFilenameParser
         if (in_array('SD', $codes, true)) {
             return 'Shop Drawing';
         }
-        if (in_array('MS', $codes, true) || in_array('MTS', $codes, true)) {
+        if (in_array('MST', $codes, true) || in_array('MSS', $codes, true) || in_array('MOS', $codes, true)) {
+            return 'Method Statement';
+        }
+        if (in_array('MS', $codes, true) || in_array('MTS', $codes, true) || in_array('MT', $codes, true)) {
             return 'Method Statement';
         }
         if (in_array('ASB', $codes, true) || in_array('ABS', $codes, true)) {
@@ -145,10 +250,10 @@ class DocumentFilenameParser
             return 'Prequalification';
         }
 
-        if (preg_match('/\bDTF\b|DOCUMENT\s*TRANSMITTAL|TRANSMITTAL/i', $upper)) {
+        if (preg_match('/\bDTF\b|DOC\.?\s*TRANS|DOCUMENT\s*TRANSMITTAL|TRANSMITTAL/i', $upper)) {
             return 'Document Transmittal';
         }
-        if (preg_match('/METHOD\s*STATEMENT|\bMTS\b/i', $upper)) {
+        if (preg_match('/METHOD\s*STATEMENT|METHOD\s+OF\s+STATEMENT|METHOD\s*ST(?:\.|ATEMENT)?|STATEMENT\s+SUBMITTAL|\bMTS\b|\bMST\b|\bMSS\b|\bMOS\b/i', $upper)) {
             return 'Method Statement';
         }
         if (preg_match('/AS\s*BUILT/i', $upper)) {

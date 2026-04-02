@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Document;
+use App\Services\DocumentReclassificationService;
 use App\Services\PdfFirstPageOcrService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -48,6 +49,8 @@ class ProcessOCR implements ShouldQueue
             $text = app(PdfFirstPageOcrService::class)->extractFirstPageText($tempPath);
 
             $document->update(['ocr_text' => $text]);
+
+            app(DocumentReclassificationService::class)->refineAfterOcr($document);
         } catch (\Throwable $e) {
             \Log::error('ProcessOCR failed: ' . $e->getMessage(), ['document_id' => $document->id]);
         } finally {
