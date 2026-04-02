@@ -178,13 +178,25 @@ class DocumentController extends Controller
                           ->orWhereRaw('LOWER(file_name) LIKE LOWER(?)', [$like])
                           ->orWhere('document_type', 'like', $like)
                           ->orWhereHas('entity', fn ($eq) => $eq->whereRaw('LOWER(name) LIKE LOWER(?)', [$like]))
-                          ->orWhereHas('project', fn ($pq) => $pq->whereRaw('LOWER(project_number) LIKE LOWER(?)', [$like])->orWhereRaw('LOWER(project_name) LIKE LOWER(?)', [$like]));
+                          ->orWhereHas('project', fn ($pq) => $pq
+                              ->whereRaw('LOWER(project_number) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(project_name) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(client_name) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(consultant) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(project_manager) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(document_controller) LIKE LOWER(?)', [$like]));
                     } else {
                         $q->whereRaw('LOWER(ocr_text) LIKE LOWER(?)', [$like])
                           ->orWhereRaw('LOWER(file_name) LIKE LOWER(?)', [$like])
                           ->orWhere('document_type', 'like', $like)
                           ->orWhereHas('entity', fn ($eq) => $eq->whereRaw('LOWER(name) LIKE LOWER(?)', [$like]))
-                          ->orWhereHas('project', fn ($pq) => $pq->whereRaw('LOWER(project_number) LIKE LOWER(?)', [$like])->orWhereRaw('LOWER(project_name) LIKE LOWER(?)', [$like]));
+                          ->orWhereHas('project', fn ($pq) => $pq
+                              ->whereRaw('LOWER(project_number) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(project_name) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(client_name) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(consultant) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(project_manager) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(document_controller) LIKE LOWER(?)', [$like]));
                     }
                 });
             }
