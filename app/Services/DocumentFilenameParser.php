@@ -212,14 +212,19 @@ class DocumentFilenameParser
      */
     protected static function guessSubfolderFromTitle(string $filename, string $upper): string
     {
+        // Keep As-Built docs out of Method Statement even if code contains "-MS-".
+        if (preg_match('/\bAS[\s\-]*BUILT\b|\bASBUILT\b/i', $upper)) {
+            return 'As Built Drawing Submittal';
+        }
+
         $codeMatches = [];
-        preg_match_all('/(?:^|[^A-Z0-9])(DTF|TRS|TRM|MIR|WIR|MTS|MST|MSS|MOS|MS|MT|SD|ASB|ABS|MAT|MSA|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
+        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|MTS|MST|MSS|MOS|MS|MT|SD|DWG|ASB|ABS|AB|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
         $codes = array_unique(array_map('strtoupper', $codeMatches[1] ?? []));
 
         if (in_array('DTF', $codes, true)) {
             return 'Document Transmittal';
         }
-        if (in_array('TRS', $codes, true) || in_array('TRM', $codes, true)) {
+        if (in_array('DT', $codes, true) || in_array('TRS', $codes, true) || in_array('TRM', $codes, true)) {
             return 'Document Transmittal';
         }
         if (in_array('MIR', $codes, true) || in_array('MIRR', $codes, true)) {
@@ -228,29 +233,41 @@ class DocumentFilenameParser
         if (in_array('WIR', $codes, true)) {
             return 'Work Inspection';
         }
+        if (in_array('ASB', $codes, true) || in_array('ABS', $codes, true) || in_array('AB', $codes, true)) {
+            return 'As Built Drawing Submittal';
+        }
         if (in_array('SD', $codes, true)) {
+            return 'Shop Drawing';
+        }
+        if (in_array('DWG', $codes, true)) {
             return 'Shop Drawing';
         }
         if (in_array('MST', $codes, true) || in_array('MSS', $codes, true) || in_array('MOS', $codes, true)) {
             return 'Method Statement';
         }
-        if (in_array('MS', $codes, true) || in_array('MTS', $codes, true) || in_array('MT', $codes, true)) {
+        if (in_array('MTS', $codes, true) || in_array('MT', $codes, true)) {
             return 'Method Statement';
-        }
-        if (in_array('ASB', $codes, true) || in_array('ABS', $codes, true)) {
-            return 'As Built Drawing Submittal';
         }
         if (in_array('MAT', $codes, true)) {
             return 'Material Submittal';
         }
-        if (in_array('MSA', $codes, true)) {
+        if (in_array('MSA', $codes, true) || in_array('MAS', $codes, true)) {
             return 'Material Sample';
+        }
+        if (in_array('MB', $codes, true)) {
+            return 'Material Submittal';
+        }
+        if (in_array('MS', $codes, true)) {
+            if (preg_match('/METHOD\s*STATEMENT|METHOD\s+OF\s+STATEMENT|METHOD\s*ST(?:\.|ATEMENT)?|STATEMENT\s+SUBMITTAL/i', $upper)) {
+                return 'Method Statement';
+            }
+            return 'Material Submittal';
         }
         if (in_array('PQ', $codes, true) || in_array('PREQ', $codes, true) || in_array('PREQUL', $codes, true)) {
             return 'Prequalification';
         }
 
-        if (preg_match('/\bDTF\b|DOC\.?\s*TRANS|DOCUMENT\s*TRANSMITTAL|TRANSMITTAL/i', $upper)) {
+        if (preg_match('/\bDTF\b|\bDT\b|DOC\.?\s*TRANS|DOCUMENT\s*TRANSMITTAL|TRANSMITTAL/i', $upper)) {
             return 'Document Transmittal';
         }
         if (preg_match('/METHOD\s*STATEMENT|METHOD\s+OF\s+STATEMENT|METHOD\s*ST(?:\.|ATEMENT)?|STATEMENT\s+SUBMITTAL|\bMTS\b|\bMST\b|\bMSS\b|\bMOS\b/i', $upper)) {
@@ -259,13 +276,13 @@ class DocumentFilenameParser
         if (preg_match('/AS\s*BUILT/i', $upper)) {
             return 'As Built Drawing Submittal';
         }
-        if (preg_match('/SHOP\s*DRAWING/i', $upper)) {
+        if (preg_match('/SHOP\s*DRAWING|\bDWG\b/i', $upper)) {
             return 'Shop Drawing';
         }
         if (preg_match('/INSPECTION\s*REQUEST|MIR\b/i', $upper)) {
             return 'Material Inspection Request';
         }
-        if (preg_match('/MATERIAL\s*SUBMITTAL/i', $upper)) {
+        if (preg_match('/MATERIAL\s*SUBMITTAL|\bMAT(?:ERIAL)?\s*SUB(?:MITTAL)?\b/i', $upper)) {
             return 'Material Submittal';
         }
         if (preg_match('/WORK\s*INSPECTION/i', $upper)) {

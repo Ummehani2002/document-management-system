@@ -57,17 +57,28 @@ class DocumentController extends Controller
         $request->validate([
             'entity_id'         => 'required|exists:entities,id',
             'project_id'        => 'required|exists:projects,id',
-            'documents'         => 'required',
+            'documents'         => 'required|array|min:1',
             'documents.*'       => 'file|mimes:pdf|max:51200',
         ]);
+
+        // Multi-file upload + per-file OCR can exceed default max_execution_time; allow the request to finish.
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
 
         $entity = Entity::findOrFail($request->entity_id);
         $project = Project::where('id', $request->project_id)->where('entity_id', $entity->id)->firstOrFail();
 
+        $files = $request->file('documents', []);
+        if (! is_array($files)) {
+            $files = array_filter([$files]);
+        }
+
         $uploaded = 0;
+        $skippedDuplicates = 0;
         $detectedFolders = [];
         $detectedProjects = [];
-        foreach ($request->file('documents') as $file) {
+        foreach ($files as $file) {
             $originalName = $file->getClientOriginalName();
             $suggestedPlacement = DocumentFilenameParser::suggestPlacementMerged($originalName, null);
             $targetEntity = $entity;
@@ -89,6 +100,36 @@ class DocumentController extends Controller
                 . Str::slug($targetProject->project_number) . '/'
                 . Str::slug($category);
 
+            // Duplicate policy:
+            // - same logical filename + same content => skip as already uploaded
+            // - same logical filename + different content => continue and create next version
+            $uploadedHash = $this->uploadedFileHash($file);
+            if ($uploadedHash !== null) {
+                $targetKey = DocumentFileVersioning::versionKey(pathinfo($originalName, PATHINFO_FILENAME));
+                $candidates = Document::query()
+                    ->where('project_id', $targetProject->id)
+                    ->where('document_type', $category)
+                    ->get(['file_name', 'file_path']);
+
+                $isDuplicate = false;
+                foreach ($candidates as $candidate) {
+                    $existingBase = pathinfo((string) $candidate->file_name, PATHINFO_FILENAME);
+                    if (DocumentFileVersioning::versionKey($existingBase) !== $targetKey) {
+                        continue;
+                    }
+                    $existingHash = $this->storedFileHash((string) $candidate->file_path);
+                    if ($existingHash !== null && hash_equals($uploadedHash, $existingHash)) {
+                        $isDuplicate = true;
+                        break;
+                    }
+                }
+
+                if ($isDuplicate) {
+                    $skippedDuplicates++;
+                    continue;
+                }
+            }
+
             $storedFileName = DocumentFileVersioning::buildVersionedFilename($originalName, $targetProject->id, $category);
             $path = $file->storeAs($folderPath, $storedFileName);
 
@@ -100,9 +141,11 @@ class DocumentController extends Controller
                 'file_name'     => $storedFileName,
                 'file_path'     => $path,
             ]);
-            // Run OCR synchronously so first-page content is indexed immediately (works in production without a queue worker)
+            // Run OCR on the sync connection after the redirect so uploads are not blocked (works without a queue worker).
             try {
-                (new ProcessOCR($document->id))->handle();
+                ProcessOCR::dispatch($document->id)
+                    ->onConnection('sync')
+                    ->afterResponse();
             } catch (\Throwable $e) {
                 \Log::warning('ProcessOCR on upload failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
             }
@@ -111,7 +154,43 @@ class DocumentController extends Controller
             $detectedProjects[$targetProject->project_number] = true;
         }
 
-        return back()->with('success', 'File successfully uploaded');
+        $msg = $uploaded === 1
+            ? '1 file uploaded successfully.'
+            : $uploaded.' files uploaded successfully.';
+        if ($skippedDuplicates > 0) {
+            $msg .= ' '.$skippedDuplicates.' duplicate file(s) were already uploaded and skipped.';
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    protected function uploadedFileHash($file): ?string
+    {
+        $realPath = $file?->getRealPath();
+        if (!$realPath || !is_file($realPath)) {
+            return null;
+        }
+        $hash = @hash_file('sha256', $realPath);
+
+        return is_string($hash) ? $hash : null;
+    }
+
+    protected function storedFileHash(string $path): ?string
+    {
+        $disk = config('filesystems.default');
+        if (!Storage::disk($disk)->exists($path)) {
+            return null;
+        }
+        $stream = Storage::disk($disk)->readStream($path);
+        if ($stream === false || !is_resource($stream)) {
+            return null;
+        }
+
+        $context = hash_init('sha256');
+        hash_update_stream($context, $stream);
+        fclose($stream);
+
+        return hash_final($context);
     }
 
     public function search(Request $request)

@@ -340,9 +340,6 @@
         @endforelse
         {{ $documents->links() }}
     @endif
-    @if($documents->isEmpty())
-        <p>No documents found.</p>
-    @endif
 @endif
 
 @endsection

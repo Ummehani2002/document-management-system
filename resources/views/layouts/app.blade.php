@@ -299,6 +299,38 @@
             padding: 12px 4px;
         }
 
+        /* Pagination (Bootstrap 5 markup from Paginator::useBootstrapFive) */
+        .pagination {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+            align-items: center;
+        }
+        .pagination .page-item .page-link {
+            display: inline-block;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-card);
+            color: var(--text);
+            text-decoration: none;
+        }
+        .pagination .page-item .page-link:hover {
+            background: #f1f5f9;
+        }
+        .pagination .page-item.active .page-link {
+            background: var(--navy);
+            color: #fff;
+            border-color: var(--navy);
+        }
+        .pagination .page-item.disabled .page-link {
+            opacity: 0.45;
+            pointer-events: none;
+        }
+
         @media (max-width: 1200px) {
             .sidebar {
                 width: 290px;
