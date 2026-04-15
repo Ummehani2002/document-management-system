@@ -55,9 +55,9 @@
                                     {{ \App\Services\DocumentFilenameParser::folderDisplayLabel($doc->document_type, $doc->file_name) }}
                                 </td>
                                 <td style="padding: 10px 12px; text-align: right; white-space: nowrap;">
-                                    <a href="{{ route('documents.view', ['id' => $doc->id], false) }}" target="_blank" rel="noopener">View</a>
+                                    <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">View</a>
                                     &nbsp;|&nbsp;
-                                    <a href="{{ route('documents.download', ['id' => $doc->id], false) }}">Download</a>
+                                    <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>
                                 </td>
                             </tr>
                         @endforeach

@@ -51,7 +51,7 @@
                         <td style="padding:10px 12px;">{{ $doc->project?->project_number ?? '-' }}</td>
                         <td style="padding:10px 12px;">{{ $doc->document_type ?? '-' }}</td>
                         <td style="padding:10px 12px; text-align:right; white-space:nowrap;">
-                            <a href="{{ route('documents.download', ['id' => $doc->id], false) }}">Download</a>
+                            <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>
                         </td>
                     </tr>
                 @endforeach

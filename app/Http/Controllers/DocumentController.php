@@ -331,9 +331,12 @@ class DocumentController extends Controller
             abort(404, 'File not found on disk: ' . $path);
         }
 
-        return Storage::disk($disk)->response($path, $document->file_name, [
-            'Content-Type' => 'application/pdf',
-        ]);
+        return Storage::disk($disk)->response(
+            $path,
+            $document->file_name,
+            ['Content-Type' => 'application/pdf'],
+            'inline'
+        );
     }
 
     public function destroy(int $id)
