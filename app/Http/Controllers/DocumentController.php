@@ -10,6 +10,7 @@ use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileVersioning;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -308,6 +309,11 @@ class DocumentController extends Controller
         $document = Document::find($id);
 
         if (!$document) {
+            Log::warning('Document download failed: missing database row', [
+                'document_id' => $id,
+                'url' => request()->fullUrl(),
+                'host' => request()->getHost(),
+            ]);
             abort(404, 'Document not found. Use Search to find a PDF and click Download from the result.');
         }
 
@@ -315,6 +321,12 @@ class DocumentController extends Controller
         $location = $this->resolveDocumentLocation($path);
 
         if ($location === null) {
+            Log::warning('Document download failed: file path not found', [
+                'document_id' => $id,
+                'stored_path' => $path,
+                'url' => request()->fullUrl(),
+                'host' => request()->getHost(),
+            ]);
             abort(404, 'File not found on disk: ' . $path);
         }
 
@@ -335,6 +347,11 @@ class DocumentController extends Controller
         $document = Document::find($id);
 
         if (!$document) {
+            Log::warning('Document view failed: missing database row', [
+                'document_id' => $id,
+                'url' => request()->fullUrl(),
+                'host' => request()->getHost(),
+            ]);
             abort(404, 'Document not found.');
         }
 
@@ -342,6 +359,12 @@ class DocumentController extends Controller
         $location = $this->resolveDocumentLocation($path);
 
         if ($location === null) {
+            Log::warning('Document view failed: file path not found', [
+                'document_id' => $id,
+                'stored_path' => $path,
+                'url' => request()->fullUrl(),
+                'host' => request()->getHost(),
+            ]);
             abort(404, 'File not found on disk: ' . $path);
         }
 
