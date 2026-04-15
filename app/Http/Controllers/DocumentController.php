@@ -77,8 +77,10 @@ class DocumentController extends Controller
 
         $uploaded = 0;
         $skippedDuplicates = 0;
+        $failedUploads = 0;
         $detectedFolders = [];
         $detectedProjects = [];
+        $disk = config('filesystems.default');
         foreach ($files as $file) {
             $originalName = $file->getClientOriginalName();
             $suggestedPlacement = DocumentFilenameParser::suggestPlacementMerged($originalName, null);
@@ -132,7 +134,28 @@ class DocumentController extends Controller
             }
 
             $storedFileName = DocumentFileVersioning::buildVersionedFilename($originalName, $targetProject->id, $category);
-            $path = $file->storeAs($folderPath, $storedFileName);
+            try {
+                $path = $file->storeAs($folderPath, $storedFileName, $disk);
+            } catch (\Throwable $e) {
+                Log::warning('Document upload failed: storage write exception', [
+                    'disk' => $disk,
+                    'original_name' => $originalName,
+                    'target_path' => $folderPath . '/' . $storedFileName,
+                    'error' => $e->getMessage(),
+                ]);
+                $failedUploads++;
+                continue;
+            }
+
+            if (!is_string($path) || trim($path) === '') {
+                Log::warning('Document upload failed: empty storage path returned', [
+                    'disk' => $disk,
+                    'original_name' => $originalName,
+                    'target_path' => $folderPath . '/' . $storedFileName,
+                ]);
+                $failedUploads++;
+                continue;
+            }
 
             $document = Document::create([
                 'entity_id'     => $targetEntity->id,
@@ -160,6 +183,9 @@ class DocumentController extends Controller
             : $uploaded.' files uploaded successfully.';
         if ($skippedDuplicates > 0) {
             $msg .= ' '.$skippedDuplicates.' duplicate file(s) were already uploaded and skipped.';
+        }
+        if ($failedUploads > 0) {
+            $msg .= ' '.$failedUploads.' file(s) failed to upload to storage. Please check server logs and storage credentials.';
         }
 
         return back()->with('success', $msg);
