@@ -448,8 +448,16 @@ class DocumentController extends Controller
 
         foreach ($candidateDisks as $disk) {
             foreach ($relativeCandidates as $candidatePath) {
-                if (Storage::disk($disk)->exists($candidatePath)) {
-                    return ['source' => 'disk', 'disk' => $disk, 'path' => $candidatePath];
+                try {
+                    if (Storage::disk($disk)->exists($candidatePath)) {
+                        return ['source' => 'disk', 'disk' => $disk, 'path' => $candidatePath];
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Document lookup disk probe failed', [
+                        'disk' => $disk,
+                        'path' => $candidatePath,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
         }
