@@ -25,11 +25,13 @@ Route::middleware('auth')->group(function () {
     Route::resource('entities', EntityController::class);
     Route::resource('projects', ProjectController::class);
 
-    // Document Routes – download (two URLs so one may work on your server)
-    Route::get('/download/pdf/{id}', [DocumentController::class, 'download'])->name('documents.download')->where('id', '[0-9]+');
-    Route::get('/documents/{id}/download', [DocumentController::class, 'download'])->where('id', '[0-9]+');
-    Route::get('/download/pdf/{id}/view', [DocumentController::class, 'viewPdf'])->name('documents.view')->where('id', '[0-9]+');
-    Route::get('/documents/{id}/view', [DocumentController::class, 'viewPdf'])->where('id', '[0-9]+');
+    // Document routes:
+    // - Keep /documents/... as canonical (named) routes used by Blade links.
+    // - Keep legacy /download/pdf/... URLs as fallback for older links/bookmarks.
+    Route::get('/documents/{id}/download', [DocumentController::class, 'download'])->name('documents.download')->where('id', '[0-9]+');
+    Route::get('/download/pdf/{id}', [DocumentController::class, 'download'])->where('id', '[0-9]+');
+    Route::get('/documents/{id}/view', [DocumentController::class, 'viewPdf'])->name('documents.view')->where('id', '[0-9]+');
+    Route::get('/download/pdf/{id}/view', [DocumentController::class, 'viewPdf'])->where('id', '[0-9]+');
     Route::get('/upload', [DocumentController::class, 'create'])->name('documents.upload');
     Route::post('/upload', [DocumentController::class, 'store'])->name('documents.store');
     Route::get('/upload/suggest', [DocumentController::class, 'suggestFromFilename'])->name('documents.suggest');

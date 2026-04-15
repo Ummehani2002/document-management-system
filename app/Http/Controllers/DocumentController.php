@@ -177,13 +177,21 @@ class DocumentController extends Controller
 
     protected function storedFileHash(string $path): ?string
     {
-        $disk = config('filesystems.default');
-        if (!Storage::disk($disk)->exists($path)) {
+        $location = $this->resolveDocumentLocation($path);
+        if ($location === null) {
             return null;
         }
-        $stream = Storage::disk($disk)->readStream($path);
-        if ($stream === false || !is_resource($stream)) {
-            return null;
+
+        if ($location['source'] === 'disk') {
+            $stream = Storage::disk($location['disk'])->readStream($location['path']);
+            if ($stream === false || !is_resource($stream)) {
+                return null;
+            }
+        } else {
+            $stream = @fopen($location['path'], 'rb');
+            if ($stream === false || !is_resource($stream)) {
+                return null;
+            }
         }
 
         $context = hash_init('sha256');
@@ -303,14 +311,20 @@ class DocumentController extends Controller
             abort(404, 'Document not found. Use Search to find a PDF and click Download from the result.');
         }
 
-        $path = $document->file_path;
-        $disk = config('filesystems.default');
+        $path = (string) $document->file_path;
+        $location = $this->resolveDocumentLocation($path);
 
-        if (!Storage::disk($disk)->exists($path)) {
+        if ($location === null) {
             abort(404, 'File not found on disk: ' . $path);
         }
 
-        return Storage::disk($disk)->download($path, $document->file_name, [
+        if ($location['source'] === 'disk') {
+            return Storage::disk($location['disk'])->download($location['path'], $document->file_name, [
+                'Content-Type' => 'application/pdf',
+            ]);
+        }
+
+        return response()->download($location['path'], $document->file_name, [
             'Content-Type' => 'application/pdf',
         ]);
     }
@@ -324,18 +338,25 @@ class DocumentController extends Controller
             abort(404, 'Document not found.');
         }
 
-        $path = $document->file_path;
-        $disk = config('filesystems.default');
+        $path = (string) $document->file_path;
+        $location = $this->resolveDocumentLocation($path);
 
-        if (!Storage::disk($disk)->exists($path)) {
+        if ($location === null) {
             abort(404, 'File not found on disk: ' . $path);
         }
 
-        return Storage::disk($disk)->response(
-            $path,
-            $document->file_name,
-            ['Content-Type' => 'application/pdf'],
-            'inline'
+        if ($location['source'] === 'disk') {
+            return Storage::disk($location['disk'])->response(
+                $location['path'],
+                $document->file_name,
+                ['Content-Type' => 'application/pdf'],
+                'inline'
+            );
+        }
+
+        return response()->file(
+            $location['path'],
+            ['Content-Type' => 'application/pdf']
         );
     }
 
@@ -347,15 +368,57 @@ class DocumentController extends Controller
             return back()->with('success', 'File not found');
         }
 
-        $path = $document->file_path;
-        $disk = config('filesystems.default');
-
-        if ($path && Storage::disk($disk)->exists($path)) {
-            Storage::disk($disk)->delete($path);
+        $path = (string) $document->file_path;
+        $location = $this->resolveDocumentLocation($path);
+        if ($location !== null) {
+            if ($location['source'] === 'disk') {
+                Storage::disk($location['disk'])->delete($location['path']);
+            } else {
+                @unlink($location['path']);
+            }
         }
 
         $document->delete();
 
         return back()->with('success', 'File successfully deleted');
+    }
+
+    /**
+     * Resolve a document path across the configured disk and legacy local paths.
+     *
+     * @return array{source:'disk',disk:string,path:string}|array{source:'file',path:string}|null
+     */
+    protected function resolveDocumentLocation(string $path): ?array
+    {
+        $normalizedPath = ltrim(str_replace('\\', '/', $path), '/');
+        if ($normalizedPath === '') {
+            return null;
+        }
+
+        $candidateDisks = array_values(array_unique(array_filter([
+            config('filesystems.default'),
+            'local',
+            'public',
+        ])));
+
+        foreach ($candidateDisks as $disk) {
+            if (Storage::disk($disk)->exists($normalizedPath)) {
+                return ['source' => 'disk', 'disk' => $disk, 'path' => $normalizedPath];
+            }
+        }
+
+        $absoluteCandidates = array_unique([
+            storage_path('app/' . $normalizedPath),
+            storage_path('app/private/' . $normalizedPath),
+            storage_path('app/public/' . $normalizedPath),
+        ]);
+
+        foreach ($absoluteCandidates as $absolutePath) {
+            if (is_file($absolutePath)) {
+                return ['source' => 'file', 'path' => $absolutePath];
+            }
+        }
+
+        return null;
     }
 }
