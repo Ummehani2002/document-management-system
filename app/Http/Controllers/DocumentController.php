@@ -390,10 +390,32 @@ class DocumentController extends Controller
      */
     protected function resolveDocumentLocation(string $path): ?array
     {
-        $normalizedPath = ltrim(str_replace('\\', '/', $path), '/');
+        $rawPath = trim($path);
+        if ($rawPath === '') {
+            return null;
+        }
+
+        $rawPath = str_replace('\\', '/', $rawPath);
+
+        // Some legacy records already store full absolute paths.
+        if (is_file($rawPath)) {
+            return ['source' => 'file', 'path' => $rawPath];
+        }
+
+        $normalizedPath = ltrim($rawPath, '/');
         if ($normalizedPath === '') {
             return null;
         }
+
+        // Build candidate relative paths to tolerate legacy prefixes.
+        $relativeCandidates = [];
+        $relativeCandidates[] = $normalizedPath;
+        foreach (['storage/', 'app/', 'app/private/', 'app/public/', 'public/', 'private/'] as $prefix) {
+            if (str_starts_with($normalizedPath, $prefix)) {
+                $relativeCandidates[] = substr($normalizedPath, strlen($prefix));
+            }
+        }
+        $relativeCandidates = array_values(array_unique(array_filter($relativeCandidates)));
 
         $candidateDisks = array_values(array_unique(array_filter([
             config('filesystems.default'),
@@ -402,16 +424,22 @@ class DocumentController extends Controller
         ])));
 
         foreach ($candidateDisks as $disk) {
-            if (Storage::disk($disk)->exists($normalizedPath)) {
-                return ['source' => 'disk', 'disk' => $disk, 'path' => $normalizedPath];
+            foreach ($relativeCandidates as $candidatePath) {
+                if (Storage::disk($disk)->exists($candidatePath)) {
+                    return ['source' => 'disk', 'disk' => $disk, 'path' => $candidatePath];
+                }
             }
         }
 
-        $absoluteCandidates = array_unique([
-            storage_path('app/' . $normalizedPath),
-            storage_path('app/private/' . $normalizedPath),
-            storage_path('app/public/' . $normalizedPath),
-        ]);
+        $absoluteCandidates = [];
+        foreach ($relativeCandidates as $candidatePath) {
+            $absoluteCandidates[] = storage_path('app/' . $candidatePath);
+            $absoluteCandidates[] = storage_path('app/private/' . $candidatePath);
+            $absoluteCandidates[] = storage_path('app/public/' . $candidatePath);
+            $absoluteCandidates[] = public_path($candidatePath);
+            $absoluteCandidates[] = base_path($candidatePath);
+        }
+        $absoluteCandidates = array_values(array_unique($absoluteCandidates));
 
         foreach ($absoluteCandidates as $absolutePath) {
             if (is_file($absolutePath)) {
