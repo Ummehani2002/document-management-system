@@ -238,7 +238,12 @@
                                 @endphp
                                 <tr style="border-bottom: 1px solid #e2e8f0;">
                                     <td style="padding: 10px;">
-                                        <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank">{{ $doc->file_name }}</a>
+                                        @if(!empty($doc->file_available))
+                                            <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank">{{ $doc->file_name }}</a>
+                                        @else
+                                            <span>{{ $doc->file_name }}</span>
+                                            <div style="color:#b91c1c; font-size:0.8rem; margin-top:4px;">File unavailable in storage</div>
+                                        @endif
                                     </td>
                                     <td style="padding: 10px;">{{ $referenceNo }}</td>
                                     <td style="padding: 10px;">{{ $subject }}</td>
@@ -325,9 +330,13 @@
                     <strong>Project:</strong> {{ $doc->project->project_name }} ({{ $doc->project->project_number }})<br>
                 @endif
                 <br>
-                <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download PDF</a>
-                &nbsp;|&nbsp;
-                <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open in new tab</a>
+                @if(!empty($doc->file_available))
+                    <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download PDF</a>
+                    &nbsp;|&nbsp;
+                    <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open in new tab</a>
+                @else
+                    <span style="color:#b91c1c;">File unavailable in storage</span>
+                @endif
                 <br><br>
                 <form method="POST" action="{{ route('documents.destroy', ['id' => $doc->id]) }}" onsubmit="return confirm('Delete this PDF?');" style="display:inline;">
                     @csrf

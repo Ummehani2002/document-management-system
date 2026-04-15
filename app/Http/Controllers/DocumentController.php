@@ -316,6 +316,11 @@ class DocumentController extends Controller
             }
 
             $documents = $query->paginate(10)->withQueryString();
+            $documents->getCollection()->transform(function (Document $document) {
+                $document->file_available = $this->resolveDocumentLocation((string) $document->file_path) !== null;
+
+                return $document;
+            });
         }
 
         $totalDocuments = Document::count();
