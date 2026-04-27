@@ -39,7 +39,9 @@
                     <th style="text-align: left; padding: 10px;">Project #</th>
                     <th style="text-align: left; padding: 10px;">Project Name</th>
                     <th style="text-align: left; padding: 10px;">Client</th>
-                    <th style="text-align: left; padding: 10px;">Docs</th>
+                    <th style="text-align: left; padding: 10px;">Consultant</th>
+                    <th style="text-align: left; padding: 10px;">Project Manager</th>
+                    <th style="text-align: left; padding: 10px;">Document Controller</th>
                     <th style="text-align: right; padding: 10px;">Actions</th>
                 </tr>
             </thead>
@@ -50,7 +52,9 @@
                         <td style="padding: 10px;">{{ $project->project_number }}</td>
                         <td style="padding: 10px;">{{ $project->project_name }}</td>
                         <td style="padding: 10px;">{{ $project->client_name ?? '-' }}</td>
-                        <td style="padding: 10px;">{{ $project->documents_count }}</td>
+                        <td style="padding: 10px;">{{ $project->consultant ?? '-' }}</td>
+                        <td style="padding: 10px;">{{ $project->project_manager ?? '-' }}</td>
+                        <td style="padding: 10px;">{{ $project->document_controller ?? '-' }}</td>
                         <td style="padding: 10px; text-align: right;">
                             <a href="{{ route('documents.upload') }}">Upload</a>
                             &nbsp;·&nbsp;

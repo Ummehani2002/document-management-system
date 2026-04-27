@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Document;
 use App\Services\DocumentReclassificationService;
+use App\Services\OfficeDocumentTextExtractionService;
 use App\Services\PdfFirstPageOcrService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -26,10 +27,7 @@ class ProcessOCR implements ShouldQueue
         $this->documentId = $documentId;
     }
 
-    /**
-     * Execute the job.
-     * Extracts text from the first page: pdftotext first, then Tesseract OCR if image-only.
-     */
+    /** Extract searchable text and auto-classify folder. */
     public function handle(): void
     {
         $document = Document::find($this->documentId);
@@ -46,10 +44,19 @@ class ProcessOCR implements ShouldQueue
 
         $tempPath = null;
         try {
-            $tempPath = tempnam(sys_get_temp_dir(), 'dms_ocr_') . '.pdf';
+            $ext = strtolower(pathinfo((string) $document->file_name, PATHINFO_EXTENSION));
+            if ($ext === '') {
+                $ext = 'tmp';
+            }
+            $tempPath = tempnam(sys_get_temp_dir(), 'dms_ocr_') . '.' . $ext;
             file_put_contents($tempPath, Storage::disk($disk)->get($document->file_path));
 
-            $text = app(PdfFirstPageOcrService::class)->extractFirstPageText($tempPath);
+            $text = '';
+            if ($ext === 'pdf') {
+                $text = app(PdfFirstPageOcrService::class)->extractTextForClassification($tempPath);
+            } elseif (in_array($ext, ['docx', 'xlsx', 'doc', 'xls'], true)) {
+                $text = app(OfficeDocumentTextExtractionService::class)->extractText($tempPath, $ext);
+            }
 
             $document->update(['ocr_text' => $text]);
 

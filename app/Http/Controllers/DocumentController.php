@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Discipline;
 use App\Models\Document;
 use App\Models\Entity;
 use App\Models\Project;
 use App\Jobs\ProcessOCR;
+use App\Jobs\SendSharedDocumentEmail;
 use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileVersioning;
 use Illuminate\Http\Request;
@@ -13,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class DocumentController extends Controller
 {
@@ -32,11 +35,18 @@ class DocumentController extends Controller
         ];
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $entities = Entity::orderBy('name')->get(['id', 'name']);
         $projects = Project::with('entity:id,name')->orderBy('project_number')->get();
-        return view('documents.upload', compact('entities', 'projects'));
+        $folderTree = DocumentFilenameParser::sidebarFolderTree();
+        $disciplines = Discipline::orderBy('name')->get(['id', 'name']);
+        $mode = (string) $request->query('mode', old('upload_mode', ''));
+        if (!in_array($mode, ['auto', 'manual'], true)) {
+            $mode = '';
+        }
+
+        return view('documents.upload', compact('entities', 'projects', 'folderTree', 'mode', 'disciplines'));
     }
 
     /**
@@ -55,12 +65,44 @@ class DocumentController extends Controller
 
     public function store(Request $request)
     {
+        $maxFileMb = max(1, (int) env('DOC_UPLOAD_MAX_FILE_MB', 1024)); // default 1 GB per file
+        $maxTotalMb = max($maxFileMb, (int) env('DOC_UPLOAD_MAX_TOTAL_MB', 2048)); // default 2 GB total request
+        $maxFileKb = $maxFileMb * 1024;
+
+        $folderTree = DocumentFilenameParser::sidebarFolderTree();
+        $validMainFolders = array_keys($folderTree);
+        $validSubfolders = array_values(array_unique(array_merge(
+            ['Other'],
+            ...array_values($folderTree)
+        )));
+
         $request->validate([
+            'upload_mode'       => ['nullable', 'string', Rule::in(['auto', 'manual'])],
             'entity_id'         => 'required|exists:entities,id',
             'project_id'        => 'required|exists:projects,id',
+            'discipline_id'     => 'nullable|exists:disciplines,id',
+            'main_folder'       => ['nullable', 'string', Rule::in($validMainFolders)],
+            'document_type'     => ['nullable', 'string', Rule::in($validSubfolders)],
             'documents'         => 'required|array|min:1',
-            'documents.*'       => 'file|mimes:pdf|max:51200',
+            'documents.*'       => 'file|mimes:pdf,doc,docx,xls,xlsx|max:' . $maxFileKb,
         ]);
+
+        $uploadMode = (string) $request->input('upload_mode', 'auto');
+        $manualMainFolder = trim((string) $request->input('main_folder', ''));
+        $manualSubfolder = trim((string) $request->input('document_type', ''));
+        if ($uploadMode === 'manual') {
+            if ($manualMainFolder === '' || $manualSubfolder === '') {
+                return back()->withErrors([
+                    'main_folder' => 'Select category and folder for manual upload.',
+                ])->withInput();
+            }
+            $allowedSubfolders = $folderTree[$manualMainFolder] ?? [];
+            if (!in_array($manualSubfolder, $allowedSubfolders, true)) {
+                return back()->withErrors([
+                    'document_type' => 'Selected folder does not belong to selected category.',
+                ])->withInput();
+            }
+        }
 
         // Multi-file upload + per-file OCR can exceed default max_execution_time; allow the request to finish.
         if (function_exists('set_time_limit')) {
@@ -70,9 +112,30 @@ class DocumentController extends Controller
         $entity = Entity::findOrFail($request->entity_id);
         $project = Project::where('id', $request->project_id)->where('entity_id', $entity->id)->firstOrFail();
 
+        $disciplineName = null;
+        if ($request->filled('discipline_id')) {
+            $disciplineName = Discipline::whereKey((int) $request->discipline_id)->value('name');
+        }
+
         $files = $request->file('documents', []);
         if (! is_array($files)) {
             $files = array_filter([$files]);
+        }
+
+        $totalBytes = 0;
+        foreach ($files as $uploadedFile) {
+            if ($uploadedFile && method_exists($uploadedFile, 'getSize')) {
+                $size = (int) $uploadedFile->getSize();
+                if ($size > 0) {
+                    $totalBytes += $size;
+                }
+            }
+        }
+        $maxTotalBytes = $maxTotalMb * 1024 * 1024;
+        if ($totalBytes > $maxTotalBytes) {
+            return back()->withErrors([
+                'documents' => 'Total selected files size is too large. Maximum allowed is ' . $maxTotalMb . ' MB per upload.',
+            ])->withInput();
         }
 
         $uploaded = 0;
@@ -83,20 +146,17 @@ class DocumentController extends Controller
         $disk = config('filesystems.default');
         foreach ($files as $file) {
             $originalName = $file->getClientOriginalName();
-            $suggestedPlacement = DocumentFilenameParser::suggestPlacementMerged($originalName, null);
             $targetEntity = $entity;
             $targetProject = $project;
+            $category = 'Other';
 
-            // If filename contains a known project number, auto-route this file to that project/entity.
-            if (!empty($suggestedPlacement['project_id'])) {
-                $matchedProject = Project::with('entity')->find((int) $suggestedPlacement['project_id']);
-                if ($matchedProject && $matchedProject->entity) {
-                    $targetProject = $matchedProject;
-                    $targetEntity = $matchedProject->entity;
-                }
+            if ($uploadMode === 'manual') {
+                $category = $manualSubfolder;
+            } else {
+                // In auto mode, classify after OCR (ProcessOCR + DocumentReclassificationService).
+                // Initial upload goes to Other; OCR will move it to the right folder.
+                $category = 'Other';
             }
-
-            $category = $suggestedPlacement['document_category'] ?? 'Other';
 
             $folderPath = 'documents/'
                 . Str::slug($targetEntity->name) . '/'
@@ -160,7 +220,7 @@ class DocumentController extends Controller
             $document = Document::create([
                 'entity_id'     => $targetEntity->id,
                 'project_id'    => $targetProject->id,
-                'discipline'    => null,
+                'discipline'    => $disciplineName,
                 'document_type' => $category,
                 'file_name'     => $storedFileName,
                 'file_path'     => $path,
@@ -259,8 +319,10 @@ class DocumentController extends Controller
         }
         $projects = $projectsQuery->get(['id', 'entity_id', 'project_number', 'project_name']);
         $entities = Entity::orderBy('name')->get(['id', 'name']);
-        $disciplines = Document::whereNotNull('discipline')->where('discipline', '!=', '')
+        $fromMaster = Discipline::orderBy('name')->pluck('name');
+        $fromDocuments = Document::whereNotNull('discipline')->where('discipline', '!=', '')
             ->distinct()->orderBy('discipline')->pluck('discipline');
+        $disciplines = $fromMaster->merge($fromDocuments)->unique()->sort()->values();
         $documentTypes = Document::whereNotNull('document_type')->where('document_type', '!=', '')
             ->distinct()->orderBy('document_type')->pluck('document_type');
 
@@ -345,7 +407,7 @@ class DocumentController extends Controller
                 'url' => request()->fullUrl(),
                 'host' => request()->getHost(),
             ]);
-            abort(404, 'Document not found. Use Search to find a PDF and click Download from the result.');
+            abort(404, 'Document not found. Use Search to find a file and click Download from the result.');
         }
 
         $path = (string) $document->file_path;
@@ -361,18 +423,19 @@ class DocumentController extends Controller
             abort(404, 'File not found on disk: ' . $path);
         }
 
+        $mimeType = $this->detectMimeType($location, $document->file_name);
         if ($location['source'] === 'disk') {
             return Storage::disk($location['disk'])->download($location['path'], $document->file_name, [
-                'Content-Type' => 'application/pdf',
+                'Content-Type' => $mimeType,
             ]);
         }
 
         return response()->download($location['path'], $document->file_name, [
-            'Content-Type' => 'application/pdf',
+            'Content-Type' => $mimeType,
         ]);
     }
 
-    /** Serve PDF with inline disposition so the browser can display it in a tab. */
+    /** Serve file with inline disposition where browser supports preview. */
     public function viewPdf(int $id)
     {
         $document = Document::find($id);
@@ -399,18 +462,19 @@ class DocumentController extends Controller
             abort(404, 'File not found on disk: ' . $path);
         }
 
+        $mimeType = $this->detectMimeType($location, $document->file_name);
         if ($location['source'] === 'disk') {
             return Storage::disk($location['disk'])->response(
                 $location['path'],
                 $document->file_name,
-                ['Content-Type' => 'application/pdf'],
+                ['Content-Type' => $mimeType],
                 'inline'
             );
         }
 
         return response()->file(
             $location['path'],
-            ['Content-Type' => 'application/pdf']
+            ['Content-Type' => $mimeType]
         );
     }
 
@@ -435,6 +499,100 @@ class DocumentController extends Controller
         $document->delete();
 
         return back()->with('success', 'File successfully deleted');
+    }
+
+    public function share(Request $request, int $id)
+    {
+        $email = trim((string) $request->input('email', ''));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return back()->withErrors([
+                'share_email_' . $id => 'Enter a valid email address.',
+            ])->withInput();
+        }
+
+        $document = Document::find($id);
+        if (!$document) {
+            return back()->withErrors([
+                'share_email_' . $id => 'Document not found.',
+            ])->withInput();
+        }
+
+        $path = (string) $document->file_path;
+        $location = $this->resolveDocumentLocation($path);
+        if ($location === null) {
+            return back()->withErrors([
+                'share_email_' . $id => 'File not found in storage.',
+            ])->withInput();
+        }
+
+        try {
+            if ($location['source'] === 'disk') {
+                $fileBytes = Storage::disk($location['disk'])->get($location['path']);
+            } else {
+                $fileBytes = @file_get_contents($location['path']);
+                if ($fileBytes === false) {
+                    throw new \RuntimeException('Unable to read file content.');
+                }
+            }
+
+            $recipient = $email;
+            $subject = 'Shared file: ' . $document->file_name;
+            $mimeType = $this->detectMimeType($location, $document->file_name);
+            $fromAddress = (string) config('mail.from.address');
+            $fromName = (string) config('mail.from.name');
+
+            SendSharedDocumentEmail::dispatch(
+                documentId: $id,
+                recipient: $recipient,
+                subject: $subject,
+                fileName: $document->file_name,
+                fileBytes: $fileBytes,
+                mimeType: $mimeType,
+                projectNumber: (string) ($document->project?->project_number ?? '-'),
+                fromAddress: $fromAddress,
+                fromName: $fromName
+            )->onQueue('emails');
+        } catch (\Throwable $e) {
+            Log::warning('Document share failed', [
+                'document_id' => $id,
+                'email' => $request->input('email'),
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors([
+                'share_email_' . $id => 'Could not send email. Check mail settings and try again.',
+            ])->withInput();
+        }
+
+        return back()->with('success', 'PDF is being sent to ' . $request->input('email') . '.');
+    }
+
+    protected function detectMimeType(array $location, string $fileName): string
+    {
+        try {
+            if (($location['source'] ?? '') === 'disk') {
+                $mime = Storage::disk($location['disk'])->mimeType($location['path']);
+                if (is_string($mime) && trim($mime) !== '') {
+                    return $mime;
+                }
+            } elseif (($location['source'] ?? '') === 'file') {
+                $mime = @mime_content_type($location['path']);
+                if (is_string($mime) && trim($mime) !== '') {
+                    return $mime;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::debug('Mime type detect failed', ['error' => $e->getMessage(), 'file_name' => $fileName]);
+        }
+
+        return match (strtolower(pathinfo($fileName, PATHINFO_EXTENSION))) {
+            'pdf' => 'application/pdf',
+            'doc' => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls' => 'application/vnd.ms-excel',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            default => 'application/octet-stream',
+        };
     }
 
     /**

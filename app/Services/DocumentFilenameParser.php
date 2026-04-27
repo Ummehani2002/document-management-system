@@ -97,7 +97,8 @@ class DocumentFilenameParser
             return 'Other';
         }
 
-        $window = substr($text, 0, 14000);
+        $window = self::normalizeOcrText($text);
+        $window = substr($window, 0, 14000);
         $synthetic = self::extractReferenceSyntheticTitle($window);
         $synthetic = trim($synthetic);
 
@@ -108,9 +109,114 @@ class DocumentFilenameParser
             }
         }
 
-        $base = substr($text, 0, 6000);
+        $base = substr($window, 0, 6000);
 
         return self::guessSubfolderFromTitle($base, strtoupper($base));
+    }
+
+    /**
+     * Normalize OCR output for safer keyword/code matching across noisy layouts.
+     */
+    protected static function normalizeOcrText(string $text): string
+    {
+        $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+        $normalized = preg_replace('/[ \t]+/', ' ', $normalized) ?? $normalized;
+
+        // Join OCR outputs like "M A T E R I A L S" into "MATERIALS".
+        $normalized = preg_replace_callback('/\b(?:[A-Za-z]\s+){2,}[A-Za-z]\b/', function (array $m): string {
+            return str_replace(' ', '', $m[0]);
+        }, $normalized) ?? $normalized;
+
+        $normalized = preg_replace('/\n{3,}/', "\n\n", $normalized) ?? $normalized;
+
+        return trim($normalized);
+    }
+
+    /**
+     * Extract reference number and subject/title using OCR text first, then filename fallback.
+     *
+     * @return array{reference_no:string, subject:string}
+     */
+    public static function extractReferenceAndSubject(?string $ocrText, string $fileName): array
+    {
+        $referenceNo = '';
+        $subject = '';
+
+        $ocr = trim((string) $ocrText);
+        if ($ocr !== '') {
+            $normalized = self::normalizeOcrText($ocr);
+
+            $referencePatterns = [
+                '/(?:^|\n)\s*REF(?:ERENCE)?\s*\.?\s*(?:NO\.?|NUMBER)?\s*[:\-]\s*([^\n]{3,180})/i',
+                '/(?:^|\n)\s*SUBMITTAL\s*(?:NO\.?|NUMBER)\s*[:\-]\s*([^\n]{3,180})/i',
+                '/(?:^|\n)\s*SUBMITTAL\s*(?:NR|NO|NUMBER)\.?\s*[:\-]\s*([^\n]{3,180})/i',
+                '/(?:^|\n)\s*MIR\s*NO\.?\s*[:\-]\s*([^\n]{3,180})/i',
+                '/(?:^|\n)\s*DOC(?:UMENT)?\s*TRANS(?:\.|MITTAL)?\s*NO\.?\s*[:\-]\s*([^\n]{3,180})/i',
+                '/(?:^|\n)\s*DRAWING\s*REF(?:ERENCE)?\.?\s*[:\-]\s*([^\n]{3,180})/i',
+                '/(?:^|\n)\s*DRAWING\s*REF\.?\s*[:\-]\s*([^\n]{3,180})/i',
+            ];
+            foreach ($referencePatterns as $re) {
+                if (preg_match($re, $normalized, $m)) {
+                    $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
+                    $candidate = preg_replace('/\s*(?:REV(?:ISION)?|DATE)\s*[:\-].*$/i', '', $candidate) ?? $candidate;
+                    if ($candidate !== '') {
+                        $referenceNo = trim($candidate);
+                        break;
+                    }
+                }
+            }
+
+            $subjectPatterns = [
+                // Multiline-friendly: capture current line and up to 2 continuation lines
+                // until another label-like line appears.
+                // Priority: Material Description should win over generic Submittal Title.
+                '/(?:^|\n)\s*MATERIAL\s*DESCRIPTION\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+                '/(?:^|\n)\s*MATERIALS?\s+FOR\s+INSPECTION\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+                '/(?:^|\n)\s*SUBMITTAL\s*TITLE\s*[:\-]\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+                '/(?:^|\n)\s*SUBJECT\s*[:\-]\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+                '/(?:^|\n)\s*DESCRIPTION\s*[:\-]\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+            ];
+            foreach ($subjectPatterns as $re) {
+                if (preg_match($re, $normalized, $m)) {
+                    $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
+                    $candidate = preg_replace('/\s*(?:REV(?:ISION)?|DATE)\s*[:\-].*$/i', '', $candidate) ?? $candidate;
+                    if ($candidate !== '') {
+                        $subject = trim($candidate);
+                        break;
+                    }
+                }
+            }
+        }
+
+        $nameWithoutExt = pathinfo($fileName, PATHINFO_FILENAME);
+        if ($referenceNo === '' || $subject === '') {
+            if (preg_match('/^\s*([A-Z0-9]+(?:-[A-Z0-9]+){1,})\s*-\s*(.+)\s*$/iu', $nameWithoutExt, $m)
+                || preg_match('/^\s*([A-Z0-9]+(?:-[A-Z0-9]+){1,})[ _]+(.+)\s*$/iu', $nameWithoutExt, $m)) {
+                if ($referenceNo === '') {
+                    $referenceNo = trim((string) ($m[1] ?? ''));
+                }
+                if ($subject === '') {
+                    $subject = trim((string) ($m[2] ?? ''));
+                }
+            }
+        }
+
+        $referenceNo = $referenceNo !== '' ? $referenceNo : $nameWithoutExt;
+        $subject = $subject !== '' ? $subject : '—';
+
+        $isRevisionTail = (bool) preg_match('/^(?:REV(?:ISION)?\s*)?[A-Z]?\d{1,3}(?:[._-][A-Z0-9]+)*(?:\s*\(\d+\))?$/i', $subject);
+        if ($isRevisionTail) {
+            $subject = '—';
+        }
+        // Ignore generic headers used as form titles, not real subject lines.
+        if (preg_match('/^MATERIAL\s+SUBMITTAL$/i', trim($subject))) {
+            $subject = '—';
+        }
+
+        return [
+            'reference_no' => $referenceNo,
+            'subject' => $subject,
+        ];
     }
 
     /**
@@ -191,6 +297,59 @@ class DocumentFilenameParser
     }
 
     /**
+     * Automation-oriented classifier with confidence score.
+     * Uses OCR content first (best for mixed PDF formats), then filename as fallback.
+     *
+     * @return array{
+     *   document_category:string,
+     *   category_source:string,
+     *   confidence:float,
+     *   reference_no:string,
+     *   subject:string
+     * }
+     */
+    public static function classifyForAutomation(string $filename, ?string $ocrText): array
+    {
+        $fileCategory = self::parse($filename)['document_category'] ?? 'Other';
+        $ocr = trim((string) $ocrText);
+        $contentCategory = $ocr !== '' ? self::guessSubfolderFromDocumentText($ocr) : 'Other';
+
+        $category = 'Other';
+        $source = 'none';
+        $confidence = 0.10;
+
+        if ($contentCategory !== 'Other') {
+            $category = $contentCategory;
+            $source = 'ocr';
+            $confidence = 0.86;
+        } elseif ($fileCategory !== 'Other') {
+            $category = $fileCategory;
+            $source = 'filename';
+            $confidence = $ocr !== '' ? 0.45 : 0.60;
+        }
+
+        // Agreement between OCR and filename boosts certainty.
+        if ($contentCategory !== 'Other' && $fileCategory !== 'Other' && $contentCategory === $fileCategory) {
+            $confidence = 0.95;
+        }
+
+        // OCR/file disagreement: keep OCR decision but reduce confidence.
+        if ($contentCategory !== 'Other' && $fileCategory !== 'Other' && $contentCategory !== $fileCategory) {
+            $confidence = 0.74;
+        }
+
+        $meta = self::extractReferenceAndSubject($ocrText, $filename);
+
+        return [
+            'document_category' => $category,
+            'category_source' => $source,
+            'confidence' => round($confidence, 2),
+            'reference_no' => $meta['reference_no'] ?? '—',
+            'subject' => $meta['subject'] ?? '—',
+        ];
+    }
+
+    /**
      * Extract project number: first segment before hyphen (e.g. PSE20231011 from PSE20231011-PRS-PAR-DTF-00056).
      */
     protected static function extractProjectNumber(string $filename): ?string
@@ -220,6 +379,27 @@ class DocumentFilenameParser
         $codeMatches = [];
         preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|MTS|MST|MSS|MOS|MS|MT|SD|DWG|ASB|ABS|AB|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
         $codes = array_unique(array_map('strtoupper', $codeMatches[1] ?? []));
+        $hasPrequalificationKeyword = (bool) preg_match('/PRE[\s\-]*QUALIF(?:ICATION|ICATIONS)?|\bPREQUAL\b|\bPREQ\b/i', $upper);
+        $hasMethodKeyword = (bool) preg_match('/METHOD\s*STATEMENT|METHOD\s+OF\s+STATEMENT|METHOD\s*ST(?:\.|ATEMENT)?|STATEMENT\s+SUBMITTAL|\bMTS\b|\bMST\b|\bMSS\b|\bMOS\b/i', $upper);
+        $hasMaterialSubmittalKeyword = (bool) preg_match('/MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL|SUBMITTAL\s+TITLE\s*[:\-]\s*MATERIAL/i', $upper);
+        $hasStrongMethodCode = in_array('MST', $codes, true)
+            || in_array('MTS', $codes, true)
+            || in_array('MSS', $codes, true)
+            || in_array('MOS', $codes, true)
+            || in_array('MT', $codes, true);
+
+        // In mixed check-list OCR forms, "Work Method Statement" may appear as an unselected option.
+        // If prequalification is present and there is no strong method code, prefer Prequalification.
+        if ($hasPrequalificationKeyword && (!$hasMethodKeyword || !$hasStrongMethodCode)) {
+            return 'Prequalification';
+        }
+
+        // Prefer Material Submittal when explicit material indicators exist.
+        // This prevents OCR legend text like "SD = Shop Drawings" from overriding
+        // actual "Submittal Title: Material Submittal ...".
+        if ($hasMaterialSubmittalKeyword || in_array('MAT', $codes, true) || in_array('MB', $codes, true)) {
+            return 'Material Submittal';
+        }
 
         if (in_array('DTF', $codes, true)) {
             return 'Document Transmittal';
@@ -515,7 +695,7 @@ class DocumentFilenameParser
      *
      * @return array<string, list<string>>
      */
-    protected static function sidebarFolderTree(): array
+    public static function sidebarFolderTree(): array
     {
         return [
             'Financial Documents' => [

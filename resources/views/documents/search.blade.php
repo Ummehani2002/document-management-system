@@ -38,7 +38,7 @@
                     </option>
                 @endforeach
             </select>
-            <button type="submit" style="margin-top: 12px;">View PDFs</button>
+            <button type="submit" style="margin-top: 12px;">View Files</button>
         </div>
     </form>
 
@@ -138,6 +138,16 @@
 
 @if(isset($documents) && $documents !== null)
     @php
+        $documentsCount = method_exists($documents, 'total')
+            ? $documents->total()
+            : $documents->count();
+    @endphp
+
+    <p style="margin: 0 0 12px; color: #64748b;">
+        File count: <span style="color:#212d3e;">{{ $documentsCount }}</span>
+    </p>
+
+    @php
         $parts = array_filter([
             $keyword !== '' ? '"' . e($keyword) . '"' : null,
             request('entity_id') ? 'entity' : null,
@@ -225,16 +235,15 @@
                                 <th style="text-align: left; padding: 10px;">Project Client</th>
                                 <th style="text-align: left; padding: 10px;">Project Consultant</th>
                                 <th style="text-align: left; padding: 10px;">Modified</th>
-                                <th style="text-align: left; padding: 10px;">Action</th>
+                                <th style="text-align: left; padding: 10px;">Share</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($documents as $doc)
                                 @php
-                                    $nameWithoutExt = pathinfo($doc->file_name, PATHINFO_FILENAME);
-                                    $partsName = preg_split('/\s-\s/u', $nameWithoutExt, 2);
-                                    $referenceNo = $partsName[0] ?? $nameWithoutExt;
-                                    $subject = trim($partsName[1] ?? $nameWithoutExt);
+                                    $meta = \App\Services\DocumentFilenameParser::extractReferenceAndSubject($doc->ocr_text, $doc->file_name);
+                                    $referenceNo = $meta['reference_no'] ?? '—';
+                                    $subject = $meta['subject'] ?? '—';
                                 @endphp
                                 <tr style="border-bottom: 1px solid #e2e8f0;">
                                     <td style="padding: 10px;">
@@ -253,17 +262,51 @@
                                     <td style="padding: 10px;">{{ $doc->project?->client_name ?? '—' }}</td>
                                     <td style="padding: 10px;">{{ $doc->project?->consultant ?? '—' }}</td>
                                     <td style="padding: 10px;">{{ optional($doc->updated_at)->format('M d, Y') ?: '—' }}</td>
-                                    <td style="padding: 10px;">
-                                        <form method="POST" action="{{ route('documents.destroy', ['id' => $doc->id]) }}" onsubmit="return confirm('Delete this PDF?');" style="display:inline;">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" style="background:#b91c1c;">Delete</button>
-                                        </form>
+                                    <td style="padding: 10px; min-width: 190px;">
+                                        @if(!empty($doc->file_available))
+                                            <button type="button" style="padding:6px 10px; margin-right:6px;" onclick="toggleInlinePreview('{{ $doc->id }}', '{{ route('documents.view', ['id' => $doc->id]) }}')">View here</button>
+                                            <button type="button" style="padding:6px 10px;" onclick="toggleShareForm('{{ $doc->id }}')">Share</button>
+                                            <div id="share-box-{{ $doc->id }}" style="display:{{ $errors->has('share_email_' . $doc->id) ? 'block' : 'none' }}; margin-top:8px;">
+                                                <form method="POST" action="{{ route('documents.share', ['id' => $doc->id]) }}">
+                                                    @csrf
+                                                    <input
+                                                        type="email"
+                                                        name="email"
+                                                        placeholder="Enter email"
+                                                        value="{{ old('email') }}"
+                                                        required
+                                                        style="width: 100%; padding: 6px 8px; margin: 0 0 6px;"
+                                                    >
+                                                    <button type="submit" style="padding:6px 10px;">Send</button>
+                                                </form>
+                                                @error('share_email_' . $doc->id)
+                                                    <p style="margin:6px 0 0; color:#b91c1c; font-size:0.82rem;">{{ $message }}</p>
+                                                @enderror
+                                            </div>
+                                        @else
+                                            <span style="color:#94a3b8;">Unavailable</span>
+                                        @endif
                                     </td>
                                 </tr>
+                                @if(!empty($doc->file_available))
+                                    <tr id="preview-row-{{ $doc->id }}" style="display:none; border-bottom: 1px solid #e2e8f0;">
+                                        <td colspan="10" style="padding: 10px;">
+                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                                <strong>Inline Preview</strong>
+                                                <button type="button" style="padding:4px 10px;" onclick="closeInlinePreview('{{ $doc->id }}')">Close preview</button>
+                                            </div>
+                                            <iframe
+                                                id="preview-frame-{{ $doc->id }}"
+                                                src=""
+                                                title="Preview {{ $doc->file_name }}"
+                                                style="width:100%; height:75vh; border:1px solid #cbd5e1; border-radius:6px;"
+                                            ></iframe>
+                                        </td>
+                                    </tr>
+                                @endif
                             @empty
                                 <tr>
-                                    <td colspan="10" style="padding: 14px;">No documents found in this folder for selected project.</td>
+                                    <td colspan="10" style="padding: 14px;">No files found in this folder for selected project.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -317,7 +360,7 @@
             @endphp
             <div class="card">
                 <strong>{{ $doc->file_name }}</strong>
-                <span style="color: #64748b; font-weight: normal;"> — PDF</span>
+                <span style="color: #64748b; font-weight: normal;"> — File</span>
                 <br><br>
 
                 <strong>Folder:</strong>
@@ -331,18 +374,45 @@
                 @endif
                 <br>
                 @if(!empty($doc->file_available))
-                    <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download PDF</a>
+                    <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download file</a>
                     &nbsp;|&nbsp;
                     <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open in new tab</a>
+                    &nbsp;|&nbsp;
+                    <button type="button" style="padding:4px 10px;" onclick="toggleInlinePreview('{{ $doc->id }}', '{{ route('documents.view', ['id' => $doc->id]) }}')">View here</button>
+                    &nbsp;|&nbsp;
+                    <button type="button" style="padding:4px 10px;" onclick="toggleShareForm('{{ $doc->id }}')">Share</button>
+                    <div id="share-box-{{ $doc->id }}" style="display:{{ $errors->has('share_email_' . $doc->id) ? 'block' : 'none' }}; margin-top:8px;">
+                        <form method="POST" action="{{ route('documents.share', ['id' => $doc->id]) }}">
+                            @csrf
+                            <input
+                                type="email"
+                                name="email"
+                                placeholder="Enter email"
+                                value="{{ old('email') }}"
+                                required
+                                style="width: 100%; max-width: 320px; padding: 6px 8px; margin: 0 0 6px;"
+                            >
+                            <button type="submit" style="padding:6px 10px;">Send</button>
+                        </form>
+                        @error('share_email_' . $doc->id)
+                            <p style="margin:6px 0 0; color:#b91c1c; font-size:0.82rem;">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div id="preview-row-{{ $doc->id }}" style="display:none; margin-top:12px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <strong>Inline Preview</strong>
+                            <button type="button" style="padding:4px 10px;" onclick="closeInlinePreview('{{ $doc->id }}')">Close preview</button>
+                        </div>
+                        <iframe
+                            id="preview-frame-{{ $doc->id }}"
+                            src=""
+                            title="Preview {{ $doc->file_name }}"
+                            style="width:100%; height:75vh; border:1px solid #cbd5e1; border-radius:6px;"
+                        ></iframe>
+                    </div>
                 @else
                     <span style="color:#b91c1c;">File unavailable in storage</span>
                 @endif
-                <br><br>
-                <form method="POST" action="{{ route('documents.destroy', ['id' => $doc->id]) }}" onsubmit="return confirm('Delete this PDF?');" style="display:inline;">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" style="background:#b91c1c;">Delete PDF</button>
-                </form>
             </div>
         @empty
             <p>No documents found.</p>
@@ -350,5 +420,47 @@
         {{ $documents->links() }}
     @endif
 @endif
+
+<script>
+    function toggleInlinePreview(documentId, pdfUrl) {
+        var previewRow = document.getElementById('preview-row-' + documentId);
+        var frame = document.getElementById('preview-frame-' + documentId);
+        if (!previewRow || !frame) return;
+
+        var opening = previewRow.style.display === 'none' || previewRow.style.display === '';
+
+        document.querySelectorAll('[id^="preview-row-"]').forEach(function (row) {
+            row.style.display = 'none';
+        });
+        document.querySelectorAll('[id^="preview-frame-"]').forEach(function (f) {
+            f.src = '';
+        });
+
+        if (opening) {
+            frame.src = pdfUrl;
+            previewRow.style.display = 'table-row';
+            if (previewRow.tagName.toLowerCase() !== 'tr') {
+                previewRow.style.display = 'block';
+            }
+        }
+    }
+
+    function closeInlinePreview(documentId) {
+        var previewRow = document.getElementById('preview-row-' + documentId);
+        var frame = document.getElementById('preview-frame-' + documentId);
+        if (previewRow) {
+            previewRow.style.display = 'none';
+        }
+        if (frame) {
+            frame.src = '';
+        }
+    }
+
+    function toggleShareForm(documentId) {
+        var el = document.getElementById('share-box-' + documentId);
+        if (!el) return;
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+</script>
 
 @endsection

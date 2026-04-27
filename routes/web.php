@@ -7,6 +7,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EntityController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDashboardController;
+use App\Http\Controllers\DisciplineController;
 
 Route::get('/', function () {
     return auth()->check() ? redirect()->route('dashboard') : redirect()->route('login');
@@ -24,6 +25,7 @@ Route::middleware('auth')->group(function () {
     // Project Management (Entity + Project)
     Route::resource('entities', EntityController::class);
     Route::resource('projects', ProjectController::class);
+    Route::resource('disciplines', DisciplineController::class)->except(['show']);
 
     // Document routes:
     // - Keep /documents/... as canonical (named) routes used by Blade links.
@@ -36,6 +38,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/upload', [DocumentController::class, 'store'])->name('documents.store');
     Route::get('/upload/suggest', [DocumentController::class, 'suggestFromFilename'])->name('documents.suggest');
     Route::get('/search', [DocumentController::class, 'search'])->name('documents.search');
+    Route::post('/documents/{id}/share', [DocumentController::class, 'share'])->name('documents.share')->where('id', '[0-9]+');
     Route::delete('/documents/{id}', [DocumentController::class, 'destroy'])->name('documents.destroy')->where('id', '[0-9]+');
 });
 

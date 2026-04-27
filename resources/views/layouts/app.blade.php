@@ -28,6 +28,23 @@
             background: var(--bg-page);
             margin: 0;
             color: var(--text);
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 1.4;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 500;
+            line-height: 1.3;
+        }
+
+        h1 { font-size: 1.4rem; }
+        h2 { font-size: 1.2rem; }
+        h3 { font-size: 1.05rem; }
+        h4 { font-size: 1rem; }
+
+        strong, b, th, label, button {
+            font-weight: 400;
         }
 
         .main-content a {
@@ -151,8 +168,8 @@
         }
 
         .sidebar {
-            width: 380px;
-            min-width: 380px;
+            width: 280px;
+            min-width: 280px;
             background: var(--navy);
             border-right: 1px solid rgba(0, 0, 0, 0.15);
             padding: 16px;
@@ -192,7 +209,7 @@
             color: var(--sidebar-text);
             border-radius: 10px;
             padding: 14px 16px;
-            font-weight: 600;
+            font-weight: 400;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -333,8 +350,8 @@
 
         @media (max-width: 1200px) {
             .sidebar {
-                width: 290px;
-                min-width: 290px;
+                width: 240px;
+                min-width: 240px;
             }
         }
     </style>
@@ -348,6 +365,7 @@
         <a href="{{ route('project-dashboard') }}">Project Dashboard</a>
         <a href="{{ route('entities.index') }}">Entities</a>
         <a href="{{ route('projects.index') }}">Project Master</a>
+        <a href="{{ route('disciplines.index') }}">Disciplines</a>
         <a href="{{ route('documents.upload') }}">Upload</a>
         <a href="{{ route('documents.search') }}">Search</a>
         <form method="POST" action="{{ route('logout') }}" class="logout-form">

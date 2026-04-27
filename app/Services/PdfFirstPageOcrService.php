@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use Smalot\PdfParser\Parser;
 use Spatie\PdfToText\Pdf;
 
 /**
@@ -12,6 +11,27 @@ use Spatie\PdfToText\Pdf;
  */
 class PdfFirstPageOcrService
 {
+    /**
+     * Text extraction used for classification:
+     * first page attempts, then a broader whole-document parser fallback.
+     */
+    public function extractTextForClassification(string $pdfPath): string
+    {
+        $text = $this->extractFirstPageText($pdfPath);
+        if (trim($text) !== '') {
+            return $text;
+        }
+
+        // Safer fallback for scanned/strange PDFs: parse first few pages as text
+        // without full-document parsing to avoid memory spikes.
+        $text = $this->extractWithPdftotextPageRange($pdfPath, 1, 3);
+        if (trim($text) !== '') {
+            return $text;
+        }
+
+        return '';
+    }
+
     /**
      * Extract text from the first page of the PDF at $pdfPath (local file path).
      * Returns the extracted text, or empty string if none could be extracted.
@@ -24,32 +44,19 @@ class PdfFirstPageOcrService
             return $text;
         }
 
-        $text = $this->extractWithPhpParser($pdfPath);
-
-        if (trim($text) !== '') {
-            return $text;
-        }
-
         return $this->extractWithTesseractFallback($pdfPath);
     }
 
-    /**
-     * Pure-PHP fallback that does not need pdftotext binary.
-     * Reads first page text when possible.
-     */
-    protected function extractWithPhpParser(string $pdfPath): string
+    protected function extractWithPdftotextPageRange(string $pdfPath, int $fromPage, int $toPage): string
     {
         try {
-            $pdf = (new Parser())->parseFile($pdfPath);
-            $pages = $pdf->getPages();
-
-            if (!empty($pages)) {
-                return (string) $pages[0]->getText();
-            }
-
-            return (string) $pdf->getText();
+            return (new Pdf())
+                ->setPdf($pdfPath)
+                ->setOptions(['-f ' . max(1, $fromPage), '-l ' . max($fromPage, $toPage)])
+                ->text();
         } catch (\Throwable $e) {
-            \Log::debug('PdfFirstPageOcr: php parser failed', ['path' => $pdfPath, 'error' => $e->getMessage()]);
+            \Log::debug('PdfFirstPageOcr: page-range pdftotext failed', ['path' => $pdfPath, 'error' => $e->getMessage()]);
+
             return '';
         }
     }

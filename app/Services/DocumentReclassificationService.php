@@ -15,13 +15,28 @@ class DocumentReclassificationService
     public function refineAfterOcr(Document $document): void
     {
         $document->refresh();
-        $ocr = $document->ocr_text;
-        if ($ocr === null || trim($ocr) === '') {
+        $ocr = trim((string) $document->ocr_text);
+        $minConfidence = (float) env('DOC_AUTO_CLASSIFY_MIN_CONFIDENCE', 0.70);
+
+        // Automated mixed-format classification with confidence gating.
+        $placement = DocumentFilenameParser::classifyForAutomation($document->file_name, $ocr !== '' ? $ocr : null);
+        $newCategory = $placement['document_category'] ?? 'Other';
+        $confidence = (float) ($placement['confidence'] ?? 0.0);
+        if ($newCategory === 'Other') {
             return;
         }
+        if ($confidence < $minConfidence) {
+            Log::info('Document reclassification skipped: low confidence', [
+                'document_id' => $document->id,
+                'file_name' => $document->file_name,
+                'suggested_category' => $newCategory,
+                'confidence' => $confidence,
+                'threshold' => $minConfidence,
+                'source' => $placement['category_source'] ?? 'unknown',
+            ]);
 
-        $merged = DocumentFilenameParser::suggestPlacementMerged($document->file_name, $ocr);
-        $newCategory = $merged['document_category'] ?? 'Other';
+            return;
+        }
 
         if ($newCategory === $document->document_type) {
             return;
