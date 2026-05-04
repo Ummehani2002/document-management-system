@@ -110,8 +110,32 @@ class DocumentFilenameParser
         }
 
         $base = substr($window, 0, 6000);
+        if (self::looksLikeProjectLetter($base)) {
+            return 'Incoming Or Outgoing Letter';
+        }
 
         return self::guessSubfolderFromTitle($base, strtoupper($base));
+    }
+
+    /**
+     * Detect common project-letter structure from OCR text.
+     * Requires multiple markers to avoid false positives.
+     */
+    protected static function looksLikeProjectLetter(string $text): bool
+    {
+        $upper = strtoupper($text);
+        if (preg_match('/DOCUMENT\s+TRANSMITTAL|TRANSMITTAL\s+NOTE|\bDTF\b|\bTRS\b|\bTRM\b/u', $upper)) {
+            return false;
+        }
+
+        $score = 0;
+        $score += preg_match('/(?:^|\n)\s*(?:OUR\s+)?REF(?:ERENCE)?\s*[:\-]/u', $upper) ? 1 : 0;
+        $score += preg_match('/(?:^|\n)\s*DATE\s*[:\-]/u', $upper) ? 1 : 0;
+        $score += preg_match('/(?:^|\n)\s*(?:TO|ATTENTION)\s*[:\-]/u', $upper) ? 1 : 0;
+        $score += preg_match('/(?:^|\n)\s*SUBJECT\s*[:\-]/u', $upper) ? 1 : 0;
+        $score += preg_match('/\bDEAR\s+(?:SIR|MADAM|MR|MRS|MS)\b/u', $upper) ? 1 : 0;
+
+        return $score >= 2;
     }
 
     /**
@@ -497,6 +521,12 @@ class DocumentFilenameParser
         }
         if (preg_match('/BANK\s*GUA?RANTEE/i', $upper)) {
             return 'Bank Gurantees';
+        }
+        if (
+            !preg_match('/DOCUMENT\s*TRANSMITTAL|TRANSMITTAL\s*NOTE|\bDTF\b/i', $upper)
+            && preg_match('/(?:^|[^A-Z0-9])(?:LTR|LOR|LETTER|NOTICE|CORRESP(?:ONDENCE)?|COMMENTS?|SUBMISSION)(?:[^A-Z0-9]|$)/i', $upper)
+        ) {
+            return 'Incoming Or Outgoing Letter';
         }
         if (preg_match('/LETTER/i', $upper)) {
             return 'Incoming Or Outgoing Letter';
