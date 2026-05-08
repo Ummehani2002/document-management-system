@@ -396,10 +396,17 @@ class DocumentFilenameParser
     protected static function guessSubfolderFromTitle(string $filename, string $upper): string
     {
         $hasLetterToken = (bool) preg_match('/(?:^|[^A-Z0-9])(?:LTR|LOR|LETTER|NOTICE|CORRESP(?:ONDENCE)?|COMMENTS?|SUBMISSION)(?:[^A-Z0-9]|$)/i', $upper);
+        $hasTransmittalToken = (bool) preg_match('/\bDTF\b|\bDT\b|DOC\.?\s*TRANS|DOCUMENT\s*TRANSMITTAL|TRANSMITTAL\s*NOTE/i', $upper);
 
         // Keep As-Built docs out of Method Statement even if code contains "-MS-".
         if (preg_match('/\bAS[\s\-]*BUILT\b|\bASBUILT\b/i', $upper) && !$hasLetterToken) {
             return 'As Built Drawing Submittal';
+        }
+
+        // Prioritize clear letter/correspondence documents before generic short-code matches
+        // like trailing "/MB" fragments in reference numbers.
+        if ($hasLetterToken && !$hasTransmittalToken) {
+            return 'Incoming Or Outgoing Letter';
         }
 
         $codeMatches = [];
@@ -524,10 +531,7 @@ class DocumentFilenameParser
         if (preg_match('/BANK\s*GUA?RANTEE/i', $upper)) {
             return 'Bank Gurantees';
         }
-        if (
-            !preg_match('/DOCUMENT\s*TRANSMITTAL|TRANSMITTAL\s*NOTE|\bDTF\b/i', $upper)
-            && $hasLetterToken
-        ) {
+        if (!$hasTransmittalToken && $hasLetterToken) {
             return 'Incoming Or Outgoing Letter';
         }
         if (preg_match('/LETTER/i', $upper)) {

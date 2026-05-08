@@ -9,6 +9,7 @@
         display: grid;
         grid-template-columns: repeat(2, minmax(280px, 1fr));
         gap: 16px;
+        align-items: start;
     }
     .upload-grid .full-width {
         grid-column: 1 / -1;
@@ -106,14 +107,15 @@
                 </select>
                 @if($projects->isEmpty())<p style="margin-top: 6px; color: #b45309;">Add a <a href="{{ route('projects.create') }}">Project</a> in Project Master first.</p>@endif
                 @error('project_id')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
-                <div id="project-details" style="margin-top: 12px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: none;">
-                    <div style="display: block; margin-bottom: 8px;">Project details (from Project Master)</div>
-                    <div>Project name: <span id="disp-name">—</span></div>
-                    <div>Client: <span id="disp-client">—</span></div>
-                    <div>Consultant: <span id="disp-consultant">—</span></div>
-                    <div>Project Manager: <span id="disp-pm">—</span></div>
-                    <div>Document Controller: <span id="disp-dc">—</span></div>
-                </div>
+            </div>
+
+            <div id="project-details" class="card full-width" style="display: none;">
+                <div style="display: block; margin-bottom: 8px;">Project details (from Project Master)</div>
+                <div>Project name: <span id="disp-name">—</span></div>
+                <div>Client: <span id="disp-client">—</span></div>
+                <div>Consultant: <span id="disp-consultant">—</span></div>
+                <div>Project Manager: <span id="disp-pm">—</span></div>
+                <div>Document Controller: <span id="disp-dc">—</span></div>
             </div>
 
             <div class="card">
