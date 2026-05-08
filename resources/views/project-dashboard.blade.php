@@ -115,6 +115,12 @@
                                     <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open PDF</a>
                                     <span style="color: #cbd5e1;"> | </span>
                                     <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>
+                                    <span style="color: #cbd5e1;"> | </span>
+                                    <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this file?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" style="padding: 0; background: none; border: none; color: #b91c1c; text-decoration: underline; cursor: pointer;">Delete</button>
+                                    </form>
                                 </td>
                             </tr>
                         @endforeach
