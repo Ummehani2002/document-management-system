@@ -128,6 +128,22 @@ class DocumentFilenameParser
             return false;
         }
 
+        // Submittal/inspection forms also carry TO/DATE/REF/SUBJECT label cells in
+        // their title block; without this guard those forms get mis-classified as
+        // Letters. Anything that explicitly says it's one of those documents wins.
+        $submittalHeader = '/SHOP\s*DRAWING(?:\s*SUBMITTAL)?'
+            . '|MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL'
+            . '|METHOD\s*STATEMENT|STATEMENT\s+SUBMITTAL'
+            . '|MATERIAL\s*INSPECTION\s*REQUEST|\bMIR\b'
+            . '|WORK\s*INSPECTION\s*REQUEST|\bWIR\b'
+            . '|PRE[\s-]*QUALIF(?:ICATION|ICATIONS)?|\bPREQUAL\b'
+            . '|AS[\s-]*BUILT(?:\s+DRAWING)?\s*SUBMITTAL?'
+            . '|MATERIAL\s*SAMPLE'
+            . '/u';
+        if (preg_match($submittalHeader, $upper)) {
+            return false;
+        }
+
         $score = 0;
         $score += preg_match('/(?:^|\n)\s*(?:OUR\s+)?REF(?:ERENCE)?\s*[:\-]/u', $upper) ? 1 : 0;
         $score += preg_match('/(?:^|\n)\s*DATE\s*[:\-]/u', $upper) ? 1 : 0;
@@ -339,6 +355,24 @@ class DocumentFilenameParser
         $contentCategory = $ocr !== '' ? self::guessSubfolderFromDocumentText($ocr) : 'Other';
         $upperName = strtoupper(pathinfo($filename, PATHINFO_FILENAME));
         $hasStrongShopDrawingSignal = (bool) preg_match('/(?:^|[^A-Z0-9])SD(?:[^A-Z0-9]|$)|SHOP\s*DRAWING\s*SUBMITTAL|SHOP\s*DRAWING/u', $upperName);
+        $hasStrongMethodSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:MS|MST|MSS|MOS|MTS)(?:[^A-Z0-9]|$)|METHOD\s*STATEMENT/u', $upperName);
+        $hasStrongMaterialSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:MAT|MB)(?:[^A-Z0-9]|$)|MATERIAL\s*SUBMITTAL/u', $upperName);
+        $hasStrongTransmittalSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:DTF|DT|TRS|TRM)(?:[^A-Z0-9]|$)|DOCUMENT\s*TRANSMITTAL/u', $upperName);
+        $hasStrongMirSignal = (bool) preg_match('/(?:^|[^A-Z0-9])MIR(?:[^A-Z0-9]|$)|MATERIAL\s*INSPECTION\s*REQUEST/u', $upperName);
+        $hasStrongWirSignal = (bool) preg_match('/(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)|WORK\s*INSPECTION/u', $upperName);
+        $hasStrongFilenameCode = $hasStrongShopDrawingSignal || $hasStrongMethodSignal
+            || $hasStrongMaterialSignal || $hasStrongTransmittalSignal
+            || $hasStrongMirSignal || $hasStrongWirSignal;
+
+        // OCR can mistake a submittal title block for a project letter because both
+        // carry TO/DATE/REF/SUBJECT labels. If the filename's structured code clearly
+        // says otherwise, trust the filename instead of the OCR-as-letter guess.
+        if ($contentCategory === 'Incoming Or Outgoing Letter'
+            && $fileCategory !== 'Other'
+            && $fileCategory !== 'Incoming Or Outgoing Letter'
+            && $hasStrongFilenameCode) {
+            $contentCategory = 'Other';
+        }
 
         $category = 'Other';
         $source = 'none';
