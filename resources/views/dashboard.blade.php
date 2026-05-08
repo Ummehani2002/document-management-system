@@ -51,13 +51,22 @@
                         <td style="padding:10px 12px;">{{ $doc->project?->project_number ?? '-' }}</td>
                         <td style="padding:10px 12px;">{{ $doc->document_type ?? '-' }}</td>
                         <td style="padding:10px 12px; text-align:right; white-space:nowrap;">
-                            <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>
-                            <span style="color: #cbd5e1;"> | </span>
-                            <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this file?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" style="padding: 0; background: none; border: none; color: #b91c1c; text-decoration: underline; cursor: pointer;">Delete</button>
-                            </form>
+                            @if(!empty($doc->file_available))
+                                <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>
+                                <span style="color: #cbd5e1;"> | </span>
+                                <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this file?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" style="padding: 0; background: none; border: none; color: #b91c1c; text-decoration: underline; cursor: pointer;">Delete</button>
+                                </form>
+                            @else
+                                <span style="color:#b91c1c; font-size:0.85rem; margin-right:8px;">File missing</span>
+                                <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this record? File is already missing from storage.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" style="padding: 0; background: none; border: none; color: #b91c1c; text-decoration: underline; cursor: pointer;">Delete record</button>
+                                </form>
+                            @endif
                         </td>
                     </tr>
                 @endforeach

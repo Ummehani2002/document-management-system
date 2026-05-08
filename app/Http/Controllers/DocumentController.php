@@ -164,19 +164,20 @@ class DocumentController extends Controller
                 . Str::slug($targetProject->project_number) . '/'
                 . Str::slug($category);
 
-            // Duplicate / re-attach policy on the candidate set sharing the same logical filename:
-            // - existing file with same content => skip as already uploaded
-            // - existing row whose stored file is MISSING and same version number
-            //   => re-attach to that row (avoid creating a Rev-bumped orphan-paired record)
-            // - same logical filename + different content => create next version
+            // Duplicate / re-attach policy on the candidate set sharing the same logical filename
+            // for this project, ACROSS ALL document_type folders (auto-classified uploads start in
+            // 'Other' and may have already been reclassified into a different folder previously):
+            // - existing file with same content (anywhere in the project) => skip as already uploaded
+            // - existing row whose stored file is MISSING and same version number => re-attach to
+            //   that row using the orphan's existing folder so search keeps finding the same record
+            // - same logical filename + different content => create next version in current folder
             $uploadedBase = pathinfo($originalName, PATHINFO_FILENAME);
             $targetKey = DocumentFileVersioning::versionKey($uploadedBase);
             $uploadedVersion = DocumentFileVersioning::extractVersionNumber($uploadedBase);
 
             $candidates = Document::query()
                 ->where('project_id', $targetProject->id)
-                ->where('document_type', $category)
-                ->get(['id', 'file_name', 'file_path']);
+                ->get(['id', 'file_name', 'file_path', 'document_type', 'entity_id']);
 
             $uploadedHash = $this->uploadedFileHash($file);
             if ($uploadedHash !== null) {
@@ -216,15 +217,20 @@ class DocumentController extends Controller
             }
 
             if ($orphanCandidate !== null) {
+                $orphanCategory = (string) ($orphanCandidate->document_type ?: $category);
+                $reattachFolder = 'documents/'
+                    . Str::slug($targetEntity->name) . '/'
+                    . Str::slug($targetProject->project_number) . '/'
+                    . Str::slug($orphanCategory);
                 $reattachName = (string) $orphanCandidate->file_name;
                 try {
-                    $reattachPath = $file->storeAs($folderPath, $reattachName, $disk);
+                    $reattachPath = $file->storeAs($reattachFolder, $reattachName, $disk);
                 } catch (\Throwable $e) {
                     Log::warning('Document re-attach failed: storage write exception', [
                         'disk' => $disk,
                         'document_id' => $orphanCandidate->id,
                         'original_name' => $originalName,
-                        'target_path' => $folderPath . '/' . $reattachName,
+                        'target_path' => $reattachFolder . '/' . $reattachName,
                         'error' => $e->getMessage(),
                     ]);
                     $failedUploads++;
@@ -236,7 +242,7 @@ class DocumentController extends Controller
                         'disk' => $disk,
                         'document_id' => $orphanCandidate->id,
                         'original_name' => $originalName,
-                        'target_path' => $folderPath . '/' . $reattachName,
+                        'target_path' => $reattachFolder . '/' . $reattachName,
                     ]);
                     $failedUploads++;
                     continue;
@@ -249,7 +255,7 @@ class DocumentController extends Controller
                     if ($disciplineName !== null) {
                         $document->discipline = $disciplineName;
                     }
-                    $document->document_type = $category;
+                    // Preserve orphan's document_type. OCR/reclassification will adjust if needed.
                     $document->file_path = $reattachPath;
                     $document->ocr_text = null;
                     $document->save();
@@ -264,7 +270,7 @@ class DocumentController extends Controller
                 }
 
                 $uploaded++;
-                $detectedFolders[$category] = true;
+                $detectedFolders[$orphanCategory] = true;
                 $detectedProjects[$targetProject->project_number] = true;
                 continue;
             }

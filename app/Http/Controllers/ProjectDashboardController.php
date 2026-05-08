@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Document;
 use App\Models\Project;
+use App\Services\DocumentLocationResolver;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -62,6 +64,14 @@ class ProjectDashboardController extends Controller
         $pdfCount = $project
             ? (int) ($project->documents_count ?? $project->documents()->count())
             : 0;
+
+        if ($documents->isNotEmpty()) {
+            $documents->transform(function (Document $document) {
+                $document->file_available = DocumentLocationResolver::resolve((string) $document->file_path) !== null;
+
+                return $document;
+            });
+        }
 
         return view('project-dashboard', [
             'searchQuery' => $search,

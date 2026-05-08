@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Document;
 use App\Models\Entity;
 use App\Models\Project;
+use App\Services\DocumentLocationResolver;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -41,6 +42,12 @@ class DashboardController extends Controller
             ->latest()
             ->limit(20)
             ->get();
+
+        $recentDocuments->transform(function (Document $document) {
+            $document->file_available = DocumentLocationResolver::resolve((string) $document->file_path) !== null;
+
+            return $document;
+        });
 
         return view('dashboard', [
             'totalDocuments' => $totalDocuments,
