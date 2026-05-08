@@ -181,8 +181,62 @@ class DocumentReclassificationService
 
         try {
             $driver->copy($from, $to);
+            if (Storage::disk($disk)->exists($to)) {
+                $this->safeDeleteSource($disk, $from, $documentId);
+
+                return true;
+            }
+            Log::warning('Document reclassification copy returned without raising but destination missing', [
+                'document_id' => $documentId,
+                'disk' => $disk,
+                'from' => $from,
+                'to' => $to,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Document reclassification driver copy failed, attempting stream copy', [
+                'document_id' => $documentId,
+                'disk' => $disk,
+                'from' => $from,
+                'to' => $to,
+                'error' => $this->describeThrowable($e),
+            ]);
+        }
+
+        // Final fallback: manual GetObject + PutObject + DeleteObject. This avoids the
+        // Flysystem visibility/ACL pre-check that fails on Cloudflare R2 (R2 returns
+        // 501 NotImplemented for GetObjectAcl), while still working on real S3.
+        return $this->streamCopyAndDelete($disk, $from, $to, $documentId);
+    }
+
+    protected function streamCopyAndDelete(string $disk, string $from, string $to, int $documentId): bool
+    {
+        $stream = null;
+        try {
+            $stream = Storage::disk($disk)->readStream($from);
+            if ($stream === false || !is_resource($stream)) {
+                Log::warning('Document reclassification stream copy failed: cannot open source stream', [
+                    'document_id' => $documentId,
+                    'disk' => $disk,
+                    'from' => $from,
+                ]);
+
+                return false;
+            }
+
+            $put = Storage::disk($disk)->put($to, $stream);
+            if ($put === false) {
+                Log::warning('Document reclassification stream copy failed: put returned false', [
+                    'document_id' => $documentId,
+                    'disk' => $disk,
+                    'from' => $from,
+                    'to' => $to,
+                ]);
+
+                return false;
+            }
+
             if (!Storage::disk($disk)->exists($to)) {
-                Log::warning('Document reclassification copy returned without raising but destination missing', [
+                Log::warning('Document reclassification stream copy failed: destination missing after put', [
                     'document_id' => $documentId,
                     'disk' => $disk,
                     'from' => $from,
@@ -192,7 +246,7 @@ class DocumentReclassificationService
                 return false;
             }
         } catch (\Throwable $e) {
-            Log::warning('Document reclassification copy fallback failed', [
+            Log::warning('Document reclassification stream copy threw', [
                 'document_id' => $documentId,
                 'disk' => $disk,
                 'from' => $from,
@@ -201,10 +255,21 @@ class DocumentReclassificationService
             ]);
 
             return false;
+        } finally {
+            if (is_resource($stream)) {
+                @fclose($stream);
+            }
         }
 
+        $this->safeDeleteSource($disk, $from, $documentId);
+
+        return true;
+    }
+
+    protected function safeDeleteSource(string $disk, string $from, int $documentId): void
+    {
         try {
-            $driver->delete($from);
+            Storage::disk($disk)->delete($from);
         } catch (\Throwable $e) {
             Log::warning('Document reclassification delete-source after copy failed (file still moved logically)', [
                 'document_id' => $documentId,
@@ -213,8 +278,6 @@ class DocumentReclassificationService
                 'error' => $this->describeThrowable($e),
             ]);
         }
-
-        return true;
     }
 
     /**
