@@ -289,7 +289,11 @@
                                                 @enderror
                                             </div>
                                         @else
-                                            <span style="color:#94a3b8;">Unavailable</span>
+                                            <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this record? File is already missing from storage.');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" style="padding:6px 10px; background:#b91c1c;">Delete record</button>
+                                            </form>
                                         @endif
                                     </td>
                                 </tr>

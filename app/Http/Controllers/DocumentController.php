@@ -10,6 +10,7 @@ use App\Jobs\ProcessOCR;
 use App\Jobs\SendSharedDocumentEmail;
 use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileVersioning;
+use App\Services\DocumentLocationResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -163,17 +164,22 @@ class DocumentController extends Controller
                 . Str::slug($targetProject->project_number) . '/'
                 . Str::slug($category);
 
-            // Duplicate policy:
-            // - same logical filename + same content => skip as already uploaded
-            // - same logical filename + different content => continue and create next version
+            // Duplicate / re-attach policy on the candidate set sharing the same logical filename:
+            // - existing file with same content => skip as already uploaded
+            // - existing row whose stored file is MISSING and same version number
+            //   => re-attach to that row (avoid creating a Rev-bumped orphan-paired record)
+            // - same logical filename + different content => create next version
+            $uploadedBase = pathinfo($originalName, PATHINFO_FILENAME);
+            $targetKey = DocumentFileVersioning::versionKey($uploadedBase);
+            $uploadedVersion = DocumentFileVersioning::extractVersionNumber($uploadedBase);
+
+            $candidates = Document::query()
+                ->where('project_id', $targetProject->id)
+                ->where('document_type', $category)
+                ->get(['id', 'file_name', 'file_path']);
+
             $uploadedHash = $this->uploadedFileHash($file);
             if ($uploadedHash !== null) {
-                $targetKey = DocumentFileVersioning::versionKey(pathinfo($originalName, PATHINFO_FILENAME));
-                $candidates = Document::query()
-                    ->where('project_id', $targetProject->id)
-                    ->where('document_type', $category)
-                    ->get(['file_name', 'file_path']);
-
                 $isDuplicate = false;
                 foreach ($candidates as $candidate) {
                     $existingBase = pathinfo((string) $candidate->file_name, PATHINFO_FILENAME);
@@ -191,6 +197,76 @@ class DocumentController extends Controller
                     $skippedDuplicates++;
                     continue;
                 }
+            }
+
+            $orphanCandidate = null;
+            foreach ($candidates as $candidate) {
+                $existingBase = pathinfo((string) $candidate->file_name, PATHINFO_FILENAME);
+                if (DocumentFileVersioning::versionKey($existingBase) !== $targetKey) {
+                    continue;
+                }
+                if (DocumentFileVersioning::extractVersionNumber($existingBase) !== $uploadedVersion) {
+                    continue;
+                }
+                if ($this->resolveDocumentLocation((string) $candidate->file_path) !== null) {
+                    continue;
+                }
+                $orphanCandidate = $candidate;
+                break;
+            }
+
+            if ($orphanCandidate !== null) {
+                $reattachName = (string) $orphanCandidate->file_name;
+                try {
+                    $reattachPath = $file->storeAs($folderPath, $reattachName, $disk);
+                } catch (\Throwable $e) {
+                    Log::warning('Document re-attach failed: storage write exception', [
+                        'disk' => $disk,
+                        'document_id' => $orphanCandidate->id,
+                        'original_name' => $originalName,
+                        'target_path' => $folderPath . '/' . $reattachName,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $failedUploads++;
+                    continue;
+                }
+
+                if (!is_string($reattachPath) || trim($reattachPath) === '') {
+                    Log::warning('Document re-attach failed: empty storage path returned', [
+                        'disk' => $disk,
+                        'document_id' => $orphanCandidate->id,
+                        'original_name' => $originalName,
+                        'target_path' => $folderPath . '/' . $reattachName,
+                    ]);
+                    $failedUploads++;
+                    continue;
+                }
+
+                $document = Document::find($orphanCandidate->id);
+                if ($document) {
+                    $document->entity_id = $targetEntity->id;
+                    $document->project_id = $targetProject->id;
+                    if ($disciplineName !== null) {
+                        $document->discipline = $disciplineName;
+                    }
+                    $document->document_type = $category;
+                    $document->file_path = $reattachPath;
+                    $document->ocr_text = null;
+                    $document->save();
+
+                    try {
+                        ProcessOCR::dispatch($document->id)
+                            ->onConnection('sync')
+                            ->afterResponse();
+                    } catch (\Throwable $e) {
+                        \Log::warning('ProcessOCR on re-attach failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
+                    }
+                }
+
+                $uploaded++;
+                $detectedFolders[$category] = true;
+                $detectedProjects[$targetProject->project_number] = true;
+                continue;
             }
 
             $storedFileName = DocumentFileVersioning::buildVersionedFilename($originalName, $targetProject->id, $category);
@@ -602,71 +678,6 @@ class DocumentController extends Controller
      */
     protected function resolveDocumentLocation(string $path): ?array
     {
-        $rawPath = trim($path);
-        if ($rawPath === '') {
-            return null;
-        }
-
-        $rawPath = str_replace('\\', '/', $rawPath);
-
-        // Some legacy records already store full absolute paths.
-        if (is_file($rawPath)) {
-            return ['source' => 'file', 'path' => $rawPath];
-        }
-
-        $normalizedPath = ltrim($rawPath, '/');
-        if ($normalizedPath === '') {
-            return null;
-        }
-
-        // Build candidate relative paths to tolerate legacy prefixes.
-        $relativeCandidates = [];
-        $relativeCandidates[] = $normalizedPath;
-        foreach (['storage/', 'app/', 'app/private/', 'app/public/', 'public/', 'private/'] as $prefix) {
-            if (str_starts_with($normalizedPath, $prefix)) {
-                $relativeCandidates[] = substr($normalizedPath, strlen($prefix));
-            }
-        }
-        $relativeCandidates = array_values(array_unique(array_filter($relativeCandidates)));
-
-        $candidateDisks = array_values(array_unique(array_filter([
-            config('filesystems.default'),
-            'local',
-            'public',
-        ])));
-
-        foreach ($candidateDisks as $disk) {
-            foreach ($relativeCandidates as $candidatePath) {
-                try {
-                    if (Storage::disk($disk)->exists($candidatePath)) {
-                        return ['source' => 'disk', 'disk' => $disk, 'path' => $candidatePath];
-                    }
-                } catch (\Throwable $e) {
-                    Log::warning('Document lookup disk probe failed', [
-                        'disk' => $disk,
-                        'path' => $candidatePath,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-        }
-
-        $absoluteCandidates = [];
-        foreach ($relativeCandidates as $candidatePath) {
-            $absoluteCandidates[] = storage_path('app/' . $candidatePath);
-            $absoluteCandidates[] = storage_path('app/private/' . $candidatePath);
-            $absoluteCandidates[] = storage_path('app/public/' . $candidatePath);
-            $absoluteCandidates[] = public_path($candidatePath);
-            $absoluteCandidates[] = base_path($candidatePath);
-        }
-        $absoluteCandidates = array_values(array_unique($absoluteCandidates));
-
-        foreach ($absoluteCandidates as $absolutePath) {
-            if (is_file($absolutePath)) {
-                return ['source' => 'file', 'path' => $absolutePath];
-            }
-        }
-
-        return null;
+        return DocumentLocationResolver::resolve($path);
     }
 }
