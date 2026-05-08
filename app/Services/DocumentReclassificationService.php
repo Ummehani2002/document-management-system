@@ -148,7 +148,6 @@ class DocumentReclassificationService
         try {
             Storage::disk($disk)->makeDirectory($folderPath);
         } catch (\Throwable $e) {
-            // makeDirectory is a no-op on most cloud disks; ignore failures here.
             Log::debug('Document reclassification makeDirectory ignored', [
                 'document_id' => $documentId,
                 'disk' => $disk,
@@ -176,7 +175,7 @@ class DocumentReclassificationService
                 'disk' => $disk,
                 'from' => $from,
                 'to' => $to,
-                'error' => get_class($e) . ': ' . $e->getMessage(),
+                'error' => $this->describeThrowable($e),
             ]);
         }
 
@@ -198,7 +197,7 @@ class DocumentReclassificationService
                 'disk' => $disk,
                 'from' => $from,
                 'to' => $to,
-                'error' => get_class($e) . ': ' . $e->getMessage(),
+                'error' => $this->describeThrowable($e),
             ]);
 
             return false;
@@ -207,16 +206,30 @@ class DocumentReclassificationService
         try {
             $driver->delete($from);
         } catch (\Throwable $e) {
-            // Destination is in place; leftover source is not fatal but worth logging.
             Log::warning('Document reclassification delete-source after copy failed (file still moved logically)', [
                 'document_id' => $documentId,
                 'disk' => $disk,
                 'from' => $from,
-                'error' => get_class($e) . ': ' . $e->getMessage(),
+                'error' => $this->describeThrowable($e),
             ]);
         }
 
         return true;
+    }
+
+    /**
+     * Build a flat string that walks the exception's `previous` chain so the
+     * underlying SDK error (e.g. AwsException from S3) is captured in logs.
+     */
+    protected function describeThrowable(\Throwable $e, int $depth = 0): string
+    {
+        $line = get_class($e) . ': ' . $e->getMessage();
+        $previous = $e->getPrevious();
+        if ($previous && $depth < 5) {
+            $line .= ' || caused by ' . $this->describeThrowable($previous, $depth + 1);
+        }
+
+        return $line;
     }
 
     /**
