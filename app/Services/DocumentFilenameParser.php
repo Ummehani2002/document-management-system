@@ -395,8 +395,10 @@ class DocumentFilenameParser
      */
     protected static function guessSubfolderFromTitle(string $filename, string $upper): string
     {
+        $hasLetterToken = (bool) preg_match('/(?:^|[^A-Z0-9])(?:LTR|LOR|LETTER|NOTICE|CORRESP(?:ONDENCE)?|COMMENTS?|SUBMISSION)(?:[^A-Z0-9]|$)/i', $upper);
+
         // Keep As-Built docs out of Method Statement even if code contains "-MS-".
-        if (preg_match('/\bAS[\s\-]*BUILT\b|\bASBUILT\b/i', $upper)) {
+        if (preg_match('/\bAS[\s\-]*BUILT\b|\bASBUILT\b/i', $upper) && !$hasLetterToken) {
             return 'As Built Drawing Submittal';
         }
 
@@ -524,7 +526,7 @@ class DocumentFilenameParser
         }
         if (
             !preg_match('/DOCUMENT\s*TRANSMITTAL|TRANSMITTAL\s*NOTE|\bDTF\b/i', $upper)
-            && preg_match('/(?:^|[^A-Z0-9])(?:LTR|LOR|LETTER|NOTICE|CORRESP(?:ONDENCE)?|COMMENTS?|SUBMISSION)(?:[^A-Z0-9]|$)/i', $upper)
+            && $hasLetterToken
         ) {
             return 'Incoming Or Outgoing Letter';
         }
