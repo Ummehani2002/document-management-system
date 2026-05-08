@@ -69,11 +69,16 @@ class DocumentReclassificationService
             return;
         }
 
+        // Avoid overwriting a real file that already lives at the planned path
+        // (buildVersionedFilename only consults DB rows, not actual storage objects).
+        $newPath = $this->ensureUniqueStoragePath($disk, $newPath);
+        $storedFileName = basename($newPath);
+
         try {
             Storage::disk($disk)->makeDirectory($folderPath);
-            Storage::disk($disk)->move($oldPath, $newPath);
+            $moved = Storage::disk($disk)->move($oldPath, $newPath);
         } catch (\Throwable $e) {
-            Log::warning('Document reclassification move failed', [
+            Log::warning('Document reclassification move failed (exception)', [
                 'document_id' => $document->id,
                 'from' => $oldPath,
                 'to' => $newPath,
@@ -83,10 +88,48 @@ class DocumentReclassificationService
             return;
         }
 
+        if ($moved !== true || !Storage::disk($disk)->exists($newPath)) {
+            Log::warning('Document reclassification move failed (silent)', [
+                'document_id' => $document->id,
+                'from' => $oldPath,
+                'to' => $newPath,
+                'move_return' => $moved,
+                'old_still_exists' => Storage::disk($disk)->exists($oldPath),
+                'new_exists' => Storage::disk($disk)->exists($newPath),
+            ]);
+
+            return;
+        }
+
         $document->update([
             'document_type' => $newCategory,
             'file_path' => $newPath,
-            'file_name' => basename($newPath),
+            'file_name' => $storedFileName,
         ]);
+    }
+
+    /**
+     * Find a storage path that does not already exist by appending " (n)"
+     * before the extension if necessary. Limits attempts to keep it bounded.
+     */
+    protected function ensureUniqueStoragePath(string $disk, string $path): string
+    {
+        if (!Storage::disk($disk)->exists($path)) {
+            return $path;
+        }
+
+        $directory = ltrim((string) pathinfo($path, PATHINFO_DIRNAME), '.');
+        $extension = (string) pathinfo($path, PATHINFO_EXTENSION);
+        $base = (string) pathinfo($path, PATHINFO_FILENAME);
+
+        for ($i = 1; $i <= 50; $i++) {
+            $candidate = $base . ' (' . $i . ')' . ($extension !== '' ? ('.' . $extension) : '');
+            $candidatePath = $directory !== '' ? ($directory . '/' . $candidate) : $candidate;
+            if (!Storage::disk($disk)->exists($candidatePath)) {
+                return $candidatePath;
+            }
+        }
+
+        return $path;
     }
 }
