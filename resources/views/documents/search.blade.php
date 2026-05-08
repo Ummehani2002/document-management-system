@@ -266,6 +266,11 @@
                                         @if(!empty($doc->file_available))
                                             <button type="button" style="padding:6px 10px; margin-right:6px;" onclick="toggleInlinePreview('{{ $doc->id }}', '{{ route('documents.view', ['id' => $doc->id]) }}')">View here</button>
                                             <button type="button" style="padding:6px 10px;" onclick="toggleShareForm('{{ $doc->id }}')">Share</button>
+                                            <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline; margin-left:6px;" onsubmit="return confirm('Delete this file?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" style="padding:6px 10px; background:#b91c1c;">Delete</button>
+                                            </form>
                                             <div id="share-box-{{ $doc->id }}" style="display:{{ $errors->has('share_email_' . $doc->id) ? 'block' : 'none' }}; margin-top:8px;">
                                                 <form method="POST" action="{{ route('documents.share', ['id' => $doc->id]) }}">
                                                     @csrf
@@ -381,6 +386,12 @@
                     <button type="button" style="padding:4px 10px;" onclick="toggleInlinePreview('{{ $doc->id }}', '{{ route('documents.view', ['id' => $doc->id]) }}')">View here</button>
                     &nbsp;|&nbsp;
                     <button type="button" style="padding:4px 10px;" onclick="toggleShareForm('{{ $doc->id }}')">Share</button>
+                    &nbsp;|&nbsp;
+                    <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this file?');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" style="padding:4px 10px; background:#b91c1c;">Delete</button>
+                    </form>
                     <div id="share-box-{{ $doc->id }}" style="display:{{ $errors->has('share_email_' . $doc->id) ? 'block' : 'none' }}; margin-top:8px;">
                         <form method="POST" action="{{ route('documents.share', ['id' => $doc->id]) }}">
                             @csrf
@@ -412,6 +423,13 @@
                     </div>
                 @else
                     <span style="color:#b91c1c;">File unavailable in storage</span>
+                    <div style="margin-top: 8px;">
+                        <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this record? File is already missing.');">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" style="padding:4px 10px; background:#b91c1c;">Delete record</button>
+                        </form>
+                    </div>
                 @endif
             </div>
         @empty

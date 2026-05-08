@@ -337,6 +337,8 @@ class DocumentFilenameParser
         $fileCategory = self::parse($filename)['document_category'] ?? 'Other';
         $ocr = trim((string) $ocrText);
         $contentCategory = $ocr !== '' ? self::guessSubfolderFromDocumentText($ocr) : 'Other';
+        $upperName = strtoupper(pathinfo($filename, PATHINFO_FILENAME));
+        $hasStrongShopDrawingSignal = (bool) preg_match('/(?:^|[^A-Z0-9])SD(?:[^A-Z0-9]|$)|SHOP\s*DRAWING\s*SUBMITTAL|SHOP\s*DRAWING/u', $upperName);
 
         $category = 'Other';
         $source = 'none';
@@ -360,6 +362,12 @@ class DocumentFilenameParser
         // OCR/file disagreement: keep OCR decision but reduce confidence.
         if ($contentCategory !== 'Other' && $fileCategory !== 'Other' && $contentCategory !== $fileCategory) {
             $confidence = 0.74;
+        }
+
+        // Structured file names such as "...-SD-... Shop Drawing Submittal ..."
+        // are usually reliable even when OCR text is weak/scanned.
+        if ($category === 'Shop Drawing' && $source === 'filename' && $hasStrongShopDrawingSignal) {
+            $confidence = max($confidence, 0.80);
         }
 
         $meta = self::extractReferenceAndSubject($ocrText, $filename);
