@@ -138,45 +138,59 @@ class DocumentReclassificationService
     }
 
     /**
-     * Move a file with retries via copy+delete fallback for cloud disks where
-     * Storage::move() may silently return false even when the operation can
-     * be performed via primitives.
+     * Move a file. Prefers the underlying Flysystem driver so that real errors
+     * (e.g. S3 AccessDenied on CopyObject) bubble up with their message instead
+     * of being swallowed by the Storage wrapper which only returns false.
+     * Falls back to copy + delete when move is not supported by the driver.
      */
     protected function moveOnDisk(string $disk, string $from, string $to, string $folderPath, int $documentId): bool
     {
         try {
             Storage::disk($disk)->makeDirectory($folderPath);
-            $moved = Storage::disk($disk)->move($from, $to);
         } catch (\Throwable $e) {
-            Log::warning('Document reclassification move failed (exception)', [
+            // makeDirectory is a no-op on most cloud disks; ignore failures here.
+            Log::debug('Document reclassification makeDirectory ignored', [
+                'document_id' => $documentId,
+                'disk' => $disk,
+                'folder' => $folderPath,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $driver = Storage::disk($disk)->getDriver();
+
+        try {
+            $driver->move($from, $to);
+            if (Storage::disk($disk)->exists($to)) {
+                return true;
+            }
+            Log::warning('Document reclassification primary move returned without raising but destination missing', [
                 'document_id' => $documentId,
                 'disk' => $disk,
                 'from' => $from,
                 'to' => $to,
-                'error' => $e->getMessage(),
             ]);
-
-            return false;
+        } catch (\Throwable $e) {
+            Log::warning('Document reclassification primary move failed, attempting copy+delete', [
+                'document_id' => $documentId,
+                'disk' => $disk,
+                'from' => $from,
+                'to' => $to,
+                'error' => get_class($e) . ': ' . $e->getMessage(),
+            ]);
         }
-
-        if ($moved === true && Storage::disk($disk)->exists($to)) {
-            return true;
-        }
-
-        Log::warning('Document reclassification primary move failed, attempting copy+delete', [
-            'document_id' => $documentId,
-            'disk' => $disk,
-            'from' => $from,
-            'to' => $to,
-            'move_return' => $moved,
-        ]);
 
         try {
-            $copied = Storage::disk($disk)->copy($from, $to);
-            if ($copied === true && Storage::disk($disk)->exists($to)) {
-                Storage::disk($disk)->delete($from);
+            $driver->copy($from, $to);
+            if (!Storage::disk($disk)->exists($to)) {
+                Log::warning('Document reclassification copy returned without raising but destination missing', [
+                    'document_id' => $documentId,
+                    'disk' => $disk,
+                    'from' => $from,
+                    'to' => $to,
+                ]);
 
-                return true;
+                return false;
             }
         } catch (\Throwable $e) {
             Log::warning('Document reclassification copy fallback failed', [
@@ -184,22 +198,25 @@ class DocumentReclassificationService
                 'disk' => $disk,
                 'from' => $from,
                 'to' => $to,
-                'error' => $e->getMessage(),
+                'error' => get_class($e) . ': ' . $e->getMessage(),
             ]);
 
             return false;
         }
 
-        Log::warning('Document reclassification move failed (silent, both move and copy)', [
-            'document_id' => $documentId,
-            'disk' => $disk,
-            'from' => $from,
-            'to' => $to,
-            'old_still_exists' => Storage::disk($disk)->exists($from),
-            'new_exists' => Storage::disk($disk)->exists($to),
-        ]);
+        try {
+            $driver->delete($from);
+        } catch (\Throwable $e) {
+            // Destination is in place; leftover source is not fatal but worth logging.
+            Log::warning('Document reclassification delete-source after copy failed (file still moved logically)', [
+                'document_id' => $documentId,
+                'disk' => $disk,
+                'from' => $from,
+                'error' => get_class($e) . ': ' . $e->getMessage(),
+            ]);
+        }
 
-        return false;
+        return true;
     }
 
     /**
