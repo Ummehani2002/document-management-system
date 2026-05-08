@@ -44,25 +44,36 @@ class ProcessOCR implements ShouldQueue
 
         $tempPath = null;
         try {
-            $ext = strtolower(pathinfo((string) $document->file_name, PATHINFO_EXTENSION));
-            if ($ext === '') {
-                $ext = 'tmp';
-            }
-            $tempPath = tempnam(sys_get_temp_dir(), 'dms_ocr_') . '.' . $ext;
-            file_put_contents($tempPath, Storage::disk($disk)->get($document->file_path));
+            // Best-effort text extraction. Classification must still run when this fails
+            // (e.g. Tesseract/poppler missing, image-only PDFs) so filename-based
+            // auto-classification can still move "SD-...", "DT-...", etc. into the
+            // correct folder instead of leaving every upload stuck in "Other".
+            try {
+                $ext = strtolower(pathinfo((string) $document->file_name, PATHINFO_EXTENSION));
+                if ($ext === '') {
+                    $ext = 'tmp';
+                }
+                $tempPath = tempnam(sys_get_temp_dir(), 'dms_ocr_') . '.' . $ext;
+                file_put_contents($tempPath, Storage::disk($disk)->get($document->file_path));
 
-            $text = '';
-            if ($ext === 'pdf') {
-                $text = app(PdfFirstPageOcrService::class)->extractTextForClassification($tempPath);
-            } elseif (in_array($ext, ['docx', 'xlsx', 'doc', 'xls'], true)) {
-                $text = app(OfficeDocumentTextExtractionService::class)->extractText($tempPath, $ext);
-            }
+                $text = '';
+                if ($ext === 'pdf') {
+                    $text = app(PdfFirstPageOcrService::class)->extractTextForClassification($tempPath);
+                } elseif (in_array($ext, ['docx', 'xlsx', 'doc', 'xls'], true)) {
+                    $text = app(OfficeDocumentTextExtractionService::class)->extractText($tempPath, $ext);
+                }
 
-            $document->update(['ocr_text' => $text]);
+                $document->update(['ocr_text' => $text]);
+            } catch (\Throwable $e) {
+                \Log::warning('ProcessOCR text extraction failed (classification will still run by filename)', [
+                    'document_id' => $document->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             app(DocumentReclassificationService::class)->refineAfterOcr($document);
         } catch (\Throwable $e) {
-            \Log::error('ProcessOCR failed: ' . $e->getMessage(), ['document_id' => $document->id]);
+            \Log::error('ProcessOCR pipeline failed: ' . $e->getMessage(), ['document_id' => $document->id]);
         } finally {
             if ($tempPath && file_exists($tempPath)) {
                 @unlink($tempPath);
