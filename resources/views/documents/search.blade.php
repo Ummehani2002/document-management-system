@@ -365,7 +365,7 @@
     @else
         @forelse($documents as $doc)
             @php
-                $displayType = \App\Services\DocumentFilenameParser::parse($doc->file_name)['document_category'] ?? ($doc->document_type ?: '—');
+                $displayType = $doc->document_type ?: '—';
             @endphp
             <div class="card">
                 <strong>{{ $doc->file_name }}</strong>

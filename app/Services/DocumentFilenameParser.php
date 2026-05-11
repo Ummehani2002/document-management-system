@@ -398,9 +398,21 @@ class DocumentFilenameParser
             $confidence = 0.74;
         }
 
-        // Structured file names such as "...-SD-... Shop Drawing Submittal ..."
-        // are usually reliable even when OCR text is weak/scanned.
-        if ($category === 'Shop Drawing' && $source === 'filename' && $hasStrongShopDrawingSignal) {
+        // Structured file names with an explicit type code (e.g. ...-SD-..., -WIR-,
+        // -MIR-, -MST-, -MAT-, -DTF-) are usually reliable even when OCR is weak
+        // or unavailable. Treat any of those as strong evidence for the matching
+        // category so they cross the auto-classification confidence threshold.
+        $strongSignalForCategory = [
+            'Shop Drawing' => $hasStrongShopDrawingSignal,
+            'Work Inspection' => $hasStrongWirSignal,
+            'Material Inspection Request' => $hasStrongMirSignal,
+            'Method Statement' => $hasStrongMethodSignal,
+            'Material Submittal' => $hasStrongMaterialSignal,
+            'Document Transmittal' => $hasStrongTransmittalSignal,
+        ];
+        if ($source === 'filename'
+            && isset($strongSignalForCategory[$category])
+            && $strongSignalForCategory[$category]) {
             $confidence = max($confidence, 0.80);
         }
 
@@ -675,10 +687,14 @@ class DocumentFilenameParser
         if (preg_match('/MATERIAL\s*RETURN\s*NOTE|\bMRN\b/i', $upper)) {
             return 'Material Return Note';
         }
-        if (preg_match('/PURCHASE\s*ORDER|\bPO\b/i', $upper)) {
+        // Require explicit "PURCHASE ORDER" or PO followed by a number/NO so
+        // letterhead addresses like "P.O. Box 12345" do not trigger this.
+        if (preg_match('/PURCHASE\s*ORDER/i', $upper)
+            || preg_match('/\bPO\b(?!\s*BOX)\s*(?:NO\.?|NUMBER|#|\d)/i', $upper)) {
             return 'Purchase Order';
         }
-        if (preg_match('/PURCHASE\s*REQUEST|\bPR\b/i', $upper)) {
+        if (preg_match('/PURCHASE\s*REQUEST/i', $upper)
+            || preg_match('/\bPR\b(?!\s*OFFICE)\s*(?:NO\.?|NUMBER|#|\d)/i', $upper)) {
             return 'Purchase Request';
         }
         if (preg_match('/QUOTATION/i', $upper)) {
