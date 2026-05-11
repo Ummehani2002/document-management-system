@@ -12,7 +12,6 @@ use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -426,37 +425,39 @@ class DocumentController extends Controller
             }
 
             if ($keyword !== '') {
-                $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $keyword) . '%';
-                $driver = DB::connection()->getDriverName();
-             
-                $query->where(function ($q) use ($keyword, $like, $driver) {
-                    if ($driver === 'mysql') {
-                        $q->whereRaw('MATCH(ocr_text) AGAINST(? IN NATURAL LANGUAGE MODE)', [$keyword])
-                          ->orWhereRaw('LOWER(ocr_text) LIKE LOWER(?)', [$like])
-                          ->orWhereRaw('LOWER(file_name) LIKE LOWER(?)', [$like])
-                          ->orWhere('document_type', 'like', $like)
-                          ->orWhereHas('entity', fn ($eq) => $eq->whereRaw('LOWER(name) LIKE LOWER(?)', [$like]))
-                          ->orWhereHas('project', fn ($pq) => $pq
-                              ->whereRaw('LOWER(project_number) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(project_name) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(client_name) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(consultant) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(project_manager) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(document_controller) LIKE LOWER(?)', [$like]));
-                    } else {
+                // Tokenize on whitespace so multi-word searches like "shop drawing pool"
+                // require all words to appear (in any field), but each word is matched
+                // as a substring (LIKE) so partial reference numbers still hit.
+                $rawTokens = preg_split('/\s+/u', $keyword) ?: [];
+                $tokens = [];
+                foreach ($rawTokens as $rawToken) {
+                    $rawToken = trim((string) $rawToken);
+                    if ($rawToken === '') {
+                        continue;
+                    }
+                    $tokens[] = $rawToken;
+                }
+                if (empty($tokens)) {
+                    $tokens = [$keyword];
+                }
+
+                foreach ($tokens as $token) {
+                    $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $token) . '%';
+                    $query->where(function ($q) use ($like) {
                         $q->whereRaw('LOWER(ocr_text) LIKE LOWER(?)', [$like])
                           ->orWhereRaw('LOWER(file_name) LIKE LOWER(?)', [$like])
-                          ->orWhere('document_type', 'like', $like)
+                          ->orWhereRaw('LOWER(document_type) LIKE LOWER(?)', [$like])
+                          ->orWhereRaw('LOWER(COALESCE(discipline, \'\')) LIKE LOWER(?)', [$like])
                           ->orWhereHas('entity', fn ($eq) => $eq->whereRaw('LOWER(name) LIKE LOWER(?)', [$like]))
                           ->orWhereHas('project', fn ($pq) => $pq
                               ->whereRaw('LOWER(project_number) LIKE LOWER(?)', [$like])
                               ->orWhereRaw('LOWER(project_name) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(client_name) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(consultant) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(project_manager) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(document_controller) LIKE LOWER(?)', [$like]));
-                    }
-                });
+                              ->orWhereRaw('LOWER(COALESCE(client_name, \'\')) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(COALESCE(consultant, \'\')) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(COALESCE(project_manager, \'\')) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(COALESCE(document_controller, \'\')) LIKE LOWER(?)', [$like]));
+                    });
+                }
             }
 
             $documents = $query->paginate(10)->withQueryString();
