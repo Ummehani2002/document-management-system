@@ -360,9 +360,14 @@ class DocumentFilenameParser
         $hasStrongTransmittalSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:DTF|DT|TRS|TRM)(?:[^A-Z0-9]|$)|DOCUMENT\s*TRANSMITTAL/u', $upperName);
         $hasStrongMirSignal = (bool) preg_match('/(?:^|[^A-Z0-9])MIR(?:[^A-Z0-9]|$)|MATERIAL\s*INSPECTION\s*REQUEST/u', $upperName);
         $hasStrongWirSignal = (bool) preg_match('/(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)|WORK\s*INSPECTION/u', $upperName);
+        // Engineering letter reference numbering ("...-L003-24", "/L0017/25") is a
+        // strong indicator the file is a project letter even when the title alone
+        // has no obvious letter keyword.
+        $hasStrongLetterRefSignal = (bool) preg_match('/(?:^|[^A-Z0-9])L\d{3,4}[-_\/]\d{2,4}(?:[^A-Z0-9]|$)/u', $upperName);
         $hasStrongFilenameCode = $hasStrongShopDrawingSignal || $hasStrongMethodSignal
             || $hasStrongMaterialSignal || $hasStrongTransmittalSignal
-            || $hasStrongMirSignal || $hasStrongWirSignal;
+            || $hasStrongMirSignal || $hasStrongWirSignal
+            || $hasStrongLetterRefSignal;
 
         // OCR can mistake a submittal title block for a project letter because both
         // carry TO/DATE/REF/SUBJECT labels. If the filename's structured code clearly
@@ -409,6 +414,7 @@ class DocumentFilenameParser
             'Method Statement' => $hasStrongMethodSignal,
             'Material Submittal' => $hasStrongMaterialSignal,
             'Document Transmittal' => $hasStrongTransmittalSignal,
+            'Incoming Or Outgoing Letter' => $hasStrongLetterRefSignal,
         ];
         if ($source === 'filename'
             && isset($strongSignalForCategory[$category])
@@ -450,6 +456,10 @@ class DocumentFilenameParser
     protected static function guessSubfolderFromTitle(string $filename, string $upper): string
     {
         $hasLetterToken = (bool) preg_match('/(?:^|[^A-Z0-9])(?:LTR|LOR|LETTER|NOTICE|CORRESP(?:ONDENCE)?|COMMENTS?|SUBMISSION)(?:[^A-Z0-9]|$)/i', $upper);
+        // Engineering letter reference numbering ("...-L003-24", "/L0017/25")
+        // is also a strong indicator that a file is a project letter.
+        $hasLetterRefNumber = (bool) preg_match('/(?:^|[^A-Z0-9])L\d{3,4}[-_\/]\d{2,4}(?:[^A-Z0-9]|$)/i', $upper);
+        $hasLetterToken = $hasLetterToken || $hasLetterRefNumber;
         $hasTransmittalToken = (bool) preg_match('/\bDTF\b|\bDT\b|DOC\.?\s*TRANS|DOCUMENT\s*TRANSMITTAL|TRANSMITTAL\s*NOTE/i', $upper);
 
         // Keep As-Built docs out of Method Statement even if code contains "-MS-".
