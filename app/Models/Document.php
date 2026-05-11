@@ -38,7 +38,8 @@ class Document extends Model
     {
         return DocumentFilenameParser::folderSubLabel(
             $this->document_type,
-            $this->file_name
+            $this->file_name,
+            $this->ocr_text
         );
     }
 }

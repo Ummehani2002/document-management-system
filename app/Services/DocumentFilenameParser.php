@@ -770,21 +770,34 @@ class DocumentFilenameParser
      */
     /**
      * Resolve the best "sub folder" label to display for a row, preferring
-     * a category derived from the filename so the UI stays correct even
-     * when the stored document_type is stale, empty, or wrong.
+     * a category derived from the filename (and OCR text when available)
+     * so the UI stays correct even when the stored document_type is stale,
+     * empty, or wrong.
      *
-     * Rules:
-     *  - Any non-"Other" category parsed from the filename wins over the
-     *    stored document_type. This mirrors the behaviour that the search
-     *    page historically used and that users rely on.
-     *  - Otherwise the stored document_type is used as-is.
-     *  - Otherwise return null.
+     * Rules, in order:
+     *  1. If filename + OCR text give a confident category (>= 0.70 from
+     *     classifyForAutomation), use that. This catches things like a
+     *     "Baseline Program of Works.pdf" whose body clearly reads
+     *     "Dear Sir, ... Yours Faithfully," -> Incoming Or Outgoing Letter.
+     *  2. Otherwise, any non-"Other" category parsed from the filename
+     *     alone wins (mirrors the search page's historical behaviour).
+     *  3. Otherwise, fall back to the stored document_type.
      */
-    protected static function resolveSubLabel(?string $documentType, ?string $fileName): ?string
+    protected static function resolveSubLabel(?string $documentType, ?string $fileName, ?string $ocrText = null): ?string
     {
         $type = $documentType !== null && trim($documentType) !== '' ? trim($documentType) : null;
 
         if ($fileName !== null && $fileName !== '') {
+            $ocr = is_string($ocrText) && $ocrText !== '' ? $ocrText : null;
+            if ($ocr !== null) {
+                $auto = self::classifyForAutomation($fileName, $ocr);
+                $autoCat = (string) ($auto['document_category'] ?? '');
+                $autoConf = (float) ($auto['confidence'] ?? 0);
+                if ($autoCat !== '' && $autoCat !== 'Other' && $autoConf >= 0.70) {
+                    return $autoCat;
+                }
+            }
+
             $parsed = self::parse($fileName);
             $cat = $parsed['document_category'] ?? null;
             if ($cat !== null && $cat !== '' && $cat !== 'Other') {
@@ -795,9 +808,9 @@ class DocumentFilenameParser
         return $type;
     }
 
-    public static function folderDisplayLabel(?string $documentType, ?string $fileName = null): string
+    public static function folderDisplayLabel(?string $documentType, ?string $fileName = null, ?string $ocrText = null): string
     {
-        $type = self::resolveSubLabel($documentType, $fileName);
+        $type = self::resolveSubLabel($documentType, $fileName, $ocrText);
         if ($type === null) {
             return '—';
         }
@@ -806,9 +819,9 @@ class DocumentFilenameParser
         return $main !== null ? $main.' / '.$type : $type;
     }
 
-    public static function folderSubLabel(?string $documentType, ?string $fileName = null): string
+    public static function folderSubLabel(?string $documentType, ?string $fileName = null, ?string $ocrText = null): string
     {
-        $type = self::resolveSubLabel($documentType, $fileName);
+        $type = self::resolveSubLabel($documentType, $fileName, $ocrText);
 
         return $type !== null && $type !== '' ? $type : '—';
     }

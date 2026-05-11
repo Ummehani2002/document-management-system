@@ -107,7 +107,7 @@
                                     <span style="word-break: break-word;">{{ $doc->file_name }}</span>
                                 </td>
                                 <td style="padding: 10px 12px; color: #334155; font-size: 0.95rem;">
-                                    {{ \App\Services\DocumentFilenameParser::folderDisplayLabel($doc->document_type, $doc->file_name) }}
+                                    {{ \App\Services\DocumentFilenameParser::folderDisplayLabel($doc->document_type, $doc->file_name, $doc->ocr_text) }}
                                 </td>
                                 <td style="padding: 10px 12px; text-align: right; white-space: nowrap;">
                                     <a href="{{ $folderSearchUrl }}">View</a>
