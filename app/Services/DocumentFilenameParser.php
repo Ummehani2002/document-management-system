@@ -768,20 +768,49 @@ class DocumentFilenameParser
     /**
      * Human-readable folder column: "Main folder / Subfolder" using stored document_type or filename parse.
      */
-    public static function folderDisplayLabel(?string $documentType, ?string $fileName = null): string
+    /**
+     * Resolve the best "sub folder" label to display for a row, preferring
+     * a category derived from the filename so the UI stays correct even
+     * when the stored document_type is stale, empty, or wrong.
+     *
+     * Rules:
+     *  - Any non-"Other" category parsed from the filename wins over the
+     *    stored document_type. This mirrors the behaviour that the search
+     *    page historically used and that users rely on.
+     *  - Otherwise the stored document_type is used as-is.
+     *  - Otherwise return null.
+     */
+    protected static function resolveSubLabel(?string $documentType, ?string $fileName): ?string
     {
         $type = $documentType !== null && trim($documentType) !== '' ? trim($documentType) : null;
-        if ($type === null && $fileName !== null) {
+
+        if ($fileName !== null && $fileName !== '') {
             $parsed = self::parse($fileName);
             $cat = $parsed['document_category'] ?? null;
-            $type = ($cat !== null && $cat !== '' && $cat !== 'Other') ? $cat : null;
+            if ($cat !== null && $cat !== '' && $cat !== 'Other') {
+                return $cat;
+            }
         }
+
+        return $type;
+    }
+
+    public static function folderDisplayLabel(?string $documentType, ?string $fileName = null): string
+    {
+        $type = self::resolveSubLabel($documentType, $fileName);
         if ($type === null) {
             return '—';
         }
         $main = self::mainFolderForDocumentType($type);
 
         return $main !== null ? $main.' / '.$type : $type;
+    }
+
+    public static function folderSubLabel(?string $documentType, ?string $fileName = null): string
+    {
+        $type = self::resolveSubLabel($documentType, $fileName);
+
+        return $type !== null && $type !== '' ? $type : '—';
     }
 
     /**

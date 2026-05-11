@@ -49,7 +49,7 @@
                         </td>
                         <td style="padding:10px 12px;">{{ $doc->entity?->name ?? '-' }}</td>
                         <td style="padding:10px 12px;">{{ $doc->project?->project_number ?? '-' }}</td>
-                        <td style="padding:10px 12px;">{{ $doc->document_type ?? '-' }}</td>
+                        <td style="padding:10px 12px;">{{ $doc->display_folder }}</td>
                         <td style="padding:10px 12px; text-align:right; white-space:nowrap;">
                             @if(!empty($doc->file_available))
                                 <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>

@@ -364,9 +364,6 @@
         </script>
     @else
         @forelse($documents as $doc)
-            @php
-                $displayType = $doc->document_type ?: '—';
-            @endphp
             <div class="card">
                 <strong>{{ $doc->file_name }}</strong>
                 <span style="color: #64748b; font-weight: normal;"> — File</span>
@@ -374,7 +371,7 @@
 
                 <strong>Folder:</strong>
                 <span style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 4px; display: inline-block; margin: 4px 0;">
-                    {{ $doc->entity?->name ?? '—' }} / {{ $doc->project?->project_number ?? '—' }} / {{ $displayType }}
+                    {{ $doc->entity?->name ?? '—' }} / {{ $doc->project?->project_number ?? '—' }} / {{ $doc->display_folder }}
                 </span>
                 <br>
 
