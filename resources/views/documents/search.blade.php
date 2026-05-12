@@ -57,11 +57,18 @@
                 };
             });
 
+            function projectMatchesEntity(selectedEntityId, projectEntityAttr) {
+                if (!selectedEntityId) {
+                    return true;
+                }
+                return String(selectedEntityId) === String(projectEntityAttr || '');
+            }
+
             function filterProjects() {
                 var entityId = entitySelect.value;
                 projectSelect.innerHTML = '<option value="">Select project</option>';
                 allProjects.forEach(function (project) {
-                    if (entityId && project.entityId !== entityId) return;
+                    if (!projectMatchesEntity(entityId, project.entityId)) return;
                     var option = document.createElement('option');
                     option.value = project.value;
                     option.textContent = project.label;
@@ -339,11 +346,18 @@
                     };
                 });
 
+                function projectMatchesEntity(selectedEntityId, projectEntityAttr) {
+                    if (!selectedEntityId) {
+                        return true;
+                    }
+                    return String(selectedEntityId) === String(projectEntityAttr || '');
+                }
+
                 function filterProjects() {
                     var entityId = entitySelect.value;
                     projectSelect.innerHTML = '<option value="">Select project</option>';
                     allProjects.forEach(function (project) {
-                        if (entityId && project.entityId !== entityId) return;
+                        if (!projectMatchesEntity(entityId, project.entityId)) return;
                         var option = document.createElement('option');
                         option.value = project.value;
                         option.textContent = project.label;

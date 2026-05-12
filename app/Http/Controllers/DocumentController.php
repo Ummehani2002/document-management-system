@@ -393,12 +393,12 @@ class DocumentController extends Controller
             ? ($documentTypeAliases[$documentType] ?? [$documentType])
             : [];
 
-        // Project options in dropdown should come from Project Master.
-        $projectsQuery = Project::query()->orderBy('project_name');
-        if ($entityId) {
-            $projectsQuery->where('entity_id', $entityId);
-        }
-        $projects = $projectsQuery->get(['id', 'entity_id', 'project_number', 'project_name']);
+        // Project options come from Project Master. Always load every project so the
+        // entity/project dropdowns can filter client-side when the user switches entity
+        // (otherwise only the initially selected entity's projects exist in the DOM).
+        $projects = Project::query()
+            ->orderBy('project_name')
+            ->get(['id', 'entity_id', 'project_number', 'project_name']);
         $entities = Entity::orderBy('name')->get(['id', 'name']);
         $fromMaster = Discipline::orderBy('name')->pluck('name');
         $fromDocuments = Document::whereNotNull('discipline')->where('discipline', '!=', '')
