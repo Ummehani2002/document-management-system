@@ -132,6 +132,10 @@ class DocumentFilenameParser
         if (preg_match('/\b[A-Z]{2,}(?:-[A-Z]{2,})*-MEM-\d+/u', $upper)) {
             return true;
         }
+        // Some memo templates use IMOxxxx/SM/KK/yy reference numbers without the word MEM.
+        if (preg_match('/\bIMO\d{3,5}\/SM\/[A-Z]{2}\/\d{2,4}\b/u', $upper)) {
+            return true;
+        }
         if (preg_match('/(^|\n)\s*MEMO\s*(?:\n|$)/u', $upper)) {
             return true;
         }
@@ -493,11 +497,14 @@ class DocumentFilenameParser
             return 'As Built Drawing Submittal';
         }
 
-        if (preg_match('/\bTENDER\b|\bTENDER\s+DOCUMENT/i', $upper)) {
-            return 'Enquireis';
-        }
         if (preg_match('/INTERNAL\s*MEMO|MEMORANDUM|\b[A-Z]{2,}(?:-[A-Z]{2,})*-MEM-\d+/u', $upper)) {
             return 'Internal Memo';
+        }
+        if (preg_match('/\bIMO\d{3,5}\/SM\/[A-Z]{2}\/\d{2,4}\b/u', $upper)) {
+            return 'Internal Memo';
+        }
+        if (preg_match('/\bTENDER\b|\bTENDER\s+DOCUMENT/i', $upper)) {
+            return 'Enquireis';
         }
 
         // Prioritize clear letter/correspondence documents before generic short-code matches

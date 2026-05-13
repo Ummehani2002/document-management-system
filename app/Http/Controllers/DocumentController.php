@@ -11,6 +11,8 @@ use App\Jobs\SendSharedDocumentEmail;
 use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
+use App\Services\OfficeDocumentTextExtractionService;
+use App\Services\PdfFirstPageOcrService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -153,9 +155,10 @@ class DocumentController extends Controller
             if ($uploadMode === 'manual') {
                 $category = $manualSubfolder;
             } else {
-                // In auto mode, classify after OCR (ProcessOCR + DocumentReclassificationService).
-                // Initial upload goes to Other; OCR will move it to the right folder.
-                $category = 'Other';
+                // In auto mode, predict folder immediately from filename + best-effort
+                // first-page text extraction so files are uploaded into the right folder
+                // upfront. ProcessOCR still runs after upload to refine if needed.
+                $category = $this->predictUploadCategory($file, $originalName, $validSubfolders);
             }
 
             $folderPath = 'documents/'
@@ -686,5 +689,41 @@ class DocumentController extends Controller
     protected function resolveDocumentLocation(string $path): ?array
     {
         return DocumentLocationResolver::resolve($path);
+    }
+
+    /**
+     * Best-effort folder prediction during upload.
+     * Uses first-page text where possible, then filename-only fallback.
+     *
+     * @param  array<int, string>  $validSubfolders
+     */
+    protected function predictUploadCategory($file, string $originalName, array $validSubfolders): string
+    {
+        $ocrText = null;
+
+        try {
+            $realPath = $file?->getRealPath();
+            $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+            if (is_string($realPath) && $realPath !== '' && is_file($realPath)) {
+                if ($ext === 'pdf') {
+                    $ocrText = app(PdfFirstPageOcrService::class)->extractTextForClassification($realPath);
+                } elseif (in_array($ext, ['docx', 'xlsx', 'doc', 'xls'], true)) {
+                    $ocrText = app(OfficeDocumentTextExtractionService::class)->extractText($realPath, $ext);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::debug('Upload-time category prediction OCR failed; falling back to filename', [
+                'file_name' => $originalName,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $result = DocumentFilenameParser::classifyForAutomation($originalName, $ocrText);
+        $predicted = trim((string) ($result['document_category'] ?? 'Other'));
+        if ($predicted === '' || !in_array($predicted, $validSubfolders, true)) {
+            return 'Other';
+        }
+
+        return $predicted;
     }
 }
