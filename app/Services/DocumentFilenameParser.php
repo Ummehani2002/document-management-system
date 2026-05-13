@@ -531,6 +531,15 @@ class DocumentFilenameParser
             return 'Prequalification';
         }
 
+        // Explicit business-document labels should win over ambiguous short codes
+        // like "-MS-" that can also appear in non-submittal naming conventions.
+        if (preg_match('/\bKPI\b|\bKEY\s*PERFORMANCE\s*INDICATOR\b/i', $upper)) {
+            return 'KPI Report';
+        }
+        if (preg_match('/MONTHLY\s*REPORT|PROGRESS\s*REPORT/i', $upper)) {
+            return 'Monthly Report';
+        }
+
         // Prefer Material Submittal when explicit material indicators exist.
         // This prevents OCR legend text like "SD = Shop Drawings" from overriding
         // actual "Submittal Title: Material Submittal ...".
