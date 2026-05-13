@@ -99,12 +99,17 @@ class DocumentFilenameParser
 
         $window = self::normalizeOcrText($text);
         $window = substr($window, 0, 14000);
+        if (preg_match('/PAYMENT\s*CERTI(?:FICATE|ACATE)|SUBCONTRACTOR\s*PAYMENT\s*CERTI|CERTIFICATE\s*NO\.?\s*[:\-]/iu', $window)) {
+            return 'Payment Certificate';
+        }
         $synthetic = self::extractReferenceSyntheticTitle($window);
         $synthetic = trim($synthetic);
 
         if ($synthetic !== '') {
             $cat = self::guessSubfolderFromTitle($synthetic, strtoupper($synthetic));
-            if ($cat !== 'Other') {
+            // Synthetic title is useful, but letter-like refs (e.g. LTR-L00xx) are
+            // too generic and can hide a real report subject in body text.
+            if ($cat !== 'Other' && $cat !== 'Incoming Or Outgoing Letter') {
                 return $cat;
             }
         }
@@ -113,11 +118,31 @@ class DocumentFilenameParser
         if (self::looksLikeInternalMemo($base)) {
             return 'Internal Memo';
         }
+        $reportFromSubject = self::detectReportFromSubject($base);
+        if ($reportFromSubject !== null) {
+            return $reportFromSubject;
+        }
         if (self::looksLikeProjectLetter($base)) {
             return 'Incoming Or Outgoing Letter';
         }
 
         return self::guessSubfolderFromTitle($base, strtoupper($base));
+    }
+
+    /**
+     * Prefer explicit report subjects over generic letter framing.
+     */
+    protected static function detectReportFromSubject(string $text): ?string
+    {
+        $upper = strtoupper($text);
+        if (preg_match('/(?:^|\n)\s*SUBJECT\s*[:\-]\s*.*\bKPI\b.*$/mi', $upper)) {
+            return 'KPI Report';
+        }
+        if (preg_match('/(?:^|\n)\s*SUBJECT\s*[:\-]\s*.*\b(?:MONTHLY|PROGRESS|MPR)\b.*\bREPORT\b.*$/mi', $upper)) {
+            return 'Monthly Report';
+        }
+
+        return null;
     }
 
     /**
@@ -389,6 +414,8 @@ class DocumentFilenameParser
         $hasStrongTransmittalSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:DTF|DT|TRS|TRM)(?:[^A-Z0-9]|$)|DOCUMENT\s*TRANSMITTAL/u', $upperName);
         $hasStrongMirSignal = (bool) preg_match('/(?:^|[^A-Z0-9])MIR(?:[^A-Z0-9]|$)|MATERIAL\s*INSPECTION\s*REQUEST/u', $upperName);
         $hasStrongWirSignal = (bool) preg_match('/(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)|WORK\s*INSPECTION/u', $upperName);
+        $hasStrongReportSignal = (bool) preg_match('/(?:^|[^A-Z0-9])MPR(?:[^A-Z0-9]|$)|\bKPI\b|MONTHLY[\s\-_A-Z0-9]*REPORT|PROGRESS[\s\-_A-Z0-9]*REPORT|MAINTENANCE[\s\-_A-Z0-9]*REPORT|\bREPORT\b/u', $upperName);
+        $hasStrongPaymentCertificateSignal = (bool) preg_match('/PAYMENT\s*CERTI(?:FICATE|ACATE)|(?:^|[^A-Z0-9])PC[#\/\-\s]*\d{1,3}(?:[^A-Z0-9]|$)|SUBCONTRACTOR\s*PAYMENT\s*CERTI/u', $upperName);
         // Engineering letter reference numbering ("...-L003-24", "/L0017/25") is a
         // strong indicator the file is a project letter even when the title alone
         // has no obvious letter keyword.
@@ -442,6 +469,9 @@ class DocumentFilenameParser
             'Material Inspection Request' => $hasStrongMirSignal,
             'Method Statement' => $hasStrongMethodSignal,
             'Material Submittal' => $hasStrongMaterialSignal,
+            'Monthly Report' => $hasStrongReportSignal,
+            'KPI Report' => $hasStrongReportSignal,
+            'Payment Certificate' => $hasStrongPaymentCertificateSignal,
             'Document Transmittal' => $hasStrongTransmittalSignal,
             'Incoming Or Outgoing Letter' => $hasStrongLetterRefSignal,
         ];
@@ -514,7 +544,7 @@ class DocumentFilenameParser
         }
 
         $codeMatches = [];
-        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|MTS|MST|MSS|MOS|MS|MT|SD|DWG|ASB|ABS|AB|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
+        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|MTS|MST|MSS|MOS|MT|SD|DWG|ASB|ABS|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
         $codes = array_unique(array_map('strtoupper', $codeMatches[1] ?? []));
         $hasPrequalificationKeyword = (bool) preg_match('/PRE[\s\-]*QUALIF(?:ICATION|ICATIONS)?|\bPREQUAL\b|\bPREQ\b/i', $upper);
         $hasMethodKeyword = (bool) preg_match('/METHOD\s*STATEMENT|METHOD\s+OF\s+STATEMENT|METHOD\s*ST(?:\.|ATEMENT)?|STATEMENT\s+SUBMITTAL|\bMTS\b|\bMST\b|\bMSS\b|\bMOS\b/i', $upper);
@@ -536,7 +566,7 @@ class DocumentFilenameParser
         if (preg_match('/\bKPI\b|\bKEY\s*PERFORMANCE\s*INDICATOR\b/i', $upper)) {
             return 'KPI Report';
         }
-        if (preg_match('/MONTHLY\s*REPORT|PROGRESS\s*REPORT/i', $upper)) {
+        if (preg_match('/(?:^|[^A-Z0-9])MPR(?:[^A-Z0-9]|$)|MONTHLY[\s\-_A-Z0-9]*REPORT|PROGRESS[\s\-_A-Z0-9]*REPORT|MAINTENANCE[\s\-_A-Z0-9]*REPORT/i', $upper)) {
             return 'Monthly Report';
         }
 
@@ -559,7 +589,7 @@ class DocumentFilenameParser
         if (in_array('WIR', $codes, true)) {
             return 'Work Inspection';
         }
-        if (in_array('ASB', $codes, true) || in_array('ABS', $codes, true) || in_array('AB', $codes, true)) {
+        if (in_array('ASB', $codes, true) || in_array('ABS', $codes, true)) {
             return 'As Built Drawing Submittal';
         }
         if (in_array('SD', $codes, true)) {
@@ -581,12 +611,6 @@ class DocumentFilenameParser
             return 'Material Sample';
         }
         if (in_array('MB', $codes, true)) {
-            return 'Material Submittal';
-        }
-        if (in_array('MS', $codes, true)) {
-            if (preg_match('/METHOD\s*STATEMENT|METHOD\s+OF\s+STATEMENT|METHOD\s*ST(?:\.|ATEMENT)?|STATEMENT\s+SUBMITTAL/i', $upper)) {
-                return 'Method Statement';
-            }
             return 'Material Submittal';
         }
         if (in_array('PQ', $codes, true) || in_array('PREQ', $codes, true) || in_array('PREQUL', $codes, true)) {
@@ -659,7 +683,12 @@ class DocumentFilenameParser
         if (preg_match('/MONTHLY\s*REPORT|PROGRESS\s*REPORT/i', $upper)) {
             return 'Monthly Report';
         }
-        if (preg_match('/PAYMENT\s*CERTIFICATE/i', $upper)) {
+        // Fallback: when filename explicitly says "report" but no specialized report
+        // type was matched above, place under Monthly Report instead of Other.
+        if (preg_match('/\bREPORT\b/i', $upper)) {
+            return 'Monthly Report';
+        }
+        if (preg_match('/PAYMENT\s*CERTI(?:FICATE|ACATE)|SUBCONTRACTOR\s*PAYMENT\s*CERTI|(?:^|[^A-Z0-9])PC[#\/\-\s]*\d{1,3}(?:[^A-Z0-9]|$)/i', $upper)) {
             return 'Payment Certificate';
         }
         if (preg_match('/AWARD\s*NOTIFICATION/i', $upper)) {
