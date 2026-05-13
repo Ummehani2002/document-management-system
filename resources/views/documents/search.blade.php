@@ -113,7 +113,11 @@
                     <select name="project_id" id="project_id" style="width: 100%; padding: 8px 12px;">
                         <option value="">All projects</option>
                         @foreach($projects ?? [] as $p)
-                            <option value="{{ $p->id }}" {{ (int) request('project_id') === $p->id ? 'selected' : '' }}>
+                            <option
+                                value="{{ $p->id }}"
+                                data-entity="{{ $p->entity_id }}"
+                                {{ (int) request('project_id') === $p->id ? 'selected' : '' }}
+                            >
                                 {{ $p->project_name }} ({{ $p->project_number }})
                             </option>
                         @endforeach
@@ -140,6 +144,59 @@
                 <button type="submit">Search</button>
             </div>
         </form>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var entitySelect = document.getElementById('entity_id');
+                var projectSelect = document.getElementById('project_id');
+                if (!entitySelect || !projectSelect) return;
+
+                var allProjects = Array.from(projectSelect.querySelectorAll('option[data-entity]')).map(function (option) {
+                    return {
+                        value: option.value,
+                        entityId: option.getAttribute('data-entity'),
+                        label: option.textContent
+                    };
+                });
+
+                function projectMatchesEntity(selectedEntityId, projectEntityAttr) {
+                    if (!selectedEntityId) {
+                        return true;
+                    }
+                    return String(selectedEntityId) === String(projectEntityAttr || '');
+                }
+
+                function filterProjectsByEntity() {
+                    var entityId = entitySelect.value;
+                    var previousProjectId = projectSelect.value;
+
+                    projectSelect.innerHTML = '';
+                    var allOpt = document.createElement('option');
+                    allOpt.value = '';
+                    allOpt.textContent = 'All projects';
+                    projectSelect.appendChild(allOpt);
+
+                    allProjects.forEach(function (project) {
+                        if (!projectMatchesEntity(entityId, project.entityId)) {
+                            return;
+                        }
+                        var option = document.createElement('option');
+                        option.value = project.value;
+                        option.textContent = project.label;
+                        if (previousProjectId && project.value === previousProjectId) {
+                            option.selected = true;
+                        }
+                        projectSelect.appendChild(option);
+                    });
+
+                    if (previousProjectId && projectSelect.value !== previousProjectId) {
+                        projectSelect.value = '';
+                    }
+                }
+
+                entitySelect.addEventListener('change', filterProjectsByEntity);
+                filterProjectsByEntity();
+            });
+        </script>
     @endif
 @endif
 
