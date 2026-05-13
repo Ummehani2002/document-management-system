@@ -110,11 +110,33 @@ class DocumentFilenameParser
         }
 
         $base = substr($window, 0, 6000);
+        if (self::looksLikeInternalMemo($base)) {
+            return 'Internal Memo';
+        }
         if (self::looksLikeProjectLetter($base)) {
             return 'Incoming Or Outgoing Letter';
         }
 
         return self::guessSubfolderFromTitle($base, strtoupper($base));
+    }
+
+    /**
+     * Memos share TO/REF/DATE/SUBJECT blocks with project letters; detect memo first.
+     */
+    protected static function looksLikeInternalMemo(string $text): bool
+    {
+        $upper = strtoupper($text);
+        if (preg_match('/\bINTERNAL\s+MEMO\b|\bINTER\s*[- ]OFFICE\s+MEMO\b|\bMEMORANDUM\b|^\s*MEMO\s*$/m', $upper)) {
+            return true;
+        }
+        if (preg_match('/\b[A-Z]{2,}(?:-[A-Z]{2,})*-MEM-\d+/u', $upper)) {
+            return true;
+        }
+        if (preg_match('/(^|\n)\s*MEMO\s*(?:\n|$)/u', $upper)) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -124,6 +146,9 @@ class DocumentFilenameParser
     protected static function looksLikeProjectLetter(string $text): bool
     {
         $upper = strtoupper($text);
+        if (self::looksLikeInternalMemo($text)) {
+            return false;
+        }
         if (preg_match('/DOCUMENT\s+TRANSMITTAL|TRANSMITTAL\s+NOTE|\bDTF\b|\bTRS\b|\bTRM\b/u', $upper)) {
             return false;
         }
@@ -455,7 +480,8 @@ class DocumentFilenameParser
      */
     protected static function guessSubfolderFromTitle(string $filename, string $upper): string
     {
-        $hasLetterToken = (bool) preg_match('/(?:^|[^A-Z0-9])(?:LTR|LOR|LETTER|NOTICE|CORRESP(?:ONDENCE)?|COMMENTS?|SUBMISSION)(?:[^A-Z0-9]|$)/i', $upper);
+        // Avoid treating "Submission of … certificates" HR/memo filenames as letters (SUBMISSION alone is too broad).
+        $hasLetterToken = (bool) preg_match('/(?:^|[^A-Z0-9])(?:LTR|LOR|LETTER|NOTICE|CORRESP(?:ONDENCE)?|COMMENTS?)(?:[^A-Z0-9]|$)/i', $upper);
         // Engineering letter reference numbering ("...-L003-24", "/L0017/25")
         // is also a strong indicator that a file is a project letter.
         $hasLetterRefNumber = (bool) preg_match('/(?:^|[^A-Z0-9])L\d{3,4}[-_\/]\d{2,4}(?:[^A-Z0-9]|$)/i', $upper);
@@ -465,6 +491,13 @@ class DocumentFilenameParser
         // Keep As-Built docs out of Method Statement even if code contains "-MS-".
         if (preg_match('/\bAS[\s\-]*BUILT\b|\bASBUILT\b/i', $upper) && !$hasLetterToken) {
             return 'As Built Drawing Submittal';
+        }
+
+        if (preg_match('/\bTENDER\b|\bTENDER\s+DOCUMENT/i', $upper)) {
+            return 'Enquireis';
+        }
+        if (preg_match('/INTERNAL\s*MEMO|MEMORANDUM|\b[A-Z]{2,}(?:-[A-Z]{2,})*-MEM-\d+/u', $upper)) {
+            return 'Internal Memo';
         }
 
         // Prioritize clear letter/correspondence documents before generic short-code matches
