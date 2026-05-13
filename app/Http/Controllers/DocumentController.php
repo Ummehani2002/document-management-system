@@ -11,13 +11,12 @@ use App\Jobs\SendSharedDocumentEmail;
 use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
-use App\Services\OfficeDocumentTextExtractionService;
-use App\Services\PdfFirstPageOcrService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Http\UploadedFile;
 
 class DocumentController extends Controller
 {
@@ -86,7 +85,26 @@ class DocumentController extends Controller
             'main_folder'       => ['nullable', 'string', Rule::in($validMainFolders)],
             'document_type'     => ['nullable', 'string', Rule::in($validSubfolders)],
             'documents'         => 'required|array|min:1',
-            'documents.*'       => 'file|mimes:pdf,doc,docx,xls,xlsx|max:' . $maxFileKb,
+            'documents.*'       => [
+                'file',
+                'max:' . $maxFileKb,
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (!$value instanceof UploadedFile) {
+                        $fail('Invalid file upload.');
+                        return;
+                    }
+
+                    $allowed = ['pdf', 'doc', 'docx', 'xls', 'xlsx'];
+                    $originalExt = strtolower((string) $value->getClientOriginalExtension());
+                    $guessedExt = strtolower((string) $value->guessExtension());
+
+                    if (in_array($originalExt, $allowed, true) || in_array($guessedExt, $allowed, true)) {
+                        return;
+                    }
+
+                    $fail('The file must be one of: pdf, doc, docx, xls, xlsx.');
+                },
+            ],
         ]);
 
         $uploadMode = (string) $request->input('upload_mode', 'auto');
@@ -145,6 +163,7 @@ class DocumentController extends Controller
         $failedUploads = 0;
         $detectedFolders = [];
         $detectedProjects = [];
+        $enableDeepDuplicateCheck = (bool) env('DOC_DEEP_DUP_CHECK', false);
         $disk = config('filesystems.default');
         foreach ($files as $file) {
             $originalName = $file->getClientOriginalName();
@@ -155,9 +174,8 @@ class DocumentController extends Controller
             if ($uploadMode === 'manual') {
                 $category = $manualSubfolder;
             } else {
-                // In auto mode, predict folder immediately from filename + best-effort
-                // first-page text extraction so files are uploaded into the right folder
-                // upfront. ProcessOCR still runs after upload to refine if needed.
+                // In auto mode, keep prediction lightweight so upload returns quickly.
+                // OCR-based refinement still runs after upload via ProcessOCR.
                 $category = $this->predictUploadCategory($file, $originalName, $validSubfolders);
             }
 
@@ -181,7 +199,7 @@ class DocumentController extends Controller
                 ->where('project_id', $targetProject->id)
                 ->get(['id', 'file_name', 'file_path', 'document_type', 'entity_id']);
 
-            $uploadedHash = $this->uploadedFileHash($file);
+            $uploadedHash = $enableDeepDuplicateCheck ? $this->uploadedFileHash($file) : null;
             if ($uploadedHash !== null) {
                 $isDuplicate = false;
                 foreach ($candidates as $candidate) {
@@ -263,9 +281,7 @@ class DocumentController extends Controller
                     $document->save();
 
                     try {
-                        ProcessOCR::dispatch($document->id)
-                            ->onConnection('sync')
-                            ->afterResponse();
+                        ProcessOCR::dispatch($document->id)->afterResponse();
                     } catch (\Throwable $e) {
                         \Log::warning('ProcessOCR on re-attach failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
                     }
@@ -309,11 +325,9 @@ class DocumentController extends Controller
                 'file_name'     => $storedFileName,
                 'file_path'     => $path,
             ]);
-            // Run OCR on the sync connection after the redirect so uploads are not blocked (works without a queue worker).
+            // Queue OCR so upload response returns immediately.
             try {
-                ProcessOCR::dispatch($document->id)
-                    ->onConnection('sync')
-                    ->afterResponse();
+                ProcessOCR::dispatch($document->id)->afterResponse();
             } catch (\Throwable $e) {
                 \Log::warning('ProcessOCR on upload failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
             }
@@ -693,32 +707,14 @@ class DocumentController extends Controller
 
     /**
      * Best-effort folder prediction during upload.
-     * Uses first-page text where possible, then filename-only fallback.
+     * Keep this lightweight (filename-only) so upload request returns quickly.
+     * OCR-based refinement still runs asynchronously via ProcessOCR after upload.
      *
      * @param  array<int, string>  $validSubfolders
      */
     protected function predictUploadCategory($file, string $originalName, array $validSubfolders): string
     {
-        $ocrText = null;
-
-        try {
-            $realPath = $file?->getRealPath();
-            $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-            if (is_string($realPath) && $realPath !== '' && is_file($realPath)) {
-                if ($ext === 'pdf') {
-                    $ocrText = app(PdfFirstPageOcrService::class)->extractTextForClassification($realPath);
-                } elseif (in_array($ext, ['docx', 'xlsx', 'doc', 'xls'], true)) {
-                    $ocrText = app(OfficeDocumentTextExtractionService::class)->extractText($realPath, $ext);
-                }
-            }
-        } catch (\Throwable $e) {
-            Log::debug('Upload-time category prediction OCR failed; falling back to filename', [
-                'file_name' => $originalName,
-                'error' => $e->getMessage(),
-            ]);
-        }
-
-        $result = DocumentFilenameParser::classifyForAutomation($originalName, $ocrText);
+        $result = DocumentFilenameParser::classifyForAutomation($originalName, null);
         $predicted = trim((string) ($result['document_category'] ?? 'Other'));
         if ($predicted === '' || !in_array($predicted, $validSubfolders, true)) {
             return 'Other';

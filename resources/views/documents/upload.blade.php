@@ -34,6 +34,16 @@
 @if(session('success'))
     <div class="success">{{ session('success') }}</div>
 @endif
+@if($errors->any())
+    <div class="card" style="margin-bottom: 16px; border-color: #fecaca; background: #fef2f2; color: #991b1b;">
+        <strong>Upload failed:</strong>
+        <ul style="margin: 8px 0 0 18px;">
+            @foreach($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
 
 @if($entities->isEmpty() || $projects->isEmpty())
     <div class="card" style="margin-bottom: 20px; padding: 12px; background: #fffbeb; border-color: #fcd34d;">
@@ -165,7 +175,8 @@
             </div>
         </div>
 
-        <button type="submit">Upload</button>
+        <button type="submit" id="upload-submit-btn">Upload</button>
+        <p id="upload-status-text" style="display:none; margin-top:8px; color:#334155;">Uploading... please wait.</p>
     </form>
 
     <script>
@@ -257,6 +268,18 @@
             mainFolderSelect.addEventListener('change', function() {
                 selectedDocumentType = '';
                 renderDocumentTypeOptions();
+            });
+        }
+
+        var uploadForm = document.getElementById('upload-form');
+        var submitBtn = document.getElementById('upload-submit-btn');
+        var uploadStatus = document.getElementById('upload-status-text');
+
+        if (uploadForm && submitBtn) {
+            uploadForm.addEventListener('submit', function () {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Uploading...';
+                if (uploadStatus) uploadStatus.style.display = 'block';
             });
         }
 

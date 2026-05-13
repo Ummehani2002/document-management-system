@@ -99,6 +99,21 @@ class DocumentFilenameParser
 
         $window = self::normalizeOcrText($text);
         $window = substr($window, 0, 14000);
+
+        // Priority 1: infer from explicit subject line.
+        $subjectCategory = self::detectCategoryFromSubject($window);
+        if ($subjectCategory !== 'Other') {
+            return $subjectCategory;
+        }
+        // Priority 2: if subject is unclear, infer from title/header text.
+        $titleCategory = self::detectCategoryFromTitle($window);
+        if ($titleCategory !== 'Other') {
+            return $titleCategory;
+        }
+
+        if (preg_match('/PROJECT\s+AWARD\s+NOTIFICATION|\(\s*PAN\s*\)/iu', $window)) {
+            return 'Project Award Notification';
+        }
         if (preg_match('/PAYMENT\s*CERTI(?:FICATE|ACATE)|SUBCONTRACTOR\s*PAYMENT\s*CERTI|CERTIFICATE\s*NO\.?\s*[:\-]/iu', $window)) {
             return 'Payment Certificate';
         }
@@ -127,6 +142,50 @@ class DocumentFilenameParser
         }
 
         return self::guessSubfolderFromTitle($base, strtoupper($base));
+    }
+
+    protected static function detectCategoryFromTitle(string $window): string
+    {
+        $scan = strtoupper(substr($window, 0, 3200));
+        $lines = preg_split('/\n+/u', $scan) ?: [];
+        foreach ($lines as $line) {
+            $line = trim((string) $line);
+            if ($line === '' || strlen($line) < 4) {
+                continue;
+            }
+            // Skip ref/date rows; focus on heading-like rows.
+            if (preg_match('/^(DATE|REF|REFERENCE|PROJECT|CLIENT|TO|ATTENTION)\b/u', $line)) {
+                continue;
+            }
+            if (!preg_match('/REPORT|MEMO|NOTIFICATION|CERTI(?:FICATE|ACATE)|SUBMITTAL|STATEMENT|INSPECTION|TRANSMITTAL|INVOICE|VOUCHER|REQUEST/u', $line)) {
+                continue;
+            }
+            $cat = self::guessSubfolderFromTitle($line, $line);
+            if ($cat !== 'Other') {
+                return $cat;
+            }
+        }
+
+        return 'Other';
+    }
+
+    protected static function detectCategoryFromSubject(string $window): string
+    {
+        if (preg_match('/(?:^|\n)\s*SUBJECT\s*[:\-]\s*([^\n]{4,260})/iu', $window, $m)) {
+            $subject = trim((string) ($m[1] ?? ''));
+            if ($subject !== '') {
+                $upper = strtoupper($subject);
+                if (preg_match('/\bSNAG(?:S|GING)?\b/u', $upper)) {
+                    return 'Snags';
+                }
+                $cat = self::guessSubfolderFromTitle($subject, $upper);
+                if ($cat !== 'Other') {
+                    return $cat;
+                }
+            }
+        }
+
+        return 'Other';
     }
 
     /**
@@ -176,6 +235,9 @@ class DocumentFilenameParser
     {
         $upper = strtoupper($text);
         if (self::looksLikeInternalMemo($text)) {
+            return false;
+        }
+        if (preg_match('/PROJECT\s+AWARD\s+NOTIFICATION|\(\s*PAN\s*\)/u', $upper)) {
             return false;
         }
         if (preg_match('/DOCUMENT\s+TRANSMITTAL|TRANSMITTAL\s+NOTE|\bDTF\b|\bTRS\b|\bTRM\b/u', $upper)) {
@@ -414,7 +476,8 @@ class DocumentFilenameParser
         $hasStrongTransmittalSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:DTF|DT|TRS|TRM)(?:[^A-Z0-9]|$)|DOCUMENT\s*TRANSMITTAL/u', $upperName);
         $hasStrongMirSignal = (bool) preg_match('/(?:^|[^A-Z0-9])MIR(?:[^A-Z0-9]|$)|MATERIAL\s*INSPECTION\s*REQUEST/u', $upperName);
         $hasStrongWirSignal = (bool) preg_match('/(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)|WORK\s*INSPECTION/u', $upperName);
-        $hasStrongReportSignal = (bool) preg_match('/(?:^|[^A-Z0-9])MPR(?:[^A-Z0-9]|$)|\bKPI\b|MONTHLY[\s\-_A-Z0-9]*REPORT|PROGRESS[\s\-_A-Z0-9]*REPORT|MAINTENANCE[\s\-_A-Z0-9]*REPORT|\bREPORT\b/u', $upperName);
+        $hasStrongPanReportSignal = (bool) preg_match('/PAN\s*REPORT|PANREPORT/u', $upperName);
+        $hasStrongReportSignal = (bool) preg_match('/(?:^|[^A-Z0-9])MPR(?:[^A-Z0-9]|$)|\bKPI\b|PAN\s*REPORT|PANREPORT|MONTHLY[\s\-_A-Z0-9]*REPORT|PROGRESS[\s\-_A-Z0-9]*REPORT|MAINTENANCE[\s\-_A-Z0-9]*REPORT|\bREPORT\b/u', $upperName);
         $hasStrongPaymentCertificateSignal = (bool) preg_match('/PAYMENT\s*CERTI(?:FICATE|ACATE)|(?:^|[^A-Z0-9])PC[#\/\-\s]*\d{1,3}(?:[^A-Z0-9]|$)|SUBCONTRACTOR\s*PAYMENT\s*CERTI/u', $upperName);
         // Engineering letter reference numbering ("...-L003-24", "/L0017/25") is a
         // strong indicator the file is a project letter even when the title alone
@@ -423,7 +486,7 @@ class DocumentFilenameParser
         $hasStrongFilenameCode = $hasStrongShopDrawingSignal || $hasStrongMethodSignal
             || $hasStrongMaterialSignal || $hasStrongTransmittalSignal
             || $hasStrongMirSignal || $hasStrongWirSignal
-            || $hasStrongLetterRefSignal;
+            || $hasStrongLetterRefSignal || $hasStrongPanReportSignal;
 
         // OCR can mistake a submittal title block for a project letter because both
         // carry TO/DATE/REF/SUBJECT labels. If the filename's structured code clearly
@@ -566,7 +629,7 @@ class DocumentFilenameParser
         if (preg_match('/\bKPI\b|\bKEY\s*PERFORMANCE\s*INDICATOR\b/i', $upper)) {
             return 'KPI Report';
         }
-        if (preg_match('/(?:^|[^A-Z0-9])MPR(?:[^A-Z0-9]|$)|MONTHLY[\s\-_A-Z0-9]*REPORT|PROGRESS[\s\-_A-Z0-9]*REPORT|MAINTENANCE[\s\-_A-Z0-9]*REPORT/i', $upper)) {
+        if (preg_match('/(?:^|[^A-Z0-9])MPR(?:[^A-Z0-9]|$)|PAN\s*REPORT|PANREPORT|MONTHLY[\s\-_A-Z0-9]*REPORT|PROGRESS[\s\-_A-Z0-9]*REPORT|MAINTENANCE[\s\-_A-Z0-9]*REPORT/i', $upper)) {
             return 'Monthly Report';
         }
 
