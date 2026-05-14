@@ -20,8 +20,8 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
- * Large files on Laravel Cloud: browser → R2 (presigned PUT) hits CORS / edge limits.
- * Prefer chunked uploads: small POSTs to this app, which streams parts to R2 then merges.
+ * Large files: browser → R2 (presigned PUT) can hit CORS. Chunked path uses small POSTs to Laravel,
+ * then S3 multipart upload (UploadPart + CompleteMultipartUpload) so the app never merges the full file on disk.
  */
 class DocumentDirectUploadController extends Controller
 {
@@ -191,7 +191,7 @@ class DocumentDirectUploadController extends Controller
     }
 
     /**
-     * Start chunked upload (no browser → R2; avoids R2 CORS).
+     * Start chunked upload using S3 multipart (R2-compatible): parts are assembled in object storage, not on this server.
      */
     public function chunkInit(Request $request): JsonResponse
     {
@@ -200,23 +200,45 @@ class DocumentDirectUploadController extends Controller
             return $built;
         }
 
-        $chunkSize = max(1048576, (int) env('DOC_UPLOAD_CHUNK_BYTES', 5242880));
+        $minPart = 5 * 1024 * 1024; // S3/R2: every part except the last must be ≥ 5 MiB
+        $chunkSize = max($minPart, (int) env('DOC_UPLOAD_CHUNK_BYTES', $minPart));
         $fileSize = (int) $built['file_size'];
         $totalChunks = (int) max(1, (int) ceil($fileSize / $chunkSize));
-        if ($totalChunks > 400) {
+        if ($totalChunks > 9000) {
             return response()->json(['message' => 'File is too large for the current chunk size. Increase DOC_UPLOAD_CHUNK_BYTES in .env.'], 422);
         }
 
-        $mergeId = Str::lower((string) Str::ulid());
-        $expiresAt = time() + 3600;
+        $client = $this->s3Client();
+        if ($client === null) {
+            return response()->json(['message' => 'S3 client not available.'], 422);
+        }
+
+        $bucket = (string) config('filesystems.disks.s3.bucket');
+        $key = (string) $built['key'];
+        $contentType = (string) $built['content_type'];
+
+        try {
+            $created = $client->createMultipartUpload([
+                'Bucket' => $bucket,
+                'Key' => $key,
+                'ContentType' => $contentType,
+            ]);
+            $uploadId = (string) $created['UploadId'];
+        } catch (\Throwable $e) {
+            Log::warning('createMultipartUpload failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Could not start multipart upload: '.$e->getMessage()], 500);
+        }
+
         $payload = [
-            'v' => 2,
-            'exp' => $expiresAt,
-            'merge_id' => $mergeId,
+            'v' => 3,
+            'exp' => time() + 3600,
+            'upload_id' => $uploadId,
+            'bucket' => $bucket,
+            'key' => $key,
             'chunk_size' => $chunkSize,
             'total_chunks' => $totalChunks,
             'disk' => $built['disk'],
-            'key' => $built['key'],
             'original_name' => $built['filename'],
             'stored_file_name' => $built['stored_file_name'],
             'entity_id' => $built['entity_id'],
@@ -232,6 +254,14 @@ class DocumentDirectUploadController extends Controller
             $token = Crypt::encryptString(json_encode($payload, JSON_THROW_ON_ERROR));
         } catch (\Throwable $e) {
             Log::warning('Chunk upload init encrypt failed', ['error' => $e->getMessage()]);
+            try {
+                $client->abortMultipartUpload([
+                    'Bucket' => $bucket,
+                    'Key' => $key,
+                    'UploadId' => $uploadId,
+                ]);
+            } catch (\Throwable) {
+            }
 
             return response()->json(['message' => 'Could not start upload session.'], 500);
         }
@@ -248,7 +278,6 @@ class DocumentDirectUploadController extends Controller
         $validated = $request->validate([
             'token' => 'required|string|min:10',
             'index' => 'required|integer|min:0',
-            // max in KB; allow large DOC_UPLOAD_CHUNK_BYTES (e.g. 32 MB → max:32768)
             'chunk' => 'required|file|max:102400',
         ]);
 
@@ -258,8 +287,8 @@ class DocumentDirectUploadController extends Controller
             return response()->json(['message' => 'Invalid or expired upload session.'], 410);
         }
 
-        if (! is_array($payload) || (int) ($payload['v'] ?? 0) !== 2) {
-            return response()->json(['message' => 'Invalid upload session.'], 422);
+        if (! is_array($payload) || (int) ($payload['v'] ?? 0) !== 3) {
+            return response()->json(['message' => 'Invalid upload session. Refresh the page and try again.'], 422);
         }
 
         if (($payload['exp'] ?? 0) < time()) {
@@ -271,13 +300,16 @@ class DocumentDirectUploadController extends Controller
             return response()->json(['message' => 'Invalid disk.'], 422);
         }
 
-        $mergeId = (string) ($payload['merge_id'] ?? '');
+        $uploadId = (string) ($payload['upload_id'] ?? '');
+        $bucket = (string) ($payload['bucket'] ?? '');
+        $objectKey = (string) ($payload['key'] ?? '');
         $chunkSize = (int) ($payload['chunk_size'] ?? 0);
         $totalChunks = (int) ($payload['total_chunks'] ?? 0);
         $fileSize = (int) ($payload['file_size'] ?? 0);
         $index = (int) $validated['index'];
 
-        if ($mergeId === '' || $chunkSize < 1 || $totalChunks < 1 || $index >= $totalChunks) {
+        if ($uploadId === '' || $bucket === '' || $objectKey === '' || ! str_starts_with($objectKey, 'documents/')
+            || $chunkSize < 1 || $totalChunks < 1 || $index >= $totalChunks) {
             return response()->json(['message' => 'Invalid chunk index.'], 422);
         }
 
@@ -294,20 +326,33 @@ class DocumentDirectUploadController extends Controller
             ], 422);
         }
 
-        $partKey = 'temp_uploads/'.$mergeId.'/'.$index;
+        $client = $this->s3Client();
+        if ($client === null) {
+            return response()->json(['message' => 'S3 client not available.'], 422);
+        }
+
+        $partNumber = $index + 1;
+
+        $stream = fopen($chunk->getRealPath(), 'rb');
+        if ($stream === false) {
+            return response()->json(['message' => 'Could not read chunk.'], 500);
+        }
         try {
-            $stream = fopen($chunk->getRealPath(), 'rb');
-            if ($stream === false) {
-                return response()->json(['message' => 'Could not read chunk.'], 500);
-            }
-            Storage::disk($disk)->writeStream($partKey, $stream);
+            $client->uploadPart([
+                'Bucket' => $bucket,
+                'Key' => $objectKey,
+                'UploadId' => $uploadId,
+                'PartNumber' => $partNumber,
+                'Body' => $stream,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Multipart uploadPart failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Could not upload part to storage: '.$e->getMessage()], 500);
+        } finally {
             if (is_resource($stream)) {
                 fclose($stream);
             }
-        } catch (\Throwable $e) {
-            Log::warning('Chunk store failed', ['error' => $e->getMessage()]);
-
-            return response()->json(['message' => 'Could not store chunk on cloud storage: '.$e->getMessage()], 500);
         }
 
         return response()->json(['ok' => true, 'index' => $index]);
@@ -318,6 +363,7 @@ class DocumentDirectUploadController extends Controller
         if (function_exists('set_time_limit')) {
             @set_time_limit(0);
         }
+        @ini_set('max_execution_time', '0');
 
         $validated = $request->validate([
             'token' => 'required|string|min:10',
@@ -329,7 +375,7 @@ class DocumentDirectUploadController extends Controller
             return response()->json(['message' => 'Invalid or expired upload session.'], 410);
         }
 
-        if (! is_array($payload) || (int) ($payload['v'] ?? 0) !== 2) {
+        if (! is_array($payload) || (int) ($payload['v'] ?? 0) !== 3) {
             return response()->json(['message' => 'Invalid upload session.'], 422);
         }
 
@@ -338,78 +384,108 @@ class DocumentDirectUploadController extends Controller
         }
 
         $disk = (string) ($payload['disk'] ?? '');
-        $mergeId = (string) ($payload['merge_id'] ?? '');
+        $uploadId = (string) ($payload['upload_id'] ?? '');
+        $bucket = (string) ($payload['bucket'] ?? '');
         $finalKey = (string) ($payload['key'] ?? '');
         $totalChunks = (int) ($payload['total_chunks'] ?? 0);
         $expectedSize = (int) ($payload['file_size'] ?? 0);
 
-        if ($disk !== 's3' || $mergeId === '' || $finalKey === '' || ! str_starts_with($finalKey, 'documents/') || $totalChunks < 1) {
+        if ($disk !== 's3' || $uploadId === '' || $bucket === '' || $finalKey === '' || ! str_starts_with($finalKey, 'documents/') || $totalChunks < 1) {
             return response()->json(['message' => 'Invalid session.'], 422);
         }
 
-        $prefix = 'temp_uploads/'.$mergeId.'/';
-        for ($i = 0; $i < $totalChunks; $i++) {
-            if (! Storage::disk($disk)->exists($prefix.$i)) {
-                return response()->json(['message' => 'Missing chunk '.$i.'. Upload all parts before finishing.'], 422);
-            }
+        $client = $this->s3Client();
+        if ($client === null) {
+            return response()->json(['message' => 'S3 client not available.'], 422);
         }
 
-        $tmp = tempnam(sys_get_temp_dir(), 'dmschunk');
-        if ($tmp === false) {
-            return response()->json(['message' => 'Server could not create temp file.'], 500);
-        }
-
-        $out = fopen($tmp, 'wb');
-        if ($out === false) {
-            return response()->json(['message' => 'Server could not open temp file.'], 500);
-        }
-
+        $listed = [];
+        $marker = null;
         try {
-            for ($i = 0; $i < $totalChunks; $i++) {
-                $in = Storage::disk($disk)->readStream($prefix.$i);
-                if ($in === false || ! is_resource($in)) {
-                    throw new \RuntimeException('Could not read chunk '.$i);
+            do {
+                $args = [
+                    'Bucket' => $bucket,
+                    'Key' => $finalKey,
+                    'UploadId' => $uploadId,
+                ];
+                if ($marker !== null) {
+                    $args['PartNumberMarker'] = $marker;
                 }
-                stream_copy_to_stream($in, $out);
-                fclose($in);
-            }
+                $page = $client->listParts($args);
+                foreach ($page['Parts'] ?? [] as $part) {
+                    $listed[] = [
+                        'PartNumber' => (int) $part['PartNumber'],
+                        'ETag' => (string) $part['ETag'],
+                    ];
+                }
+                $marker = ! empty($page['IsTruncated']) ? ($page['NextPartNumberMarker'] ?? null) : null;
+            } while ($marker !== null);
         } catch (\Throwable $e) {
-            fclose($out);
-            @unlink($tmp);
-            Log::warning('Chunk merge read failed', ['error' => $e->getMessage()]);
+            Log::warning('listParts failed', ['error' => $e->getMessage()]);
 
-            return response()->json(['message' => 'Merge failed: '.$e->getMessage()], 500);
+            return response()->json(['message' => 'Could not verify uploaded parts: '.$e->getMessage()], 500);
         }
 
-        fclose($out);
+        usort($listed, fn (array $a, array $b): int => $a['PartNumber'] <=> $b['PartNumber']);
 
-        $actualSize = (int) @filesize($tmp);
-        if ($actualSize !== $expectedSize) {
-            @unlink($tmp);
+        if (count($listed) !== $totalChunks) {
+            try {
+                $client->abortMultipartUpload([
+                    'Bucket' => $bucket,
+                    'Key' => $finalKey,
+                    'UploadId' => $uploadId,
+                ]);
+            } catch (\Throwable) {
+            }
 
-            return response()->json(['message' => 'Merged size mismatch (expected '.$expectedSize.', got '.$actualSize.').'], 422);
+            return response()->json([
+                'message' => 'Expected '.$totalChunks.' parts, found '.count($listed).'. Re-upload the file.',
+            ], 422);
+        }
+
+        for ($i = 0; $i < $totalChunks; $i++) {
+            if (($listed[$i]['PartNumber'] ?? 0) !== $i + 1) {
+                try {
+                    $client->abortMultipartUpload([
+                        'Bucket' => $bucket,
+                        'Key' => $finalKey,
+                        'UploadId' => $uploadId,
+                    ]);
+                } catch (\Throwable) {
+                }
+
+                return response()->json(['message' => 'Part sequence error. Re-upload the file.'], 422);
+            }
         }
 
         try {
-            $in = fopen($tmp, 'rb');
-            if ($in === false) {
-                throw new \RuntimeException('Could not open merged file');
-            }
-            Storage::disk($disk)->writeStream($finalKey, $in);
-            if (is_resource($in)) {
-                fclose($in);
-            }
+            $client->completeMultipartUpload([
+                'Bucket' => $bucket,
+                'Key' => $finalKey,
+                'UploadId' => $uploadId,
+                'MultipartUpload' => [
+                    'Parts' => $listed,
+                ],
+            ]);
         } catch (\Throwable $e) {
-            @unlink($tmp);
-            Log::warning('Chunk merge write to final key failed', ['error' => $e->getMessage()]);
+            Log::warning('completeMultipartUpload failed', ['error' => $e->getMessage()]);
+            try {
+                $client->abortMultipartUpload([
+                    'Bucket' => $bucket,
+                    'Key' => $finalKey,
+                    'UploadId' => $uploadId,
+                ]);
+            } catch (\Throwable) {
+            }
 
-            return response()->json(['message' => 'Could not write final file: '.$e->getMessage()], 500);
+            return response()->json(['message' => 'Could not finalize multipart upload: '.$e->getMessage()], 500);
         }
 
-        @unlink($tmp);
+        $actualSize = (int) Storage::disk($disk)->size($finalKey);
+        if ($expectedSize > 0 && $actualSize !== $expectedSize) {
+            Storage::disk($disk)->delete($finalKey);
 
-        for ($i = 0; $i < $totalChunks; $i++) {
-            Storage::disk($disk)->delete($prefix.$i);
+            return response()->json(['message' => 'Object size mismatch after upload (expected '.$expectedSize.', got '.$actualSize.').'], 422);
         }
 
         $finalize = [

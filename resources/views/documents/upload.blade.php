@@ -173,7 +173,7 @@
                 <input type="file" name="documents[]" id="documents_input" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" required>
                 @if(!empty($directUploadEnabled))
                     <p style="margin-top:8px; color:#64748b; font-size:13px;">
-                        Large uploads (over <strong>{{ (int) ($directUploadMinMb ?? 75) }} MB</strong>) are sent in <strong>chunks through this app</strong> to cloud storage (works on Laravel Cloud without browser R2 CORS). Smaller files in the same batch may still use a presigned URL when under the limit.
+                        Large uploads (over <strong>{{ (int) ($directUploadMinMb ?? 75) }} MB</strong>) are sent in <strong>chunks</strong> to this app, then stored with <strong>S3 multipart upload</strong> on R2 (no long server-side merge). Progress appears on the button and below it; very large files or slow uplinks can still take several minutes.
                     </p>
                 @endif
                 @if($selectedUploadMode === 'auto')
@@ -313,7 +313,10 @@
 
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Uploading...';
-                if (uploadStatus) uploadStatus.style.display = 'block';
+                if (uploadStatus) {
+                    uploadStatus.style.display = 'block';
+                    uploadStatus.textContent = 'Uploading... please wait.';
+                }
 
                 try {
                     async function readJsonResponse(res, step) {
@@ -345,12 +348,23 @@
                         return body;
                     }
 
+                    function setUploadProgress(msg) {
+                        if (uploadStatus) {
+                            uploadStatus.style.display = 'block';
+                            uploadStatus.textContent = msg;
+                        }
+                        if (submitBtn) {
+                            submitBtn.textContent = msg.length > 42 ? msg.slice(0, 40) + '…' : msg;
+                        }
+                    }
+
                     for (var i = 0; i < files.length; i++) {
                         var file = files[i];
                         var presignBody = buildPresignBody(file);
                         var useChunked = file.size > directUploadMinBytes;
 
                         if (useChunked) {
+                            setUploadProgress('File ' + (i + 1) + '/' + files.length + ': starting…');
                             var initRes;
                             try {
                                 initRes = await fetch(chunkInitUrl, {
@@ -379,6 +393,7 @@
                             }
 
                             for (var c = 0; c < totalChunks; c++) {
+                                setUploadProgress('File ' + (i + 1) + '/' + files.length + ': uploading part ' + (c + 1) + '/' + totalChunks + '…');
                                 var start = c * chunkSize;
                                 var end = Math.min(start + chunkSize, file.size);
                                 var blob = file.slice(start, end);
@@ -407,6 +422,7 @@
                                 }
                             }
 
+                            setUploadProgress('File ' + (i + 1) + '/' + files.length + ': finalizing on server (usually quick)…');
                             var finRes;
                             try {
                                 finRes = await fetch(chunkFinishUrl, {
@@ -501,7 +517,10 @@
                     alert(err && err.message ? err.message : String(err));
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Upload';
-                    if (uploadStatus) uploadStatus.style.display = 'none';
+                    if (uploadStatus) {
+                        uploadStatus.style.display = 'none';
+                        uploadStatus.textContent = 'Uploading... please wait.';
+                    }
                 }
             });
         }
