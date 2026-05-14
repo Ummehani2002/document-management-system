@@ -11,7 +11,7 @@ use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -153,6 +153,8 @@ class DocumentDirectUploadController extends Controller
 
         $disk = config('filesystems.default');
         $orphanDocumentId = null;
+        $objectBaseName = Str::lower((string) Str::ulid()).'.'.$originalExt;
+
         if ($orphanCandidate !== null) {
             $orphanCategory = (string) ($orphanCandidate->document_type ?: $category);
             $reattachFolder = 'documents/'
@@ -160,24 +162,34 @@ class DocumentDirectUploadController extends Controller
                 .Str::slug($project->project_number).'/'
                 .Str::slug($orphanCategory);
             $reattachName = (string) $orphanCandidate->file_name;
-            $storageKey = $reattachFolder.'/'.$reattachName;
             $storedFileNameForDb = $reattachName;
             $orphanDocumentId = (int) $orphanCandidate->id;
+            $storageKey = $reattachFolder.'/'.$objectBaseName;
         } else {
             $storedFileNameForDb = DocumentFileVersioning::buildVersionedFilename($filename, $project->id, $category);
-            $storageKey = $folderPath.'/'.$storedFileNameForDb;
+            $storageKey = $folderPath.'/'.$objectBaseName;
         }
 
         $bucket = (string) config('filesystems.disks.s3.bucket');
-        $cmd = $client->getCommand('PutObject', [
-            'Bucket' => $bucket,
-            'Key' => $storageKey,
-            'ContentType' => $contentType,
-        ]);
-        $presigned = (string) $client->createPresignedRequest($cmd, '+45 minutes')->getUri();
+        try {
+            $cmd = $client->getCommand('PutObject', [
+                'Bucket' => $bucket,
+                'Key' => $storageKey,
+                'ContentType' => $contentType,
+            ]);
+            $presigned = (string) $client->createPresignedRequest($cmd, '+45 minutes')->getUri();
+        } catch (\Throwable $e) {
+            Log::warning('Direct upload presign failed', ['error' => $e->getMessage()]);
 
-        $token = Str::random(64);
-        Cache::put('doc_direct_upload:'.$token, [
+            return response()->json([
+                'message' => 'Could not create upload URL: '.$e->getMessage(),
+            ], 500);
+        }
+
+        $expiresAt = time() + 45 * 60;
+        $payload = [
+            'v' => 1,
+            'exp' => $expiresAt,
             'disk' => $disk,
             'key' => $storageKey,
             'original_name' => $filename,
@@ -189,7 +201,15 @@ class DocumentDirectUploadController extends Controller
             'file_size' => $fileSize,
             'content_type' => $contentType,
             'orphan_document_id' => $orphanDocumentId,
-        ], now()->addMinutes(50));
+        ];
+
+        try {
+            $token = Crypt::encryptString(json_encode($payload, JSON_THROW_ON_ERROR));
+        } catch (\Throwable $e) {
+            Log::warning('Direct upload token encrypt failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Could not start upload session.'], 500);
+        }
 
         return response()->json([
             'upload_url' => $presigned,
@@ -204,15 +224,22 @@ class DocumentDirectUploadController extends Controller
     public function complete(Request $request)
     {
         $validated = $request->validate([
-            'token' => 'required|string|size:64',
+            'token' => 'required|string|min:10',
         ]);
 
-        $cacheKey = 'doc_direct_upload:'.trim((string) $validated['token']);
-        $payload = Cache::pull($cacheKey);
-        if (! is_array($payload)) {
-            return response()->json(['message' => 'Upload session expired or invalid. Start again.'], 410);
+        try {
+            $payload = json_decode(Crypt::decryptString($validated['token']), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Invalid or expired upload session. Start the upload again.'], 410);
         }
 
+        if (! is_array($payload) || (int) ($payload['v'] ?? 0) !== 1) {
+            return response()->json(['message' => 'Invalid upload session.'], 422);
+        }
+
+        if (($payload['exp'] ?? 0) < time()) {
+            return response()->json(['message' => 'Upload session expired. Start again.'], 410);
+        }
         $disk = (string) ($payload['disk'] ?? '');
         $key = (string) ($payload['key'] ?? '');
         if ($disk !== 's3' || $key === '' || ! str_starts_with($key, 'documents/')) {
