@@ -35,7 +35,7 @@
     <div class="success">{{ session('success') }}</div>
 @endif
 @if(request()->boolean('direct_ok'))
-    <div class="success">Upload completed (direct to cloud storage).</div>
+    <div class="success">Uploaded successfully.</div>
 @endif
 @if($errors->any())
     <div class="card" style="margin-bottom: 16px; border-color: #fecaca; background: #fef2f2; color: #991b1b;">
