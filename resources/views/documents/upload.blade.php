@@ -34,6 +34,9 @@
 @if(session('success'))
     <div class="success">{{ session('success') }}</div>
 @endif
+@if(request()->boolean('direct_ok'))
+    <div class="success">Upload completed (direct to cloud storage).</div>
+@endif
 @if($errors->any())
     <div class="card" style="margin-bottom: 16px; border-color: #fecaca; background: #fef2f2; color: #991b1b;">
         <strong>Upload failed:</strong>
@@ -168,6 +171,11 @@
             <div class="card full-width">
                 <label for="documents_input">Choose files (PDF/Word/Excel) *</label>
                 <input type="file" name="documents[]" id="documents_input" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                @if(!empty($directUploadEnabled))
+                    <p style="margin-top:8px; color:#64748b; font-size:13px;">
+                        Large uploads (over <strong>{{ (int) ($directUploadMinMb ?? 75) }} MB</strong>) use <strong>direct cloud storage</strong> so they work on Laravel Cloud. Ensure your R2 bucket CORS allows <code>PUT</code> from this site’s origin.
+                    </p>
+                @endif
                 @if($selectedUploadMode === 'auto')
 
                 @endif
@@ -182,6 +190,11 @@
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var selectedUploadMode = @json($selectedUploadMode);
+        var directUploadEnabled = @json(!empty($directUploadEnabled));
+        var directUploadMinBytes = @json((int) (($directUploadMinMb ?? 75) * 1024 * 1024));
+        var presignUrl = @json(route('documents.upload.presign'));
+        var completeUrl = @json(route('documents.upload.complete'));
+        var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
         var folderTree = @json($folderTree ?? []);
         var selectedDocumentType = @json($selectedDocumentType);
         var entitySelect = document.getElementById('entity_id');
@@ -276,10 +289,102 @@
         var uploadStatus = document.getElementById('upload-status-text');
 
         if (uploadForm && submitBtn) {
-            uploadForm.addEventListener('submit', function () {
+            uploadForm.addEventListener('submit', async function (e) {
+                var filesInput = document.getElementById('documents_input');
+                var files = filesInput && filesInput.files ? Array.from(filesInput.files) : [];
+                var needsDirect = directUploadEnabled && files.some(function (f) { return f.size > directUploadMinBytes; });
+
+                if (!needsDirect) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Uploading...';
+                    if (uploadStatus) uploadStatus.style.display = 'block';
+                    return;
+                }
+
+                e.preventDefault();
+
+                if (!csrfToken) {
+                    alert('Missing CSRF token. Reload the page.');
+                    return;
+                }
+
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Uploading...';
                 if (uploadStatus) uploadStatus.style.display = 'block';
+
+                try {
+                    for (var i = 0; i < files.length; i++) {
+                        var file = files[i];
+                        var presignBody = {
+                            upload_mode: uploadForm.querySelector('[name="upload_mode"]').value,
+                            entity_id: entitySelect.value,
+                            project_id: projectSelect.value,
+                            filename: file.name,
+                            file_size: file.size,
+                            content_type: file.type || 'application/octet-stream'
+                        };
+                        var disc = document.getElementById('discipline_id');
+                        if (disc && disc.value) {
+                            presignBody.discipline_id = parseInt(disc.value, 10);
+                        }
+                        if (mainFolderSelect && documentTypeSelect) {
+                            presignBody.main_folder = mainFolderSelect.value;
+                            presignBody.document_type = documentTypeSelect.value;
+                        }
+
+                        var pr = await fetch(presignUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify(presignBody)
+                        });
+                        var presignJson = await pr.json().catch(function () { return {}; });
+                        if (!pr.ok) {
+                            throw new Error(presignJson.message || presignJson.errors && JSON.stringify(presignJson.errors) || ('Presign failed: ' + pr.status));
+                        }
+
+                        var putHeaders = new Headers(presignJson.headers || {});
+                        var putRes = await fetch(presignJson.upload_url, {
+                            method: presignJson.method || 'PUT',
+                            headers: putHeaders,
+                            body: file,
+                            mode: 'cors',
+                            cache: 'no-store'
+                        });
+                        if (!putRes.ok) {
+                            throw new Error('Upload to storage failed (' + putRes.status + '). Check R2 CORS allows PUT from this origin.');
+                        }
+
+                        var cr = await fetch(completeUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken,
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ token: presignJson.token })
+                        });
+                        var completeJson = await cr.json().catch(function () { return {}; });
+                        if (!cr.ok) {
+                            throw new Error(completeJson.message || ('Register failed: ' + cr.status));
+                        }
+                    }
+
+                    var redirectBase = @json(url('/upload'));
+                    window.location.href = redirectBase + (selectedUploadMode ? ('?mode=' + encodeURIComponent(selectedUploadMode) + '&') : '?') + 'direct_ok=1';
+                } catch (err) {
+                    alert(err && err.message ? err.message : String(err));
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Upload';
+                    if (uploadStatus) uploadStatus.style.display = 'none';
+                }
             });
         }
 

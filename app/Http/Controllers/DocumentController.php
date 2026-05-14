@@ -47,7 +47,10 @@ class DocumentController extends Controller
             $mode = '';
         }
 
-        return view('documents.upload', compact('entities', 'projects', 'folderTree', 'mode', 'disciplines'));
+        $directUploadEnabled = config('filesystems.default') === 's3';
+        $directUploadMinMb = max(1, (int) env('DOC_DIRECT_UPLOAD_MIN_MB', 75));
+
+        return view('documents.upload', compact('entities', 'projects', 'folderTree', 'mode', 'disciplines', 'directUploadEnabled', 'directUploadMinMb'));
     }
 
     /**

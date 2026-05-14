@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\DocumentDirectUploadController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EntityController;
 use App\Http\Controllers\ProjectController;
@@ -36,6 +37,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/download/pdf/{id}/view', [DocumentController::class, 'viewPdf'])->where('id', '[0-9]+');
     Route::get('/upload', [DocumentController::class, 'create'])->name('documents.upload');
     Route::post('/upload', [DocumentController::class, 'store'])->name('documents.store');
+    Route::post('/upload/presign', [DocumentDirectUploadController::class, 'presign'])->name('documents.upload.presign');
+    Route::post('/upload/complete', [DocumentDirectUploadController::class, 'complete'])->name('documents.upload.complete');
     Route::get('/upload/suggest', [DocumentController::class, 'suggestFromFilename'])->name('documents.suggest');
     Route::get('/search', [DocumentController::class, 'search'])->name('documents.search');
     Route::post('/documents/{id}/share', [DocumentController::class, 'share'])->name('documents.share')->where('id', '[0-9]+');

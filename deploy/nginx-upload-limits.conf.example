@@ -1,0 +1,7 @@
+# Copy directives into your production nginx site config (inside the same
+# `server { }` that handles this app), then `nginx -t` and reload nginx.
+#
+# Without this, nginx returns 413 before Laravel runs.
+# Match or exceed DOC_UPLOAD_MAX_TOTAL_MB in .env (default 2048 MB).
+
+client_max_body_size 2048M;
