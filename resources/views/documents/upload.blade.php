@@ -173,7 +173,7 @@
                 <input type="file" name="documents[]" id="documents_input" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" required>
                 @if(!empty($directUploadEnabled))
                     <p style="margin-top:8px; color:#64748b; font-size:13px;">
-                        Large uploads (over <strong>{{ (int) ($directUploadMinMb ?? 75) }} MB</strong>) use <strong>direct cloud storage</strong> so they work on Laravel Cloud. Ensure your R2 bucket CORS allows <code>PUT</code> from this site’s origin.
+                        Large uploads (over <strong>{{ (int) ($directUploadMinMb ?? 75) }} MB</strong>) are sent in <strong>chunks through this app</strong> to cloud storage (works on Laravel Cloud without browser R2 CORS). Smaller files in the same batch may still use a presigned URL when under the limit.
                     </p>
                 @endif
                 @if($selectedUploadMode === 'auto')
@@ -194,6 +194,9 @@
         var directUploadMinBytes = @json((int) (($directUploadMinMb ?? 75) * 1024 * 1024));
         var presignUrl = @json(route('documents.upload.presign'));
         var completeUrl = @json(route('documents.upload.complete'));
+        var chunkInitUrl = @json(route('documents.upload.chunk-init'));
+        var chunkStoreUrl = @json(route('documents.upload.chunk'));
+        var chunkFinishUrl = @json(route('documents.upload.chunk-finish'));
         var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
         var folderTree = @json($folderTree ?? []);
         var selectedDocumentType = @json($selectedDocumentType);
@@ -313,9 +316,17 @@
                 if (uploadStatus) uploadStatus.style.display = 'block';
 
                 try {
-                    for (var i = 0; i < files.length; i++) {
-                        var file = files[i];
-                        var presignBody = {
+                    async function readJsonResponse(res, step) {
+                        var text = await res.text();
+                        try {
+                            return JSON.parse(text);
+                        } catch (e2) {
+                            throw new Error(step + ': HTTP ' + res.status + ' — ' + (text ? text.slice(0, 400) : res.statusText));
+                        }
+                    }
+
+                    function buildPresignBody(file) {
+                        var body = {
                             upload_mode: uploadForm.querySelector('[name="upload_mode"]').value,
                             entity_id: entitySelect.value,
                             project_id: projectSelect.value,
@@ -325,55 +336,162 @@
                         };
                         var disc = document.getElementById('discipline_id');
                         if (disc && disc.value) {
-                            presignBody.discipline_id = parseInt(disc.value, 10);
+                            body.discipline_id = parseInt(disc.value, 10);
                         }
                         if (mainFolderSelect && documentTypeSelect) {
-                            presignBody.main_folder = mainFolderSelect.value;
-                            presignBody.document_type = documentTypeSelect.value;
+                            body.main_folder = mainFolderSelect.value;
+                            body.document_type = documentTypeSelect.value;
+                        }
+                        return body;
+                    }
+
+                    for (var i = 0; i < files.length; i++) {
+                        var file = files[i];
+                        var presignBody = buildPresignBody(file);
+                        var useChunked = file.size > directUploadMinBytes;
+
+                        if (useChunked) {
+                            var initRes;
+                            try {
+                                initRes = await fetch(chunkInitUrl, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json',
+                                        'X-CSRF-TOKEN': csrfToken,
+                                        'X-Requested-With': 'XMLHttpRequest'
+                                    },
+                                    credentials: 'same-origin',
+                                    body: JSON.stringify(presignBody)
+                                });
+                            } catch (err) {
+                                throw new Error('Chunk init: ' + (err && err.message ? err.message : String(err)) + ' — check network / login session.');
+                            }
+                            var initJson = await readJsonResponse(initRes, 'Chunk init');
+                            if (!initRes.ok) {
+                                throw new Error('Chunk init: ' + (initJson.message || JSON.stringify(initJson.errors || initJson) || initRes.status));
+                            }
+                            var chunkToken = initJson.token;
+                            var chunkSize = parseInt(initJson.chunk_size, 10) || 0;
+                            var totalChunks = parseInt(initJson.total_chunks, 10) || 0;
+                            if (!chunkToken || chunkSize < 1 || totalChunks < 1) {
+                                throw new Error('Chunk init: invalid response from server.');
+                            }
+
+                            for (var c = 0; c < totalChunks; c++) {
+                                var start = c * chunkSize;
+                                var end = Math.min(start + chunkSize, file.size);
+                                var blob = file.slice(start, end);
+                                var fd = new FormData();
+                                fd.append('token', chunkToken);
+                                fd.append('index', String(c));
+                                fd.append('chunk', blob, 'chunk.bin');
+                                var upRes;
+                                try {
+                                    upRes = await fetch(chunkStoreUrl, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Accept': 'application/json',
+                                            'X-CSRF-TOKEN': csrfToken,
+                                            'X-Requested-With': 'XMLHttpRequest'
+                                        },
+                                        credentials: 'same-origin',
+                                        body: fd
+                                    });
+                                } catch (err) {
+                                    throw new Error('Chunk ' + (c + 1) + '/' + totalChunks + ': ' + (err && err.message ? err.message : String(err)));
+                                }
+                                var upJson = await readJsonResponse(upRes, 'Chunk ' + (c + 1) + '/' + totalChunks);
+                                if (!upRes.ok) {
+                                    throw new Error('Chunk ' + (c + 1) + '/' + totalChunks + ': ' + (upJson.message || upRes.status));
+                                }
+                            }
+
+                            var finRes;
+                            try {
+                                finRes = await fetch(chunkFinishUrl, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json',
+                                        'X-CSRF-TOKEN': csrfToken,
+                                        'X-Requested-With': 'XMLHttpRequest'
+                                    },
+                                    credentials: 'same-origin',
+                                    body: JSON.stringify({ token: chunkToken })
+                                });
+                            } catch (err) {
+                                throw new Error('Chunk finish: ' + (err && err.message ? err.message : String(err)));
+                            }
+                            var finJson = await readJsonResponse(finRes, 'Chunk finish');
+                            if (!finRes.ok) {
+                                throw new Error('Chunk finish: ' + (finJson.message || finRes.status));
+                            }
+                            continue;
                         }
 
-                        var pr = await fetch(presignUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': csrfToken,
-                                'X-Requested-With': 'XMLHttpRequest'
-                            },
-                            credentials: 'same-origin',
-                            body: JSON.stringify(presignBody)
-                        });
-                        var presignJson = await pr.json().catch(function () { return {}; });
+                        var pr;
+                        try {
+                            pr = await fetch(presignUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': csrfToken,
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                },
+                                credentials: 'same-origin',
+                                body: JSON.stringify(presignBody)
+                            });
+                        } catch (err) {
+                            throw new Error('Step 1 (presign): ' + (err && err.message ? err.message : String(err)) + ' — check network / login session.');
+                        }
+                        var presignJson = await readJsonResponse(pr, 'Step 1 (presign)');
                         if (!pr.ok) {
-                            throw new Error(presignJson.message || presignJson.errors && JSON.stringify(presignJson.errors) || ('Presign failed: ' + pr.status));
+                            throw new Error('Step 1 (presign): ' + (presignJson.message || JSON.stringify(presignJson.errors || presignJson) || pr.status));
                         }
 
-                        var putHeaders = new Headers(presignJson.headers || {});
-                        var putRes = await fetch(presignJson.upload_url, {
-                            method: presignJson.method || 'PUT',
-                            headers: putHeaders,
-                            body: file,
-                            mode: 'cors',
-                            cache: 'no-store'
-                        });
+                        var ct = (presignJson.headers && presignJson.headers['Content-Type']) || file.type || 'application/pdf';
+                        var putRes;
+                        try {
+                            putRes = await fetch(presignJson.upload_url, {
+                                method: presignJson.method || 'PUT',
+                                headers: { 'Content-Type': ct },
+                                body: file,
+                                mode: 'cors',
+                                cache: 'no-store'
+                            });
+                        } catch (err) {
+                            throw new Error(
+                                'Step 2 (upload to R2): request was blocked or failed before a response — most often R2 CORS. ' +
+                                'In Cloudflare R2 → your bucket → Settings → CORS, allow method PUT and origin: ' +
+                                window.location.origin
+                            );
+                        }
                         if (!putRes.ok) {
-                            throw new Error('Upload to storage failed (' + putRes.status + '). Check R2 CORS allows PUT from this origin.');
+                            var putErrText = await putRes.text().catch(function () { return ''; });
+                            throw new Error('Step 2 (upload to R2): HTTP ' + putRes.status + (putErrText ? ' — ' + putErrText.slice(0, 300) : '') + '. If 403, check signature/CORS; if 0, CORS preflight failed.');
                         }
 
-                        var cr = await fetch(completeUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': csrfToken,
-                                'X-Requested-With': 'XMLHttpRequest'
-                            },
-                            credentials: 'same-origin',
-                            body: JSON.stringify({ token: presignJson.token })
-                        });
-                        var completeJson = await cr.json().catch(function () { return {}; });
+                        var cr;
+                        try {
+                            cr = await fetch(completeUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': csrfToken,
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                },
+                                credentials: 'same-origin',
+                                body: JSON.stringify({ token: presignJson.token })
+                            });
+                        } catch (err) {
+                            throw new Error('Step 3 (register): ' + (err && err.message ? err.message : String(err)));
+                        }
+                        var completeJson = await readJsonResponse(cr, 'Step 3 (register)');
                         if (!cr.ok) {
-                            throw new Error(completeJson.message || ('Register failed: ' + cr.status));
+                            throw new Error('Step 3 (register): ' + (completeJson.message || cr.status));
                         }
                     }
 

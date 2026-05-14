@@ -39,6 +39,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/upload', [DocumentController::class, 'store'])->name('documents.store');
     Route::post('/upload/presign', [DocumentDirectUploadController::class, 'presign'])->name('documents.upload.presign');
     Route::post('/upload/complete', [DocumentDirectUploadController::class, 'complete'])->name('documents.upload.complete');
+    Route::post('/upload/chunk-init', [DocumentDirectUploadController::class, 'chunkInit'])->name('documents.upload.chunk-init');
+    Route::post('/upload/chunk', [DocumentDirectUploadController::class, 'chunkStore'])->name('documents.upload.chunk');
+    Route::post('/upload/chunk-finish', [DocumentDirectUploadController::class, 'chunkFinish'])->name('documents.upload.chunk-finish');
     Route::get('/upload/suggest', [DocumentController::class, 'suggestFromFilename'])->name('documents.suggest');
     Route::get('/search', [DocumentController::class, 'search'])->name('documents.search');
     Route::post('/documents/{id}/share', [DocumentController::class, 'share'])->name('documents.share')->where('id', '[0-9]+');

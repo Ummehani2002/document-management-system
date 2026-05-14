@@ -10,7 +10,9 @@ use App\Models\Project;
 use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -18,8 +20,8 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
- * Browser → presigned PUT → S3/R2 (large files), then small JSON "complete" to Laravel.
- * Avoids HTTP body limits on Laravel Cloud / Cloudflare edge (~100MB).
+ * Large files on Laravel Cloud: browser → R2 (presigned PUT) hits CORS / edge limits.
+ * Prefer chunked uploads: small POSTs to this app, which streams parts to R2 then merges.
  */
 class DocumentDirectUploadController extends Controller
 {
@@ -45,12 +47,14 @@ class DocumentDirectUploadController extends Controller
         ]);
     }
 
-    public function presign(Request $request)
+    /**
+     * @return array<string, mixed>|JsonResponse
+     */
+    protected function buildLargeUploadSession(Request $request): array|JsonResponse
     {
-        $client = $this->s3Client();
-        if ($client === null) {
+        if ($this->s3Client() === null) {
             return response()->json([
-                'message' => 'Direct upload is only available when FILESYSTEM_DISK=s3 (e.g. Cloudflare R2). Use normal upload for local disk.',
+                'message' => 'Large uploads require FILESYSTEM_DISK=s3 (e.g. Cloudflare R2).',
             ], 422);
         }
 
@@ -170,7 +174,279 @@ class DocumentDirectUploadController extends Controller
             $storageKey = $folderPath.'/'.$objectBaseName;
         }
 
+        return [
+            'disk' => $disk,
+            'key' => $storageKey,
+            'filename' => $filename,
+            'original_ext' => $originalExt,
+            'content_type' => $contentType,
+            'file_size' => $fileSize,
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'discipline_name' => $disciplineName,
+            'category' => $category,
+            'stored_file_name' => $storedFileNameForDb,
+            'orphan_document_id' => $orphanDocumentId,
+        ];
+    }
+
+    /**
+     * Start chunked upload (no browser → R2; avoids R2 CORS).
+     */
+    public function chunkInit(Request $request): JsonResponse
+    {
+        $built = $this->buildLargeUploadSession($request);
+        if ($built instanceof JsonResponse) {
+            return $built;
+        }
+
+        $chunkSize = max(1048576, (int) env('DOC_UPLOAD_CHUNK_BYTES', 5242880));
+        $fileSize = (int) $built['file_size'];
+        $totalChunks = (int) max(1, (int) ceil($fileSize / $chunkSize));
+        if ($totalChunks > 400) {
+            return response()->json(['message' => 'File is too large for the current chunk size. Increase DOC_UPLOAD_CHUNK_BYTES in .env.'], 422);
+        }
+
+        $mergeId = Str::lower((string) Str::ulid());
+        $expiresAt = time() + 3600;
+        $payload = [
+            'v' => 2,
+            'exp' => $expiresAt,
+            'merge_id' => $mergeId,
+            'chunk_size' => $chunkSize,
+            'total_chunks' => $totalChunks,
+            'disk' => $built['disk'],
+            'key' => $built['key'],
+            'original_name' => $built['filename'],
+            'stored_file_name' => $built['stored_file_name'],
+            'entity_id' => $built['entity_id'],
+            'project_id' => $built['project_id'],
+            'discipline_name' => $built['discipline_name'],
+            'category' => $built['category'],
+            'file_size' => $built['file_size'],
+            'content_type' => $built['content_type'],
+            'orphan_document_id' => $built['orphan_document_id'],
+        ];
+
+        try {
+            $token = Crypt::encryptString(json_encode($payload, JSON_THROW_ON_ERROR));
+        } catch (\Throwable $e) {
+            Log::warning('Chunk upload init encrypt failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Could not start upload session.'], 500);
+        }
+
+        return response()->json([
+            'token' => $token,
+            'chunk_size' => $chunkSize,
+            'total_chunks' => $totalChunks,
+        ]);
+    }
+
+    public function chunkStore(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'token' => 'required|string|min:10',
+            'index' => 'required|integer|min:0',
+            // max in KB; allow large DOC_UPLOAD_CHUNK_BYTES (e.g. 32 MB → max:32768)
+            'chunk' => 'required|file|max:102400',
+        ]);
+
+        try {
+            $payload = json_decode(Crypt::decryptString($validated['token']), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Invalid or expired upload session.'], 410);
+        }
+
+        if (! is_array($payload) || (int) ($payload['v'] ?? 0) !== 2) {
+            return response()->json(['message' => 'Invalid upload session.'], 422);
+        }
+
+        if (($payload['exp'] ?? 0) < time()) {
+            return response()->json(['message' => 'Upload session expired.'], 410);
+        }
+
+        $disk = (string) ($payload['disk'] ?? '');
+        if ($disk !== 's3') {
+            return response()->json(['message' => 'Invalid disk.'], 422);
+        }
+
+        $mergeId = (string) ($payload['merge_id'] ?? '');
+        $chunkSize = (int) ($payload['chunk_size'] ?? 0);
+        $totalChunks = (int) ($payload['total_chunks'] ?? 0);
+        $fileSize = (int) ($payload['file_size'] ?? 0);
+        $index = (int) $validated['index'];
+
+        if ($mergeId === '' || $chunkSize < 1 || $totalChunks < 1 || $index >= $totalChunks) {
+            return response()->json(['message' => 'Invalid chunk index.'], 422);
+        }
+
+        /** @var UploadedFile $chunk */
+        $chunk = $request->file('chunk');
+        $bytes = (int) $chunk->getSize();
+        $expected = $index < $totalChunks - 1 ? $chunkSize : ($fileSize - ($chunkSize * ($totalChunks - 1)));
+        if ($expected < 0) {
+            $expected = 0;
+        }
+        if ($bytes !== $expected) {
+            return response()->json([
+                'message' => 'Chunk size mismatch (expected '.$expected.' bytes, got '.$bytes.'). Re-upload from chunk 0.',
+            ], 422);
+        }
+
+        $partKey = 'temp_uploads/'.$mergeId.'/'.$index;
+        try {
+            $stream = fopen($chunk->getRealPath(), 'rb');
+            if ($stream === false) {
+                return response()->json(['message' => 'Could not read chunk.'], 500);
+            }
+            Storage::disk($disk)->writeStream($partKey, $stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Chunk store failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Could not store chunk on cloud storage: '.$e->getMessage()], 500);
+        }
+
+        return response()->json(['ok' => true, 'index' => $index]);
+    }
+
+    public function chunkFinish(Request $request): JsonResponse
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+
+        $validated = $request->validate([
+            'token' => 'required|string|min:10',
+        ]);
+
+        try {
+            $payload = json_decode(Crypt::decryptString($validated['token']), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Invalid or expired upload session.'], 410);
+        }
+
+        if (! is_array($payload) || (int) ($payload['v'] ?? 0) !== 2) {
+            return response()->json(['message' => 'Invalid upload session.'], 422);
+        }
+
+        if (($payload['exp'] ?? 0) < time()) {
+            return response()->json(['message' => 'Upload session expired.'], 410);
+        }
+
+        $disk = (string) ($payload['disk'] ?? '');
+        $mergeId = (string) ($payload['merge_id'] ?? '');
+        $finalKey = (string) ($payload['key'] ?? '');
+        $totalChunks = (int) ($payload['total_chunks'] ?? 0);
+        $expectedSize = (int) ($payload['file_size'] ?? 0);
+
+        if ($disk !== 's3' || $mergeId === '' || $finalKey === '' || ! str_starts_with($finalKey, 'documents/') || $totalChunks < 1) {
+            return response()->json(['message' => 'Invalid session.'], 422);
+        }
+
+        $prefix = 'temp_uploads/'.$mergeId.'/';
+        for ($i = 0; $i < $totalChunks; $i++) {
+            if (! Storage::disk($disk)->exists($prefix.$i)) {
+                return response()->json(['message' => 'Missing chunk '.$i.'. Upload all parts before finishing.'], 422);
+            }
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'dmschunk');
+        if ($tmp === false) {
+            return response()->json(['message' => 'Server could not create temp file.'], 500);
+        }
+
+        $out = fopen($tmp, 'wb');
+        if ($out === false) {
+            return response()->json(['message' => 'Server could not open temp file.'], 500);
+        }
+
+        try {
+            for ($i = 0; $i < $totalChunks; $i++) {
+                $in = Storage::disk($disk)->readStream($prefix.$i);
+                if ($in === false || ! is_resource($in)) {
+                    throw new \RuntimeException('Could not read chunk '.$i);
+                }
+                stream_copy_to_stream($in, $out);
+                fclose($in);
+            }
+        } catch (\Throwable $e) {
+            fclose($out);
+            @unlink($tmp);
+            Log::warning('Chunk merge read failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Merge failed: '.$e->getMessage()], 500);
+        }
+
+        fclose($out);
+
+        $actualSize = (int) @filesize($tmp);
+        if ($actualSize !== $expectedSize) {
+            @unlink($tmp);
+
+            return response()->json(['message' => 'Merged size mismatch (expected '.$expectedSize.', got '.$actualSize.').'], 422);
+        }
+
+        try {
+            $in = fopen($tmp, 'rb');
+            if ($in === false) {
+                throw new \RuntimeException('Could not open merged file');
+            }
+            Storage::disk($disk)->writeStream($finalKey, $in);
+            if (is_resource($in)) {
+                fclose($in);
+            }
+        } catch (\Throwable $e) {
+            @unlink($tmp);
+            Log::warning('Chunk merge write to final key failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'Could not write final file: '.$e->getMessage()], 500);
+        }
+
+        @unlink($tmp);
+
+        for ($i = 0; $i < $totalChunks; $i++) {
+            Storage::disk($disk)->delete($prefix.$i);
+        }
+
+        $finalize = [
+            'v' => 1,
+            'exp' => time() + 120,
+            'disk' => $disk,
+            'key' => $finalKey,
+            'original_name' => (string) ($payload['original_name'] ?? ''),
+            'stored_file_name' => (string) ($payload['stored_file_name'] ?? ''),
+            'entity_id' => (int) ($payload['entity_id'] ?? 0),
+            'project_id' => (int) ($payload['project_id'] ?? 0),
+            'discipline_name' => $payload['discipline_name'] ?? null,
+            'category' => (string) ($payload['category'] ?? 'Other'),
+            'file_size' => $expectedSize,
+            'content_type' => (string) ($payload['content_type'] ?? ''),
+            'orphan_document_id' => isset($payload['orphan_document_id']) ? (int) $payload['orphan_document_id'] : null,
+        ];
+
+        return $this->finalizeUploadedObject($finalize, $finalKey);
+    }
+
+    public function presign(Request $request): JsonResponse
+    {
+        $built = $this->buildLargeUploadSession($request);
+        if ($built instanceof JsonResponse) {
+            return $built;
+        }
+
+        $client = $this->s3Client();
+        if ($client === null) {
+            return response()->json(['message' => 'S3 client not available.'], 422);
+        }
+
         $bucket = (string) config('filesystems.disks.s3.bucket');
+        $storageKey = $built['key'];
+        $contentType = $built['content_type'];
+
         try {
             $cmd = $client->getCommand('PutObject', [
                 'Bucket' => $bucket,
@@ -190,17 +466,17 @@ class DocumentDirectUploadController extends Controller
         $payload = [
             'v' => 1,
             'exp' => $expiresAt,
-            'disk' => $disk,
+            'disk' => $built['disk'],
             'key' => $storageKey,
-            'original_name' => $filename,
-            'stored_file_name' => $storedFileNameForDb,
-            'entity_id' => $entity->id,
-            'project_id' => $project->id,
-            'discipline_name' => $disciplineName,
-            'category' => $category,
-            'file_size' => $fileSize,
+            'original_name' => $built['filename'],
+            'stored_file_name' => $built['stored_file_name'],
+            'entity_id' => $built['entity_id'],
+            'project_id' => $built['project_id'],
+            'discipline_name' => $built['discipline_name'],
+            'category' => $built['category'],
+            'file_size' => $built['file_size'],
             'content_type' => $contentType,
-            'orphan_document_id' => $orphanDocumentId,
+            'orphan_document_id' => $built['orphan_document_id'],
         ];
 
         try {
@@ -221,7 +497,7 @@ class DocumentDirectUploadController extends Controller
         ]);
     }
 
-    public function complete(Request $request)
+    public function complete(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'token' => 'required|string|min:10',
@@ -240,6 +516,7 @@ class DocumentDirectUploadController extends Controller
         if (($payload['exp'] ?? 0) < time()) {
             return response()->json(['message' => 'Upload session expired. Start again.'], 410);
         }
+
         $disk = (string) ($payload['disk'] ?? '');
         $key = (string) ($payload['key'] ?? '');
         if ($disk !== 's3' || $key === '' || ! str_starts_with($key, 'documents/')) {
@@ -248,7 +525,7 @@ class DocumentDirectUploadController extends Controller
 
         if (! Storage::disk($disk)->exists($key)) {
             return response()->json([
-                'message' => 'Object not found in bucket. Check R2 CORS (PUT from your site origin) and that the browser PUT succeeded.',
+                'message' => 'Object not found in bucket. If you used browser PUT, configure R2 CORS; otherwise retry the upload.',
             ], 422);
         }
 
@@ -259,6 +536,16 @@ class DocumentDirectUploadController extends Controller
 
             return response()->json(['message' => 'Uploaded size did not match declared size; partial file removed.'], 422);
         }
+
+        return $this->finalizeUploadedObject($payload, $key);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected function finalizeUploadedObject(array $payload, string $key): JsonResponse
+    {
+        $disk = (string) ($payload['disk'] ?? 's3');
 
         $entity = Entity::find((int) ($payload['entity_id'] ?? 0));
         $project = Project::find((int) ($payload['project_id'] ?? 0));
