@@ -172,9 +172,7 @@
                 <label for="documents_input">Choose files (PDF/Word/Excel) *</label>
                 <input type="file" name="documents[]" id="documents_input" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" required>
                 @if(!empty($directUploadEnabled))
-                    <p style="margin-top:8px; color:#64748b; font-size:13px;">
-                        Large uploads (over <strong>{{ (int) ($directUploadMinMb ?? 75) }} MB</strong>) are sent in <strong>chunks</strong> to this app, then stored with <strong>S3 multipart upload</strong> on R2 (no long server-side merge). Progress appears on the button and below it; very large files or slow uplinks can still take several minutes.
-                    </p>
+                 
                 @endif
                 @if($selectedUploadMode === 'auto')
 
