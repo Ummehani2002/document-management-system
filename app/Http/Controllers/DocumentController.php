@@ -280,11 +280,11 @@ class DocumentController extends Controller
                     $document->ocr_text = null;
                     $document->save();
 
-                    try {
-                        ProcessOCR::dispatch($document->id)->afterResponse();
-                    } catch (\Throwable $e) {
-                        \Log::warning('ProcessOCR on re-attach failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
-                    }
+            try {
+                $this->dispatchProcessOcr($document->id);
+            } catch (\Throwable $e) {
+                \Log::warning('ProcessOCR on re-attach failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
+            }
                 }
 
                 $uploaded++;
@@ -327,7 +327,7 @@ class DocumentController extends Controller
             ]);
             // Queue OCR so upload response returns immediately.
             try {
-                ProcessOCR::dispatch($document->id)->afterResponse();
+                $this->dispatchProcessOcr($document->id);
             } catch (\Throwable $e) {
                 \Log::warning('ProcessOCR on upload failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
             }
@@ -703,6 +703,23 @@ class DocumentController extends Controller
     protected function resolveDocumentLocation(string $path): ?array
     {
         return DocumentLocationResolver::resolve($path);
+    }
+
+    /**
+     * Run first-pass OCR in-process when the queue is "sync" or DMS_OCR_SYNC_ON_UPLOAD=true,
+     * so local installs without queue:work still get ocr_text and reclassification.
+     * Otherwise queue after the HTTP response.
+     */
+    protected function dispatchProcessOcr(int $documentId): void
+    {
+        $inline = config('queue.default') === 'sync'
+            || filter_var(env('DMS_OCR_SYNC_ON_UPLOAD', false), FILTER_VALIDATE_BOOL);
+        if ($inline) {
+            (new ProcessOCR($documentId))->handle();
+
+            return;
+        }
+        ProcessOCR::dispatch($documentId)->afterResponse();
     }
 
     /**

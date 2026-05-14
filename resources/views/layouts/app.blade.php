@@ -417,6 +417,7 @@
                 [
                     'name' => 'Project Correspondence',
                     'items' => [
+                        'BOQ Bill Of Quantities',
                         'Defect Liability Certificate',
                         'Engineers Correspondences',
                         'Engineers Instruction',
@@ -432,10 +433,9 @@
                         'Testing And Commissioning',
                         'Variation',
                         'Warranty By Us',
-                        'Change Request',
                         'Design Calculation',
                         'Confirmation Of Verbal Instruction',
-                        'Project Commercial Documents',
+                        'Project Technical Documents',
                     ],
                 ],
                 [

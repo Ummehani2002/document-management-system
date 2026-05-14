@@ -17,19 +17,20 @@ class PdfFirstPageOcrService
      */
     public function extractTextForClassification(string $pdfPath): string
     {
-        $text = $this->extractFirstPageText($pdfPath);
+        // Prefer pages 1–2 together: many forms put the logo on page 1 and the real
+        // title block on page 2; page 1 alone is often too short for classification.
+        $text = $this->extractWithPdftotextPageRange($pdfPath, 1, 2);
         if (trim($text) !== '') {
             return $text;
         }
 
-        // Safer fallback for scanned/strange PDFs: parse first few pages as text
-        // without full-document parsing to avoid memory spikes.
         $text = $this->extractWithPdftotextPageRange($pdfPath, 1, 3);
         if (trim($text) !== '') {
             return $text;
         }
 
-        return '';
+        // Scanned / image-only: render first page and run Tesseract (unchanged).
+        return $this->extractFirstPageText($pdfPath);
     }
 
     /**

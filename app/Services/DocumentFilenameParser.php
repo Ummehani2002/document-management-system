@@ -9,6 +9,7 @@ class DocumentFilenameParser
     /** Subfolders used in left navigation/upload placement */
     protected static array $subfolders = [
         'Bank Gurantees',
+        'BOQ Bill Of Quantities',
         'Invoice',
         'Payment Voucher',
         'Proforma Invoice',
@@ -40,10 +41,9 @@ class DocumentFilenameParser
         'Testing And Commissioning',
         'Variation',
         'Warranty By Us',
-        'Change Request',
         'Design Calculation',
         'Confirmation Of Verbal Instruction',
-        'Project Commercial Documents',
+        'Project Technical Documents',
         'Catalogs',
         'Delivery Order',
         'Enquireis',
@@ -89,7 +89,8 @@ class DocumentFilenameParser
     }
 
     /**
-     * Classify folder from first-page OCR/text using reference headings (many label/value formats) plus title keywords.
+     * Classify folder from first-page OCR/text: title/header, then subject, then body heuristics.
+     * Filename is merged separately in classifyForAutomation / suggestPlacementMerged.
      */
     public static function guessSubfolderFromDocumentText(?string $text): string
     {
@@ -97,18 +98,42 @@ class DocumentFilenameParser
             return 'Other';
         }
 
-        $window = self::normalizeOcrText($text);
-        $window = substr($window, 0, 14000);
-
-        // Priority 1: infer from explicit subject line.
-        $subjectCategory = self::detectCategoryFromSubject($window);
-        if ($subjectCategory !== 'Other') {
-            return $subjectCategory;
+        $normalized = self::normalizeOcrText($text);
+        // T&C often appears late ("Content of Request"); scan full OCR, not only first 14k chars.
+        if (self::textLooksLikeTestingAndCommissioning($normalized)) {
+            return 'Testing And Commissioning';
         }
-        // Priority 2: if subject is unclear, infer from title/header text.
+        if (self::textLooksLikeTestingAndCommissioningLoose($normalized)) {
+            return 'Testing And Commissioning';
+        }
+        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $normalized)) {
+            return 'Taking Over Certificate';
+        }
+        if (preg_match('/ENGINEER\S*\s*INSTRUCTION|(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)/i', $normalized)) {
+            return 'Engineers Instruction';
+        }
+        if (preg_match('/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)/i', $normalized)) {
+            return 'Operation And Maintenance Manual';
+        }
+        if (self::textLooksLikePaymentApplication($normalized)) {
+            return 'Payment Application';
+        }
+        if (preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $normalized)) {
+            return 'Request For Information';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $normalized)) {
+            return 'BOQ Bill Of Quantities';
+        }
+        $window = substr($normalized, 0, 14000);
+
+        // OCR order: title/header first, then explicit subject (filename handled in classifyForAutomation).
         $titleCategory = self::detectCategoryFromTitle($window);
         if ($titleCategory !== 'Other') {
             return $titleCategory;
+        }
+        $subjectCategory = self::detectCategoryFromSubject($window);
+        if ($subjectCategory !== 'Other') {
+            return $subjectCategory;
         }
 
         if (preg_match('/PROJECT\s+AWARD\s+NOTIFICATION|\(\s*PAN\s*\)/iu', $window)) {
@@ -122,9 +147,32 @@ class DocumentFilenameParser
 
         if ($synthetic !== '') {
             $cat = self::guessSubfolderFromTitle($synthetic, strtoupper($synthetic));
-            // Synthetic title is useful, but letter-like refs (e.g. LTR-L00xx) are
-            // too generic and can hide a real report subject in body text.
+            // Synthetic string usually starts with REF/WIR; do not let it hide T&C / incident / etc. in the same OCR window.
             if ($cat !== 'Other' && $cat !== 'Incoming Or Outgoing Letter') {
+                if (self::textLooksLikeTestingAndCommissioning($normalized)) {
+                    return 'Testing And Commissioning';
+                }
+                if (self::textLooksLikeTestingAndCommissioningLoose($normalized)) {
+                    return 'Testing And Commissioning';
+                }
+                if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $normalized)) {
+                    return 'Taking Over Certificate';
+                }
+                if (preg_match('/ENGINEER\S*\s*INSTRUCTION|(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)/i', $normalized)) {
+                    return 'Engineers Instruction';
+                }
+                if (preg_match('/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)/i', $normalized)) {
+                    return 'Operation And Maintenance Manual';
+                }
+                if (self::textLooksLikePaymentApplication($normalized)) {
+                    return 'Payment Application';
+                }
+                if (preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $normalized)) {
+                    return 'Request For Information';
+                }
+                if (preg_match('/SITE[\s\-]*INCIDENT[\s\-]+REPORT|INCIDENT[\s\-]+(?:REPORT|RERPORT)/i', $window)) {
+                    return 'Site Incident Report';
+                }
                 return $cat;
             }
         }
@@ -144,9 +192,79 @@ class DocumentFilenameParser
         return self::guessSubfolderFromTitle($base, strtoupper($base));
     }
 
+    /**
+     * Classify from OCR title/subject/report lines only (no full-body keyword fallbacks).
+     * Used to override filename register codes (e.g. WIR) when the first-page heading disagrees.
+     */
+    protected static function guessSubfolderFromOcrHeadingsOnly(string $text): string
+    {
+        $normalized = self::normalizeOcrText($text);
+        if (self::textLooksLikeTestingAndCommissioning($normalized)) {
+            return 'Testing And Commissioning';
+        }
+        if (self::textLooksLikeTestingAndCommissioningLoose($normalized)) {
+            return 'Testing And Commissioning';
+        }
+        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $normalized)) {
+            return 'Taking Over Certificate';
+        }
+        if (preg_match('/ENGINEER\S*\s*INSTRUCTION|(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)/i', $normalized)) {
+            return 'Engineers Instruction';
+        }
+        if (preg_match('/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)/i', $normalized)) {
+            return 'Operation And Maintenance Manual';
+        }
+        if (self::textLooksLikePaymentApplication($normalized)) {
+            return 'Payment Application';
+        }
+        if (preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $normalized)) {
+            return 'Request For Information';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $normalized)) {
+            return 'BOQ Bill Of Quantities';
+        }
+        $window = substr($normalized, 0, 14000);
+        $cat = self::detectCategoryFromTitle($window);
+        if ($cat !== 'Other') {
+            return $cat;
+        }
+        $cat = self::detectCategoryFromSubject($window);
+        if ($cat !== 'Other') {
+            return $cat;
+        }
+        $reportFromSubject = self::detectReportFromSubject($window);
+        if ($reportFromSubject !== null) {
+            return $reportFromSubject;
+        }
+
+        return 'Other';
+    }
+
     protected static function detectCategoryFromTitle(string $window): string
     {
-        $scan = strtoupper(substr($window, 0, 3200));
+        if (self::textLooksLikeTestingAndCommissioningLoose($window)) {
+            return 'Testing And Commissioning';
+        }
+        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $window)) {
+            return 'Taking Over Certificate';
+        }
+        if (preg_match('/ENGINEER\S*\s*INSTRUCTION|(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)/i', $window)) {
+            return 'Engineers Instruction';
+        }
+        if (preg_match('/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)/i', $window)) {
+            return 'Operation And Maintenance Manual';
+        }
+        if (self::textLooksLikePaymentApplication($window)) {
+            return 'Payment Application';
+        }
+        if (preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $window)) {
+            return 'Request For Information';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $window)) {
+            return 'BOQ Bill Of Quantities';
+        }
+        // Title scan must cover multi-row forms (REF block + "Content of request" lower on page).
+        $scan = strtoupper(substr($window, 0, min(20000, strlen($window))));
         $lines = preg_split('/\n+/u', $scan) ?: [];
         foreach ($lines as $line) {
             $line = trim((string) $line);
@@ -157,7 +275,7 @@ class DocumentFilenameParser
             if (preg_match('/^(DATE|REF|REFERENCE|PROJECT|CLIENT|TO|ATTENTION)\b/u', $line)) {
                 continue;
             }
-            if (!preg_match('/REPORT|MEMO|NOTIFICATION|CERTI(?:FICATE|ACATE)|SUBMITTAL|STATEMENT|INSPECTION|TRANSMITTAL|INVOICE|VOUCHER|REQUEST/u', $line)) {
+            if (!preg_match('/REPORT|MEMO|NOTIFICATION|CERTI(?:FICATE|ACATE)|SUBMITTAL|STATEMENT|INSPECTION|TRANSMITTAL|INVOICE|VOUCHER|REQUEST|DEFECT|LIABILITY|\bDLC\b|VARIATION|COST\s+VARIATION|DESIGN\s+CHANGE|\bCVI\b|\bQOR\b|\bSOR\b|\bSON\b|INCIDENT|TESTING|COMMISSION|TAKING|\bTOC\b|ENGINEER|INSTRUCTION|\bEI\b|OPERATION|MAINTENANCE|\bOMM\b|O\s*&\s*M|PAYMENT|APPLICATION|INTERIM|INFORMATION|\bRFI\b|\bBOQ\b|BILL\s+OF\s+QUANTITIES?|\bPTD\b|PROJECT\s+TECHNICAL/u', $line)) {
                 continue;
             }
             $cat = self::guessSubfolderFromTitle($line, $line);
@@ -177,6 +295,48 @@ class DocumentFilenameParser
                 $upper = strtoupper($subject);
                 if (preg_match('/\bSNAG(?:S|GING)?\b/u', $upper)) {
                     return 'Snags';
+                }
+                if (preg_match('/DEFECTS?\s+LIABILITY\s+CERTIFICATE|\bDLC\b|REQUEST\s+FOR\s+DEFECTS?\s+LIABILITY/i', $upper)) {
+                    return 'Defect Liability Certificate';
+                }
+                if (preg_match('/\bVARIATION\b|COST\s+VARIATION|VARIATION\s+FOR|DESIGN\s+CHANGE.*?VARIATION/i', $upper)) {
+                    return 'Variation';
+                }
+                if (preg_match('/(?:^|[^A-Z0-9])CVI(?:[^A-Z0-9]|$)/i', $upper)) {
+                    return 'Confirmation Of Verbal Instruction';
+                }
+                if (preg_match('/(?:^|[^A-Z0-9])QOR(?:[^A-Z0-9]|$)/i', $upper)) {
+                    return 'Quality Observation Report';
+                }
+                if (preg_match('/(?:^|[^A-Z0-9])(?:SOR|SON)(?:[^A-Z0-9]|$)/i', $upper)) {
+                    return 'Site Observation Report';
+                }
+                if (preg_match('/SITE[\s\-]*INCIDENT[\s\-]+REPORT|INCIDENT[\s\-]+(?:REPORT|RERPORT)/i', $upper)) {
+                    return 'Site Incident Report';
+                }
+                if (preg_match('/ENGINEER\S*\s*INSTRUCTION|(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)/i', $upper)) {
+                    return 'Engineers Instruction';
+                }
+                if (preg_match('/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)/i', $upper)) {
+                    return 'Operation And Maintenance Manual';
+                }
+                if (self::textLooksLikePaymentApplication($upper)) {
+                    return 'Payment Application';
+                }
+                if (preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $upper)) {
+                    return 'Request For Information';
+                }
+                if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $upper)) {
+                    return 'BOQ Bill Of Quantities';
+                }
+                if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $upper)) {
+                    return 'Taking Over Certificate';
+                }
+                if (self::textLooksLikeTestingAndCommissioning($upper)) {
+                    return 'Testing And Commissioning';
+                }
+                if (self::textLooksLikeTestingAndCommissioningLoose($subject)) {
+                    return 'Testing And Commissioning';
                 }
                 $cat = self::guessSubfolderFromTitle($subject, $upper);
                 if ($cat !== 'Other') {
@@ -243,6 +403,9 @@ class DocumentFilenameParser
         if (preg_match('/DOCUMENT\s+TRANSMITTAL|TRANSMITTAL\s+NOTE|\bDTF\b|\bTRS\b|\bTRM\b/u', $upper)) {
             return false;
         }
+        if (self::textLooksLikePaymentApplication($text)) {
+            return false;
+        }
 
         // Submittal/inspection forms also carry TO/DATE/REF/SUBJECT label cells in
         // their title block; without this guard those forms get mis-classified as
@@ -252,6 +415,16 @@ class DocumentFilenameParser
             . '|METHOD\s*STATEMENT|STATEMENT\s+SUBMITTAL'
             . '|MATERIAL\s*INSPECTION\s*REQUEST|\bMIR\b'
             . '|WORK\s*INSPECTION\s*REQUEST|\bWIR\b'
+            . '|ENGINEER\S*\s*INSTRUCTION|(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)'
+            . '|QUALITY\s*OBSERVATION\s*REPORT|\bQOR\b'
+            . '|SITE\s*OBSERVATION\s*REPORT|\bSOR\b|\bSON\b'
+            . '|SITE\s*INCIDENT\s*REPORT|INCIDENT\s+(?:REPORT|RERPORT)'
+            . '|TESTING\s+(?:AND|AS)\s+COMM|TESTING\s+AND\s+COMMISSION'
+            . '|TAKING\s*OVER\s*CERTIFICATE|\bTOC\b'
+            . '|OPERATION\s+AND\s+MAINTENANCE|\bO\s*&\s*M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)'
+            . '|PAYMENT\s*APPLICATION|APPLICATION\s+FOR\s+(?:INTERIM\s+)?(?:PAYMENT|PAYMENTS)|INTERIM\s+PAYMENT\s+APPLICATION|REQUEST\s+FOR\s+(?:INTERIM\s+)?PAYMENT'
+            . '|REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)'
+            . '|(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b'
             . '|PRE[\s-]*QUALIF(?:ICATION|ICATIONS)?|\bPREQUAL\b'
             . '|AS[\s-]*BUILT(?:\s+DRAWING)?\s*SUBMITTAL?'
             . '|MATERIAL\s*SAMPLE'
@@ -285,7 +458,93 @@ class DocumentFilenameParser
 
         $normalized = preg_replace('/\n{3,}/', "\n\n", $normalized) ?? $normalized;
 
+        // Tesseract often misreads "Testing and Commissioning" (AND→AS; broken COMMISSIONING).
+        $tncOcrFixes = [
+            '/\bTESTIN\s+GD\s+COMIISONIN\s+GI\b/iu' => 'TESTING AND COMMISSIONING',
+            '/\bTESTIN\s+G\s+D\s+COMIISONIN\s+GI\b/iu' => 'TESTING AND COMMISSIONING',
+            '/\bTESTING\s+AND\s+COMISSIONING\b/iu' => 'TESTING AND COMMISSIONING',
+            '/\bTESTING\s+AND\s+COMI{1,2}S+ION(?:I?NG|ING)\b/iu' => 'TESTING AND COMMISSIONING',
+            '/\bTESTING\s+AS\s+COMMISIOSNIN\s+G\b/iu' => 'TESTING AND COMMISSIONING',
+            '/\bTESTING\s+AS\s+COMM[I1]SSIONING\b/iu' => 'TESTING AND COMMISSIONING',
+            '/\bTESTING\s+AS\s+COMMIS+ION(?:I?NG|ING)\b/iu' => 'TESTING AND COMMISSIONING',
+            '/\bTESTING\s+&\s+COMMISSIONING\b/iu' => 'TESTING AND COMMISSIONING',
+        ];
+        foreach ($tncOcrFixes as $pattern => $replacement) {
+            $normalized = preg_replace($pattern, $replacement, $normalized) ?? $normalized;
+        }
+
         return trim($normalized);
+    }
+
+    /**
+     * Detect "Testing and Commissioning" including common OCR garble (e.g. AND→AS, COMMISSIONING split/jumbled).
+     */
+    protected static function textLooksLikeTestingAndCommissioning(string $upper): bool
+    {
+        if (preg_match('/TESTING\s+AND\s+COMMISS?IO?N[I1]?(?:ING)?/i', $upper)) {
+            return true;
+        }
+        // Source PDF or OCR typo: one M, double S ("comissioning").
+        if (preg_match('/TESTING\s+AND\s+COMI{1,2}SSIONING\b/i', $upper)) {
+            return true;
+        }
+        // AND misread as AS, then "COMMISSIONING" mangled but still COMM… ending NG or space+G.
+        if (preg_match('/TESTING\s+AS\s+COMM(?!ERCIAL)(?:[A-Z]{6,22}\s+G|[A-Z]{10,24}G)\b/i', $upper)) {
+            return true;
+        }
+        // Heavy garble: "TESTIN GD COMIISONIN GI", "TESTIN G D COM …", letters dropped/spurious spaces.
+        if (preg_match('/TESTIN\s*G?\s*D\s+COM[I1]{2,}[EOSNI]{2,14}(?:\s+GI\b|\s+G\s*I\b|ING\b|NG\b)/i', $upper)) {
+            return true;
+        }
+        if (preg_match('/TESTIN(?:G)?\s+GD\s+COM[I1EOSN]{6,20}(?:\s+GI|\s+G\s+I)\b/i', $upper)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Last-resort T&C detection when strict patterns miss (weak OCR, odd spacing, line breaks).
+     */
+    protected static function textLooksLikeTestingAndCommissioningLoose(string $text): bool
+    {
+        if (self::textLooksLikeTestingAndCommissioning(strtoupper($text))) {
+            return true;
+        }
+        $u = strtoupper($text);
+        if (!preg_match('/TESTIN/', $u)) {
+            return false;
+        }
+        if (preg_match('/\bCOMM(?:ERCIAL|ITTEE|UNICATION)\b/', $u)) {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/COM(?:MISS?IO?N(?:ING)?|M+I+S+S+I+O+N(?:I+NG)?|I{1,2}SSIONING|I{1,2}S+I+O+N+I+NG|MISSION(?:ING)?|MISS?ION|COMI{1,2}SSION(?:ING)?)/',
+            $u
+        );
+    }
+
+    /**
+     * Interim / monthly payment application forms — not payment certificates.
+     * OCR and subjects often say "Application for payment" rather than "Payment application".
+     */
+    protected static function textLooksLikePaymentApplication(string $text): bool
+    {
+        $u = strtoupper($text);
+        if (preg_match('/PAYMENT\s*CERTI(?:FICATE|ACATE)|SUBCONTRACTOR\s*PAYMENT\s*CERTI/i', $u)) {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/PAYMENT\s*APPLICATION'
+            . '|APPLICATION\s+FOR\s+(?:THE\s+)?(?:INTERIM\s+)?(?:PAYMENT|PAYMENTS)'
+            . '|INTERIM\s+PAYMENT\s+APPLICATION'
+            . '|MONTHLY\s+PAYMENT\s+APPLICATION'
+            . '|REQUEST\s+FOR\s+(?:INTERIM\s+)?PAYMENT(?:\s+APPLICATION)?'
+            . '/i',
+            $u
+        );
     }
 
     /**
@@ -429,15 +688,12 @@ class DocumentFilenameParser
             $contentCategory = self::guessSubfolderFromDocumentText($ocrText);
         }
 
-        $category = $fileCategory;
-        $source = 'filename';
-
-        if ($contentCategory !== 'Other') {
-            $category = $contentCategory;
-            $source = 'ocr';
-        } elseif ($fileCategory !== 'Other') {
+        if ($fileCategory !== 'Other') {
             $category = $fileCategory;
             $source = 'filename';
+        } elseif ($contentCategory !== 'Other') {
+            $category = $contentCategory;
+            $source = 'ocr';
         } else {
             $category = 'Other';
             $source = 'none';
@@ -454,7 +710,9 @@ class DocumentFilenameParser
 
     /**
      * Automation-oriented classifier with confidence score.
-     * Uses OCR content first (best for mixed PDF formats), then filename as fallback.
+     * Uses filename first when it encodes a clear folder, then OCR (title → subject → body).
+     * When the filename uses a register code (WIR, MIR, SD, …) but OCR (headline **or** full
+     * document text for key types such as Testing And Commissioning) indicates another folder, OCR wins.
      *
      * @return array{
      *   document_category:string,
@@ -469,24 +727,54 @@ class DocumentFilenameParser
         $fileCategory = self::parse($filename)['document_category'] ?? 'Other';
         $ocr = trim((string) $ocrText);
         $contentCategory = $ocr !== '' ? self::guessSubfolderFromDocumentText($ocr) : 'Other';
+        $ocrHeadlineCategory = $ocr !== '' ? self::guessSubfolderFromOcrHeadingsOnly($ocr) : 'Other';
         $upperName = strtoupper(pathinfo($filename, PATHINFO_FILENAME));
-        $hasStrongShopDrawingSignal = (bool) preg_match('/(?:^|[^A-Z0-9])SD(?:[^A-Z0-9]|$)|SHOP\s*DRAWING\s*SUBMITTAL|SHOP\s*DRAWING/u', $upperName);
+        $hasStrongShopDrawingSignal = (bool) preg_match(
+            '/(?:^|[^A-Z0-9])SD(?:[^A-Z0-9]|$)|SHOP\s*DRAWING\s*SUBMITTAL|SHOP\s*DRAWING|\bDWG\b|(?:^|[^A-Z0-9])DS[-_]\d{2,}[-_]\d{2,}|CODE\s+[A-Z0-9]/iu',
+            $upperName
+        );
         $hasStrongMethodSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:MS|MST|MSS|MOS|MTS)(?:[^A-Z0-9]|$)|METHOD\s*STATEMENT/u', $upperName);
-        $hasStrongMaterialSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:MAT|MB)(?:[^A-Z0-9]|$)|MATERIAL\s*SUBMITTAL/u', $upperName);
-        $hasStrongTransmittalSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:DTF|DT|TRS|TRM)(?:[^A-Z0-9]|$)|DOCUMENT\s*TRANSMITTAL/u', $upperName);
+        $hasStrongMaterialSignal = (bool) preg_match(
+            '/(?:^|[^A-Z0-9])(?:MAT|MB)(?:[^A-Z0-9]|$)|MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL|SUBMITTAL\s+TITLE\s*[:\-]\s*MATERIAL|(?:COMMENT|COMMENTS?)\s+ON\s+MATERIAL\s+SUBMITTAL|ENGINEER\s+COMMENT\s+ON\s+MATERIAL\s+SUBMITTAL/i',
+            $upperName
+        );
+        $hasStrongTransmittalSignal = (bool) preg_match(
+            '/(?:^|[^A-Z0-9])(?:DTF|DT|TRS|TRM)(?:[^A-Z0-9]|$)|DOCUMENT\s*TRANSMITTAL|\bDS[-_]\d{2,}\b.*\bREV\d/iu',
+            $upperName
+        );
         $hasStrongMirSignal = (bool) preg_match('/(?:^|[^A-Z0-9])MIR(?:[^A-Z0-9]|$)|MATERIAL\s*INSPECTION\s*REQUEST/u', $upperName);
         $hasStrongWirSignal = (bool) preg_match('/(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)|WORK\s*INSPECTION/u', $upperName);
+        $hasStrongEiSignal = (bool) preg_match('/(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)|ENGINEER\S*\s*INSTRUCTION/i', $upperName);
+        $hasStrongRfiSignal = (bool) preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $upperName);
+        $hasStrongBoqSignal = (bool) preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $upperName);
         $hasStrongPanReportSignal = (bool) preg_match('/PAN\s*REPORT|PANREPORT/u', $upperName);
         $hasStrongReportSignal = (bool) preg_match('/(?:^|[^A-Z0-9])MPR(?:[^A-Z0-9]|$)|\bKPI\b|PAN\s*REPORT|PANREPORT|MONTHLY[\s\-_A-Z0-9]*REPORT|PROGRESS[\s\-_A-Z0-9]*REPORT|MAINTENANCE[\s\-_A-Z0-9]*REPORT|\bREPORT\b/u', $upperName);
         $hasStrongPaymentCertificateSignal = (bool) preg_match('/PAYMENT\s*CERTI(?:FICATE|ACATE)|(?:^|[^A-Z0-9])PC[#\/\-\s]*\d{1,3}(?:[^A-Z0-9]|$)|SUBCONTRACTOR\s*PAYMENT\s*CERTI/u', $upperName);
+        $hasStrongDlcSignal = (bool) preg_match('/DEFECTS?\s+LIABILITY\s+CERTIFICATE|\bDLC\b|REQUEST\s+FOR\s+DEFECTS?\s+LIABILITY/i', $upperName);
+        $hasStrongVariationSignal = (bool) preg_match('/\bVARIATION\b|COST\s+VARIATION|VARIATION\s+FOR|DESIGN\s+CHANGE.*?VARIATION/i', $upperName);
+        $hasStrongCviSignal = (bool) preg_match('/(?:^|[^A-Z0-9])CVI(?:[^A-Z0-9]|$)/i', $upperName);
+        $hasStrongQorSignal = (bool) preg_match('/(?:^|[^A-Z0-9])QOR(?:[^A-Z0-9]|$)/i', $upperName);
+        $hasStrongSorSonSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:SOR|SON)(?:[^A-Z0-9]|$)/i', $upperName);
+        $hasStrongSiteIncidentSignal = (bool) preg_match('/SITE[\s\-]*INCIDENT[\s\-]+REPORT|INCIDENT[\s\-]+(?:REPORT|RERPORT)/i', $upperName);
+        $hasStrongTocSignal = (bool) preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $upperName);
+        $hasStrongOperationAndMaintenanceSignal = (bool) preg_match(
+            '/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)/iu',
+            $upperName
+        );
+        $hasStrongPaymentApplicationSignal = self::textLooksLikePaymentApplication($upperName);
         // Engineering letter reference numbering ("...-L003-24", "/L0017/25") is a
         // strong indicator the file is a project letter even when the title alone
         // has no obvious letter keyword.
         $hasStrongLetterRefSignal = (bool) preg_match('/(?:^|[^A-Z0-9])L\d{3,4}[-_\/]\d{2,4}(?:[^A-Z0-9]|$)/u', $upperName);
         $hasStrongFilenameCode = $hasStrongShopDrawingSignal || $hasStrongMethodSignal
             || $hasStrongMaterialSignal || $hasStrongTransmittalSignal
-            || $hasStrongMirSignal || $hasStrongWirSignal
-            || $hasStrongLetterRefSignal || $hasStrongPanReportSignal;
+            || $hasStrongMirSignal || $hasStrongWirSignal || $hasStrongEiSignal || $hasStrongRfiSignal || $hasStrongBoqSignal
+            || $hasStrongLetterRefSignal || $hasStrongPanReportSignal
+            || $hasStrongDlcSignal || $hasStrongVariationSignal
+            || $hasStrongCviSignal || $hasStrongQorSignal
+            || $hasStrongSorSonSignal || $hasStrongSiteIncidentSignal || $hasStrongTocSignal
+            || $hasStrongOperationAndMaintenanceSignal
+            || $hasStrongPaymentApplicationSignal;
 
         // OCR can mistake a submittal title block for a project letter because both
         // carry TO/DATE/REF/SUBJECT labels. If the filename's structured code clearly
@@ -502,14 +790,15 @@ class DocumentFilenameParser
         $source = 'none';
         $confidence = 0.10;
 
-        if ($contentCategory !== 'Other') {
+        // Prefer filename-derived category when present; otherwise use OCR (title → subject → body).
+        if ($fileCategory !== 'Other') {
+            $category = $fileCategory;
+            $source = 'filename';
+            $confidence = $ocr !== '' ? 0.72 : 0.86;
+        } elseif ($contentCategory !== 'Other') {
             $category = $contentCategory;
             $source = 'ocr';
             $confidence = 0.86;
-        } elseif ($fileCategory !== 'Other') {
-            $category = $fileCategory;
-            $source = 'filename';
-            $confidence = $ocr !== '' ? 0.45 : 0.60;
         }
 
         // Agreement between OCR and filename boosts certainty.
@@ -517,9 +806,101 @@ class DocumentFilenameParser
             $confidence = 0.95;
         }
 
-        // OCR/file disagreement: keep OCR decision but reduce confidence.
-        if ($contentCategory !== 'Other' && $fileCategory !== 'Other' && $contentCategory !== $fileCategory) {
-            $confidence = 0.74;
+        // Filename vs OCR disagree: filename already chosen when non-Other; if OCR-only path, soften when ambiguous.
+        if ($fileCategory !== 'Other' && $contentCategory !== 'Other' && $contentCategory !== $fileCategory) {
+            $confidence = min($confidence, 0.88);
+        }
+
+        // Register filenames often embed WIR/MIR/SD/MAT/MST/DTF codes that do not match the
+        // document body. Prefer OCR when (a) headline lines disagree, or (b) headline matches the
+        // register code but full-window classification still finds a stronger type (e.g. T&C in body).
+        static $filenameCodesOverridableByOcr = [
+            'Work Inspection',
+            'Material Inspection Request',
+            'Shop Drawing',
+            'Material Submittal',
+            'Method Statement',
+            'Document Transmittal',
+            'Engineers Instruction',
+            'Request For Information',
+            'BOQ Bill Of Quantities',
+        ];
+        static $fullBodyOcrWinsWhenFilenameCodeMatches = [
+            'Testing And Commissioning',
+            'Site Incident Report',
+            'Taking Over Certificate',
+            'Material Submittal',
+            'Payment Application',
+        ];
+        if ($ocr !== ''
+            && $fileCategory !== 'Other'
+            && in_array($fileCategory, $filenameCodesOverridableByOcr, true)) {
+            $ocrOverride = 'Other';
+            if ($ocrHeadlineCategory !== 'Other'
+                && $ocrHeadlineCategory !== 'Incoming Or Outgoing Letter'
+                && $ocrHeadlineCategory !== $fileCategory) {
+                $ocrOverride = $ocrHeadlineCategory;
+            }
+            if ($ocrOverride === 'Other'
+                && $contentCategory !== 'Other'
+                && $contentCategory !== 'Incoming Or Outgoing Letter'
+                && $contentCategory !== $fileCategory
+                && in_array($contentCategory, $fullBodyOcrWinsWhenFilenameCodeMatches, true)) {
+                $ocrOverride = $contentCategory;
+            }
+            if ($ocrOverride !== 'Other') {
+                $category = $ocrOverride;
+                $source = 'ocr';
+                $confidence = max($confidence, 0.84);
+            }
+        }
+
+        if ($ocr !== ''
+            && $fileCategory === 'Incoming Or Outgoing Letter'
+            && ($ocrHeadlineCategory === 'Taking Over Certificate' || $contentCategory === 'Taking Over Certificate')) {
+            $category = 'Taking Over Certificate';
+            $source = 'ocr';
+            $confidence = max($confidence, 0.84);
+        }
+
+        if ($ocr !== ''
+            && $fileCategory === 'Incoming Or Outgoing Letter'
+            && ($ocrHeadlineCategory === 'Material Submittal' || $contentCategory === 'Material Submittal')) {
+            $category = 'Material Submittal';
+            $source = 'ocr';
+            $confidence = max($confidence, 0.84);
+        }
+
+        if ($ocr !== ''
+            && $fileCategory === 'Incoming Or Outgoing Letter'
+            && ($ocrHeadlineCategory === 'Engineers Instruction' || $contentCategory === 'Engineers Instruction')) {
+            $category = 'Engineers Instruction';
+            $source = 'ocr';
+            $confidence = max($confidence, 0.84);
+        }
+
+        if ($ocr !== ''
+            && $fileCategory === 'Incoming Or Outgoing Letter'
+            && ($ocrHeadlineCategory === 'Payment Application' || $contentCategory === 'Payment Application')) {
+            $category = 'Payment Application';
+            $source = 'ocr';
+            $confidence = max($confidence, 0.84);
+        }
+
+        if ($ocr !== ''
+            && $fileCategory === 'Incoming Or Outgoing Letter'
+            && ($ocrHeadlineCategory === 'Request For Information' || $contentCategory === 'Request For Information')) {
+            $category = 'Request For Information';
+            $source = 'ocr';
+            $confidence = max($confidence, 0.84);
+        }
+
+        if ($ocr !== ''
+            && $fileCategory === 'Incoming Or Outgoing Letter'
+            && ($ocrHeadlineCategory === 'BOQ Bill Of Quantities' || $contentCategory === 'BOQ Bill Of Quantities')) {
+            $category = 'BOQ Bill Of Quantities';
+            $source = 'ocr';
+            $confidence = max($confidence, 0.84);
         }
 
         // Structured file names with an explicit type code (e.g. ...-SD-..., -WIR-,
@@ -530,11 +911,23 @@ class DocumentFilenameParser
             'Shop Drawing' => $hasStrongShopDrawingSignal,
             'Work Inspection' => $hasStrongWirSignal,
             'Material Inspection Request' => $hasStrongMirSignal,
+            'Engineers Instruction' => $hasStrongEiSignal,
+            'Request For Information' => $hasStrongRfiSignal,
+            'BOQ Bill Of Quantities' => $hasStrongBoqSignal,
             'Method Statement' => $hasStrongMethodSignal,
             'Material Submittal' => $hasStrongMaterialSignal,
             'Monthly Report' => $hasStrongReportSignal,
             'KPI Report' => $hasStrongReportSignal,
             'Payment Certificate' => $hasStrongPaymentCertificateSignal,
+            'Defect Liability Certificate' => $hasStrongDlcSignal,
+            'Variation' => $hasStrongVariationSignal,
+            'Confirmation Of Verbal Instruction' => $hasStrongCviSignal,
+            'Quality Observation Report' => $hasStrongQorSignal,
+            'Site Observation Report' => $hasStrongSorSonSignal,
+            'Site Incident Report' => $hasStrongSiteIncidentSignal,
+            'Taking Over Certificate' => $hasStrongTocSignal,
+            'Operation And Maintenance Manual' => $hasStrongOperationAndMaintenanceSignal,
+            'Payment Application' => $hasStrongPaymentApplicationSignal,
             'Document Transmittal' => $hasStrongTransmittalSignal,
             'Incoming Or Outgoing Letter' => $hasStrongLetterRefSignal,
         ];
@@ -584,6 +977,11 @@ class DocumentFilenameParser
         $hasLetterRefNumber = (bool) preg_match('/(?:^|[^A-Z0-9])L\d{3,4}[-_\/]\d{2,4}(?:[^A-Z0-9]|$)/i', $upper);
         $hasLetterToken = $hasLetterToken || $hasLetterRefNumber;
         $hasTransmittalToken = (bool) preg_match('/\bDTF\b|\bDT\b|DOC\.?\s*TRANS|DOCUMENT\s*TRANSMITTAL|TRANSMITTAL\s*NOTE/i', $upper);
+        // Register segment ...-L0002-24 sets letter heuristics; explicit material-submittal wording in the title must still win.
+        $hasMaterialSubmittalKeyword = (bool) preg_match(
+            '/MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL|SUBMITTAL\s+TITLE\s*[:\-]\s*MATERIAL|(?:COMMENT|COMMENTS?)\s+ON\s+MATERIAL\s+SUBMITTAL|ENGINEER\s+COMMENT\s+ON\s+MATERIAL\s+SUBMITTAL/i',
+            $upper
+        );
 
         // Keep As-Built docs out of Method Statement even if code contains "-MS-".
         if (preg_match('/\bAS[\s\-]*BUILT\b|\bASBUILT\b/i', $upper) && !$hasLetterToken) {
@@ -600,6 +998,60 @@ class DocumentFilenameParser
             return 'Enquireis';
         }
 
+        // Defect liability / DLC must win before letter-ref heuristics (filenames often contain ...-L0374-24...).
+        if (preg_match('/DEFECTS?\s+LIABILITY\s+CERTIFICATE|\bDLC\b|REQUEST\s+FOR\s+DEFECTS?\s+LIABILITY/i', $upper)) {
+            return 'Defect Liability Certificate';
+        }
+
+        // Variation / cost variation: filename often still contains ...-L0039-23... letter-style ref.
+        if (preg_match('/\bVARIATION\b|COST\s+VARIATION|VARIATION\s+FOR|VARIATION\s+REQUEST|DESIGN\s+CHANGE.*?VARIATION/i', $upper)) {
+            return 'Variation';
+        }
+        // CVI = Confirmation of Verbal Instruction (common ref segment ...-CVI-002...)
+        if (preg_match('/(?:^|[^A-Z0-9])CVI(?:[^A-Z0-9]|$)/i', $upper)) {
+            return 'Confirmation Of Verbal Instruction';
+        }
+        // QOR = Quality Observation Report (e.g. QOR-PRO-BK-0001_Closed.pdf)
+        if (preg_match('/(?:^|[^A-Z0-9])QOR(?:[^A-Z0-9]|$)/i', $upper)) {
+            return 'Quality Observation Report';
+        }
+        // SOR / SON = Site Observation Report (common register refs; "Closed" in name is workflow status only)
+        if (preg_match('/(?:^|[^A-Z0-9])SOR(?:[^A-Z0-9]|$)/i', $upper)) {
+            return 'Site Observation Report';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])SON(?:[^A-Z0-9]|$)/i', $upper)) {
+            return 'Site Observation Report';
+        }
+        // Incident reports: ref segment ...-L0102-24- is a letter pattern but title is "Incident Report" / "Incident Rerport".
+        if (preg_match('/SITE[\s\-]*INCIDENT[\s\-]+REPORT|INCIDENT[\s\-]+(?:REPORT|RERPORT)/i', $upper)) {
+            return 'Site Incident Report';
+        }
+        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $upper)) {
+            return 'Taking Over Certificate';
+        }
+        if (self::textLooksLikeTestingAndCommissioning($upper)) {
+            return 'Testing And Commissioning';
+        }
+
+        // Register "OMM" / "O&M" (and spelled-out title) must win over material codes like "MAS" in the same path.
+        if (preg_match('/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)/i', $upper)) {
+            return 'Operation And Maintenance Manual';
+        }
+
+        if (self::textLooksLikePaymentApplication($upper)) {
+            return 'Payment Application';
+        }
+        if (preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $upper)) {
+            return 'Request For Information';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $upper)) {
+            return 'BOQ Bill Of Quantities';
+        }
+
+        if ($hasMaterialSubmittalKeyword) {
+            return 'Material Submittal';
+        }
+
         // Prioritize clear letter/correspondence documents before generic short-code matches
         // like trailing "/MB" fragments in reference numbers.
         if ($hasLetterToken && !$hasTransmittalToken) {
@@ -607,11 +1059,10 @@ class DocumentFilenameParser
         }
 
         $codeMatches = [];
-        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|MTS|MST|MSS|MOS|MT|SD|DWG|ASB|ABS|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
+        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|EI|RFI|BOQ|MTS|MST|MSS|MOS|MT|SD|DS|DWG|ASB|ABS|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
         $codes = array_unique(array_map('strtoupper', $codeMatches[1] ?? []));
         $hasPrequalificationKeyword = (bool) preg_match('/PRE[\s\-]*QUALIF(?:ICATION|ICATIONS)?|\bPREQUAL\b|\bPREQ\b/i', $upper);
         $hasMethodKeyword = (bool) preg_match('/METHOD\s*STATEMENT|METHOD\s+OF\s+STATEMENT|METHOD\s*ST(?:\.|ATEMENT)?|STATEMENT\s+SUBMITTAL|\bMTS\b|\bMST\b|\bMSS\b|\bMOS\b/i', $upper);
-        $hasMaterialSubmittalKeyword = (bool) preg_match('/MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL|SUBMITTAL\s+TITLE\s*[:\-]\s*MATERIAL/i', $upper);
         $hasStrongMethodCode = in_array('MST', $codes, true)
             || in_array('MTS', $codes, true)
             || in_array('MSS', $codes, true)
@@ -646,8 +1097,27 @@ class DocumentFilenameParser
         if (in_array('DT', $codes, true) || in_array('TRS', $codes, true) || in_array('TRM', $codes, true)) {
             return 'Document Transmittal';
         }
+        // Drawing sheet index only when it looks like a sheet trail (e.g. ...-DS-058-01-Code A.pdf),
+        // not bare ...-DS-009 Rev... (often document / transmittal register).
+        if (in_array('DS', $codes, true)) {
+            if (preg_match('/SHOP|DRAWING|\bDWG\b|CODE\s+[A-Z0-9]|DS[-_]\d{2,}[-_]\d{2,}/i', $upper)) {
+                return 'Shop Drawing';
+            }
+            if (preg_match('/\bREV\d/i', $upper)) {
+                return 'Document Transmittal';
+            }
+        }
         if (in_array('MIR', $codes, true) || in_array('MIRR', $codes, true)) {
             return 'Material Inspection Request';
+        }
+        if (in_array('EI', $codes, true)) {
+            return 'Engineers Instruction';
+        }
+        if (in_array('RFI', $codes, true)) {
+            return 'Request For Information';
+        }
+        if (in_array('BOQ', $codes, true)) {
+            return 'BOQ Bill Of Quantities';
         }
         if (in_array('WIR', $codes, true)) {
             return 'Work Inspection';
@@ -667,10 +1137,10 @@ class DocumentFilenameParser
         if (in_array('MTS', $codes, true) || in_array('MT', $codes, true)) {
             return 'Method Statement';
         }
-        if (in_array('MAT', $codes, true)) {
+        if (in_array('MAT', $codes, true) || in_array('MAS', $codes, true)) {
             return 'Material Submittal';
         }
-        if (in_array('MSA', $codes, true) || in_array('MAS', $codes, true)) {
+        if (in_array('MSA', $codes, true)) {
             return 'Material Sample';
         }
         if (in_array('MB', $codes, true)) {
@@ -692,14 +1162,16 @@ class DocumentFilenameParser
         if (preg_match('/SHOP\s*DRAWING|\bDWG\b/i', $upper)) {
             return 'Shop Drawing';
         }
-        if (preg_match('/INSPECTION\s*REQUEST|MIR\b/i', $upper)) {
+        // "WORK INSPECTION REQUEST" contains INSPECTION+REQUEST — classify work before generic MIR phrase.
+        if (preg_match('/WORK\s*INSPECTION/i', $upper)) {
+            return 'Work Inspection';
+        }
+        if (preg_match('/MATERIAL\s*INSPECTION\s*REQUEST|\bMIR\b/i', $upper)
+            || (preg_match('/INSPECTION\s*REQUEST/i', $upper) && !preg_match('/WORK\s*INSPECTION/i', $upper))) {
             return 'Material Inspection Request';
         }
         if (preg_match('/MATERIAL\s*SUBMITTAL|\bMAT(?:ERIAL)?\s*SUB(?:MITTAL)?\b/i', $upper)) {
             return 'Material Submittal';
-        }
-        if (preg_match('/WORK\s*INSPECTION/i', $upper)) {
-            return 'Work Inspection';
         }
         if (preg_match('/SAMPLE/i', $upper)) {
             return 'Material Sample';
@@ -763,7 +1235,7 @@ class DocumentFilenameParser
         if (preg_match('/SPARE\s*PART/i', $upper)) {
             return 'Spare Parts';
         }
-        if (preg_match('/DEFECT\s*LIABILITY\s*CERTIFICATE/i', $upper)) {
+        if (preg_match('/DEFECTS?\s+LIABILITY\s+CERTIFICATE|\bDLC\b|REQUEST\s+FOR\s+DEFECTS?\s+LIABILITY/i', $upper)) {
             return 'Defect Liability Certificate';
         }
         if (preg_match('/ENGINEER\S*\s*CORRESPONDENCE/i', $upper)) {
@@ -778,29 +1250,32 @@ class DocumentFilenameParser
         if (preg_match('/\bNCR\b|NON\s*CONFORMANCE/i', $upper)) {
             return 'NCR';
         }
-        if (preg_match('/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b/i', $upper)) {
+        if (preg_match('/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)/i', $upper)) {
             return 'Operation And Maintenance Manual';
         }
-        if (preg_match('/PAYMENT\s*APPLICATION/i', $upper)) {
+        if (self::textLooksLikePaymentApplication($upper)) {
             return 'Payment Application';
         }
-        if (preg_match('/QUALITY\s*OBSERVATION\s*REPORT/i', $upper)) {
+        if (preg_match('/(?:^|[^A-Z0-9])QOR(?:[^A-Z0-9]|$)|QUALITY\s*OBSERVATION\s*REPORT/i', $upper)) {
             return 'Quality Observation Report';
         }
-        if (preg_match('/REQUEST\s*FOR\s*INFORMATION|\bRFI\b/i', $upper)) {
+        if (preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $upper)) {
             return 'Request For Information';
         }
-        if (preg_match('/SITE\s*OBSERVATION\s*REPORT/i', $upper)) {
+        if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $upper)) {
+            return 'BOQ Bill Of Quantities';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])(?:SOR|SON)(?:[^A-Z0-9]|$)|SITE\s*OBSERVATION\s*REPORT/i', $upper)) {
             return 'Site Observation Report';
         }
-        if (preg_match('/SITE\s*INCIDENT\s*REPORT/i', $upper)) {
+        if (preg_match('/SITE[\s\-]*INCIDENT[\s\-]+REPORT|INCIDENT[\s\-]+(?:REPORT|RERPORT)/i', $upper)) {
             return 'Site Incident Report';
         }
-        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $upper)) {
-            return 'Taking Over Certificate';
-        }
-        if (preg_match('/TESTING\s*AND\s*COMMISSIONING/i', $upper)) {
+        if (self::textLooksLikeTestingAndCommissioning($upper)) {
             return 'Testing And Commissioning';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])CVI(?:[^A-Z0-9]|$)|CONFIRMATION\s+OF\s+VERBAL|VERBAL\s*INSTRUCTION/i', $upper)) {
+            return 'Confirmation Of Verbal Instruction';
         }
         if (preg_match('/VARIATION/i', $upper)) {
             return 'Variation';
@@ -808,17 +1283,11 @@ class DocumentFilenameParser
         if (preg_match('/WARRANTY/i', $upper)) {
             return 'Warranty By Us';
         }
-        if (preg_match('/CHANGE\s*REQUEST/i', $upper)) {
-            return 'Change Request';
+        if (preg_match('/PROJECT\s+TECHNICAL\s+DOCUMENTS?|TECHNICAL\s+DOCUMENTATION\s+FOR\s+PROJECT|\bPTD\b/i', $upper)) {
+            return 'Project Technical Documents';
         }
         if (preg_match('/DESIGN\s*CALCULATION/i', $upper)) {
             return 'Design Calculation';
-        }
-        if (preg_match('/VERBAL\s*INSTRUCTION/i', $upper)) {
-            return 'Confirmation Of Verbal Instruction';
-        }
-        if (preg_match('/COMMERCIAL/i', $upper)) {
-            return 'Project Commercial Documents';
         }
         if (preg_match('/CATALOG/i', $upper)) {
             return 'Catalogs';
@@ -865,6 +1334,9 @@ class DocumentFilenameParser
         }
         if (preg_match('/PREQUALIFICATION/i', $upper)) {
             return 'Prequalification';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $upper)) {
+            return 'BOQ Bill Of Quantities';
         }
         return 'Other';
     }
@@ -926,13 +1398,14 @@ class DocumentFilenameParser
      * empty, or wrong.
      *
      * Rules, in order:
-     *  1. If filename + OCR text give a confident category (>= 0.70 from
-     *     classifyForAutomation), use that. This catches things like a
-     *     "Baseline Program of Works.pdf" whose body clearly reads
-     *     "Dear Sir, ... Yours Faithfully," -> Incoming Or Outgoing Letter.
-     *  2. Otherwise, any non-"Other" category parsed from the filename
-     *     alone wins (mirrors the search page's historical behaviour).
-     *  3. Otherwise, fall back to the stored document_type.
+     *  1. If OCR text is present and classifyForAutomation (or payment-body heuristics)
+     *     yield a confident category (>= 0.70), or a clear payment application from OCR,
+     *     use that.
+     *  2. Otherwise, parse the filename; if that yields only the generic letter bucket but the
+     *     stored document_type is a more specific subfolder (e.g. after reclassification),
+     *     prefer the stored value so the UI matches the database until OCR is available.
+     *  3. Otherwise, use the filename parse when it is non-Other.
+     *  4. Otherwise, fall back to the stored document_type.
      */
     protected static function resolveSubLabel(?string $documentType, ?string $fileName, ?string $ocrText = null): ?string
     {
@@ -944,14 +1417,28 @@ class DocumentFilenameParser
                 $auto = self::classifyForAutomation($fileName, $ocr);
                 $autoCat = (string) ($auto['document_category'] ?? '');
                 $autoConf = (float) ($auto['confidence'] ?? 0);
+                if ($autoCat === 'Incoming Or Outgoing Letter' && self::textLooksLikePaymentApplication($ocr)) {
+                    return 'Payment Application';
+                }
                 if ($autoCat !== '' && $autoCat !== 'Other' && $autoConf >= 0.70) {
                     return $autoCat;
+                }
+                if (self::textLooksLikePaymentApplication($ocr)) {
+                    return 'Payment Application';
                 }
             }
 
             $parsed = self::parse($fileName);
             $cat = $parsed['document_category'] ?? null;
             if ($cat !== null && $cat !== '' && $cat !== 'Other') {
+                if ($cat === 'Incoming Or Outgoing Letter'
+                    && $type !== null
+                    && $type !== ''
+                    && $type !== 'Other'
+                    && $type !== 'Incoming Or Outgoing Letter') {
+                    return $type;
+                }
+
                 return $cat;
             }
         }
@@ -1007,6 +1494,7 @@ class DocumentFilenameParser
                 'Spare Parts',
             ],
             'Project Correspondence' => [
+                'BOQ Bill Of Quantities',
                 'Defect Liability Certificate',
                 'Engineers Correspondences',
                 'Engineers Instruction',
@@ -1022,10 +1510,9 @@ class DocumentFilenameParser
                 'Testing And Commissioning',
                 'Variation',
                 'Warranty By Us',
-                'Change Request',
                 'Design Calculation',
                 'Confirmation Of Verbal Instruction',
-                'Project Commercial Documents',
+                'Project Technical Documents',
             ],
             'Purchase Documents' => [
                 'Catalogs',
