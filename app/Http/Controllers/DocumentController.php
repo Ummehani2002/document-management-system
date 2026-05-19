@@ -408,6 +408,7 @@ class DocumentController extends Controller
             'Shop Drawing' => ['Shop Drawing', 'Drawing'],
             'Incoming Or Outgoing Letter' => ['Incoming Or Outgoing Letter', 'Correspondence'],
             'Monthly Report' => ['Monthly Report', 'Report'],
+            'Permit and NOC' => ['Permit and NOC', 'Permit', 'NOC'],
         ];
         $documentTypeFilters = $documentType !== ''
             ? ($documentTypeAliases[$documentType] ?? [$documentType])

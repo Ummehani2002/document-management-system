@@ -26,8 +26,7 @@ class DocumentFilenameParser
         'Project Award Notification',
         'Snags',
         'Spare Parts',
-        'Permit',
-        'NOC',
+        'Permit and NOC',
         'Defect Liability Certificate',
         'Engineers Correspondences',
         'Engineers Instruction',
@@ -145,10 +144,10 @@ class DocumentFilenameParser
             return 'Payment Certificate';
         }
         if (preg_match('/\bNO\s+OBJECTION\b|(?:^|[^A-Z0-9])NOC(?:[^A-Z0-9]|$)|WATER\s+NOC|ELECTRIC(?:ITY)?\s+NOC/iu', $window)) {
-            return 'NOC';
+            return 'Permit and NOC';
         }
         if (preg_match('/\bPERMIT\b|BUILDING\s+PERMIT|WORK\s+PERMIT|CONSTRUCTION\s+PERMIT/iu', $window)) {
-            return 'Permit';
+            return 'Permit and NOC';
         }
         $synthetic = self::extractReferenceSyntheticTitle($window);
         $synthetic = trim($synthetic);
@@ -1012,10 +1011,10 @@ class DocumentFilenameParser
         }
 
         if (preg_match('/\bNO\s+OBJECTION\b|(?:^|[^A-Z0-9])NOC(?:[^A-Z0-9]|$)|WATER\s+NOC|ELECTRIC(?:ITY)?\s+NOC/i', $upper)) {
-            return 'NOC';
+            return 'Permit and NOC';
         }
         if (preg_match('/\bPERMIT\b|BUILDING\s+PERMIT|WORK\s+PERMIT|CONSTRUCTION\s+PERMIT/i', $upper)) {
-            return 'Permit';
+            return 'Permit and NOC';
         }
 
         // Variation / cost variation: filename often still contains ...-L0039-23... letter-style ref.
@@ -1251,10 +1250,10 @@ class DocumentFilenameParser
             return 'Spare Parts';
         }
         if (preg_match('/\bNO\s+OBJECTION\b|(?:^|[^A-Z0-9])NOC(?:[^A-Z0-9]|$)|WATER\s+NOC|ELECTRIC(?:ITY)?\s+NOC/i', $upper)) {
-            return 'NOC';
+            return 'Permit and NOC';
         }
         if (preg_match('/\bPERMIT\b|BUILDING\s+PERMIT|WORK\s+PERMIT|CONSTRUCTION\s+PERMIT/i', $upper)) {
-            return 'Permit';
+            return 'Permit and NOC';
         }
         if (preg_match('/DEFECTS?\s+LIABILITY\s+CERTIFICATE|\bDLC\b|REQUEST\s+FOR\s+DEFECTS?\s+LIABILITY/i', $upper)) {
             return 'Defect Liability Certificate';
@@ -1513,8 +1512,7 @@ class DocumentFilenameParser
                 'Project Award Notification',
                 'Snags',
                 'Spare Parts',
-                'Permit',
-                'NOC',
+                'Permit and NOC',
             ],
             'Project Correspondence' => [
                 'BOQ Bill Of Quantities',
