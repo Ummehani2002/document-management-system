@@ -26,6 +26,8 @@ class DocumentFilenameParser
         'Project Award Notification',
         'Snags',
         'Spare Parts',
+        'Permit',
+        'NOC',
         'Defect Liability Certificate',
         'Engineers Correspondences',
         'Engineers Instruction',
@@ -141,6 +143,12 @@ class DocumentFilenameParser
         }
         if (preg_match('/PAYMENT\s*CERTI(?:FICATE|ACATE)|SUBCONTRACTOR\s*PAYMENT\s*CERTI|CERTIFICATE\s*NO\.?\s*[:\-]/iu', $window)) {
             return 'Payment Certificate';
+        }
+        if (preg_match('/\bNO\s+OBJECTION\b|(?:^|[^A-Z0-9])NOC(?:[^A-Z0-9]|$)|WATER\s+NOC|ELECTRIC(?:ITY)?\s+NOC/iu', $window)) {
+            return 'NOC';
+        }
+        if (preg_match('/\bPERMIT\b|BUILDING\s+PERMIT|WORK\s+PERMIT|CONSTRUCTION\s+PERMIT/iu', $window)) {
+            return 'Permit';
         }
         $synthetic = self::extractReferenceSyntheticTitle($window);
         $synthetic = trim($synthetic);
@@ -275,7 +283,7 @@ class DocumentFilenameParser
             if (preg_match('/^(DATE|REF|REFERENCE|PROJECT|CLIENT|TO|ATTENTION)\b/u', $line)) {
                 continue;
             }
-            if (!preg_match('/REPORT|MEMO|NOTIFICATION|CERTI(?:FICATE|ACATE)|SUBMITTAL|STATEMENT|INSPECTION|TRANSMITTAL|INVOICE|VOUCHER|REQUEST|DEFECT|LIABILITY|\bDLC\b|VARIATION|COST\s+VARIATION|DESIGN\s+CHANGE|\bCVI\b|\bQOR\b|\bSOR\b|\bSON\b|INCIDENT|TESTING|COMMISSION|TAKING|\bTOC\b|ENGINEER|INSTRUCTION|\bEI\b|OPERATION|MAINTENANCE|\bOMM\b|O\s*&\s*M|PAYMENT|APPLICATION|INTERIM|INFORMATION|\bRFI\b|\bBOQ\b|BILL\s+OF\s+QUANTITIES?|\bPTD\b|PROJECT\s+TECHNICAL/u', $line)) {
+            if (!preg_match('/REPORT|MEMO|NOTIFICATION|CERTI(?:FICATE|ACATE)|SUBMITTAL|STATEMENT|INSPECTION|TRANSMITTAL|INVOICE|VOUCHER|REQUEST|DEFECT|LIABILITY|\bDLC\b|VARIATION|COST\s+VARIATION|DESIGN\s+CHANGE|\bCVI\b|\bQOR\b|\bSOR\b|\bSON\b|INCIDENT|TESTING|COMMISSION|TAKING|\bTOC\b|ENGINEER|INSTRUCTION|\bEI\b|OPERATION|MAINTENANCE|\bOMM\b|O\s*&\s*M|PAYMENT|APPLICATION|INTERIM|INFORMATION|\bRFI\b|\bBOQ\b|BILL\s+OF\s+QUANTITIES?|\bPTD\b|PROJECT\s+TECHNICAL|\bNOC\b|NO\s+OBJECTION|\bPERMIT\b/u', $line)) {
                 continue;
             }
             $cat = self::guessSubfolderFromTitle($line, $line);
@@ -1003,6 +1011,13 @@ class DocumentFilenameParser
             return 'Defect Liability Certificate';
         }
 
+        if (preg_match('/\bNO\s+OBJECTION\b|(?:^|[^A-Z0-9])NOC(?:[^A-Z0-9]|$)|WATER\s+NOC|ELECTRIC(?:ITY)?\s+NOC/i', $upper)) {
+            return 'NOC';
+        }
+        if (preg_match('/\bPERMIT\b|BUILDING\s+PERMIT|WORK\s+PERMIT|CONSTRUCTION\s+PERMIT/i', $upper)) {
+            return 'Permit';
+        }
+
         // Variation / cost variation: filename often still contains ...-L0039-23... letter-style ref.
         if (preg_match('/\bVARIATION\b|COST\s+VARIATION|VARIATION\s+FOR|VARIATION\s+REQUEST|DESIGN\s+CHANGE.*?VARIATION/i', $upper)) {
             return 'Variation';
@@ -1234,6 +1249,12 @@ class DocumentFilenameParser
         }
         if (preg_match('/SPARE\s*PART/i', $upper)) {
             return 'Spare Parts';
+        }
+        if (preg_match('/\bNO\s+OBJECTION\b|(?:^|[^A-Z0-9])NOC(?:[^A-Z0-9]|$)|WATER\s+NOC|ELECTRIC(?:ITY)?\s+NOC/i', $upper)) {
+            return 'NOC';
+        }
+        if (preg_match('/\bPERMIT\b|BUILDING\s+PERMIT|WORK\s+PERMIT|CONSTRUCTION\s+PERMIT/i', $upper)) {
+            return 'Permit';
         }
         if (preg_match('/DEFECTS?\s+LIABILITY\s+CERTIFICATE|\bDLC\b|REQUEST\s+FOR\s+DEFECTS?\s+LIABILITY/i', $upper)) {
             return 'Defect Liability Certificate';
@@ -1492,6 +1513,8 @@ class DocumentFilenameParser
                 'Project Award Notification',
                 'Snags',
                 'Spare Parts',
+                'Permit',
+                'NOC',
             ],
             'Project Correspondence' => [
                 'BOQ Bill Of Quantities',

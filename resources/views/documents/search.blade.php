@@ -226,13 +226,7 @@
 
     @if(!empty($fromSidebar) && request('project_id') && request('document_type'))
         @php
-            $folderTree = [
-                'Financial Documents' => ['Bank Gurantees','Invoice','Payment Voucher','Proforma Invoice','Receipt Voucher','Sales Credit Note','Supplier Delivery Note','Supplier Invoice','Supplier Time Sheets'],
-                'General Correspondence' => ['Incoming Or Outgoing Letter','Internal Memo','KPI Report','Monthly Report','Payment Certificate','Project Award Notification','Snags','Spare Parts'],
-                'Project Correspondence' => ['BOQ Bill Of Quantities','Defect Liability Certificate','Engineers Correspondences','Engineers Instruction','MOM','NCR','Operation And Maintenance Manual','Payment Application','Quality Observation Report','Request For Information','Site Observation Report','Site Incident Report','Taking Over Certificate','Testing And Commissioning','Variation','Warranty By Us','Design Calculation','Confirmation Of Verbal Instruction','Project Technical Documents'],
-                'Purchase Documents' => ['Catalogs','Delivery Order','Enquireis','Good Receipt Note','Material Issue Note','Material Return Note','Purchase Order','Purchase Request','Quotations','Sales Order','Trade License certificate','VAT Registration Certificate','Vendor Registration certificate'],
-                'Transmittals Documents' => ['As Built Drawing Submittal','Material Submittal','Material Inspection Request','Method Statement','Prequalification','Shop Drawing','Work Inspection','Document Transmittal','Material Sample'],
-            ];
+            $folderTree = \App\Services\DocumentFilenameParser::sidebarFolderTree();
             $activeType = request('document_type');
             $mainFolder = request('main_folder');
             if (!$mainFolder && $activeType) {

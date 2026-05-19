@@ -387,91 +387,10 @@
         </div>
         <h3>Folders</h3>
         @php
-            $sidebarFolders = [
-                [
-                    'name' => 'Financial Documents',
-                    'items' => [
-                        'Bank Gurantees',
-                        'Invoice',
-                        'Payment Voucher',
-                        'Proforma Invoice',
-                        'Receipt Voucher',
-                        'Sales Credit Note',
-                        'Supplier Delivery Note',
-                        'Supplier Invoice',
-                        'Supplier Time Sheets',
-                    ],
-                ],
-                [
-                    'name' => 'General Correspondence',
-                    'items' => [
-                        'Incoming Or Outgoing Letter',
-                        'Internal Memo',
-                        'KPI Report',
-                        'Monthly Report',
-                        'Payment Certificate',
-                        'Project Award Notification',
-                        'Snags',
-                        'Spare Parts',
-                    ],
-                ],
-                [
-                    'name' => 'Project Correspondence',
-                    'items' => [
-                        'BOQ Bill Of Quantities',
-                        'Defect Liability Certificate',
-                        'Engineers Correspondences',
-                        'Engineers Instruction',
-                        'MOM',
-                        'NCR',
-                        'Operation And Maintenance Manual',
-                        'Payment Application',
-                        'Quality Observation Report',
-                        'Request For Information',
-                        'Site Observation Report',
-                        'Site Incident Report',
-                        'Taking Over Certificate',
-                        'Testing And Commissioning',
-                        'Variation',
-                        'Warranty By Us',
-                        'Design Calculation',
-                        'Confirmation Of Verbal Instruction',
-                        'Project Technical Documents',
-                    ],
-                ],
-                [
-                    'name' => 'Purchase Documents',
-                    'items' => [
-                        'Catalogs',
-                        'Delivery Order',
-                        'Enquireis',
-                        'Good Receipt Note',
-                        'Material Issue Note',
-                        'Material Return Note',
-                        'Purchase Order',
-                        'Purchase Request',
-                        'Quotations',
-                        'Sales Order',
-                        'Trade License certificate',
-                        'VAT Registration Certificate',
-                        'Vendor Registration certificate',
-                    ],
-                ],
-                [
-                    'name' => 'Transmittals Documents',
-                    'items' => [
-                        'As Built Drawing Submittal',
-                        'Material Submittal',
-                        'Material Inspection Request',
-                        'Method Statement',
-                        'Prequalification',
-                        'Shop Drawing',
-                        'Work Inspection',
-                        'Document Transmittal',
-                        'Material Sample',
-                    ],
-                ],
-            ];
+            $sidebarFolders = collect(\App\Services\DocumentFilenameParser::sidebarFolderTree())
+                ->map(fn (array $items, string $name): array => ['name' => $name, 'items' => $items])
+                ->values()
+                ->all();
         @endphp
 
         <div class="sidebar-shell">
