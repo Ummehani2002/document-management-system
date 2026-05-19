@@ -44,7 +44,7 @@
                         <td style="padding:10px 12px; min-width:0;">
                             <strong>{{ $doc->file_name }}</strong><br>
                             <span style="font-size: 0.85rem; color: #64748b;">
-                                {{ optional($doc->created_at)->format('d M Y, h:i A') ?: '-' }}
+                                {{ $doc->created_at?->timezone(config('app.timezone'))->format('d M Y, g:i A') ?? '-' }}
                             </span>
                         </td>
                         <td style="padding:10px 12px;">{{ $doc->entity?->name ?? '-' }}</td>

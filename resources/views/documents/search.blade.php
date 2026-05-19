@@ -319,7 +319,7 @@
                                     <td style="padding: 10px;">{{ $doc->project?->project_name ?? '—' }}</td>
                                     <td style="padding: 10px;">{{ $doc->project?->client_name ?? '—' }}</td>
                                     <td style="padding: 10px;">{{ $doc->project?->consultant ?? '—' }}</td>
-                                    <td style="padding: 10px;">{{ optional($doc->updated_at)->format('M d, Y') ?: '—' }}</td>
+                                    <td style="padding: 10px;">{{ $doc->updated_at?->timezone(config('app.timezone'))->format('d M Y, g:i A') ?? '—' }}</td>
                                     <td style="padding: 10px; min-width: 190px;">
                                         @if(!empty($doc->file_available))
                                             <button type="button" style="padding:6px 10px; margin-right:6px;" onclick="toggleInlinePreview('{{ $doc->id }}', '{{ route('documents.view', ['id' => $doc->id]) }}')">View here</button>
