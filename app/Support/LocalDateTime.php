@@ -7,12 +7,11 @@ use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Format DB timestamps for display in the application timezone.
+ * Format DB timestamps for display in the application timezone (e.g. Asia/Dubai).
  *
- * Laravel stores created_at/updated_at in UTC. When app.timezone is not UTC, Eloquent
- * can hydrate those values in the app timezone without shifting the instant — so
- * "08:45" in the database (UTC) may display as "08:45 AM" instead of UAE "12:45 PM".
- * We always interpret the raw database value as UTC, then convert for display.
+ * Older rows may store UTC wall-clock in the database; newer rows may store local
+ * wall-clock when app.timezone was set without UTC serialization. We pick the
+ * interpretation that is not in the future relative to "now".
  */
 class LocalDateTime
 {
@@ -21,20 +20,23 @@ class LocalDateTime
         return (string) config('app.timezone', 'Asia/Dubai');
     }
 
-    public static function fromDatabase(?string $raw): ?Carbon
+    public static function fromModel(Model $model, string $column): ?Carbon
     {
+        $raw = $model->getRawOriginal($column);
         if ($raw === null || $raw === '') {
             return null;
         }
 
-        return Carbon::parse($raw, 'UTC')->timezone(self::timezone());
-    }
+        $tz = self::timezone();
+        $asLocalWallClock = Carbon::parse((string) $raw, $tz);
+        $asUtcThenLocal = Carbon::parse((string) $raw, 'UTC')->timezone($tz);
 
-    public static function fromModel(Model $model, string $column): ?Carbon
-    {
-        $raw = $model->getRawOriginal($column);
+        // DB value written as local time (e.g. 14:16 for 2:16 PM) breaks UTC parsing (+4h).
+        if ($asUtcThenLocal->greaterThan(now($tz))) {
+            return $asLocalWallClock;
+        }
 
-        return self::fromDatabase(is_string($raw) ? $raw : null);
+        return $asUtcThenLocal;
     }
 
     public static function formatModel(Model $model, string $column, string $format = 'd M Y, g:i A'): string
@@ -59,11 +61,23 @@ class LocalDateTime
 
         if ($value instanceof Carbon || $value instanceof DateTimeInterface) {
             $raw = $value->format('Y-m-d H:i:s');
-            $dt = self::fromDatabase($raw);
 
-            return $dt?->format($format) ?? '—';
+            return self::fromRaw($raw)?->format($format) ?? '—';
         }
 
-        return self::fromDatabase((string) $value)?->format($format) ?? '—';
+        return self::fromRaw((string) $value)?->format($format) ?? '—';
+    }
+
+    protected static function fromRaw(string $raw): ?Carbon
+    {
+        $tz = self::timezone();
+        $asLocalWallClock = Carbon::parse($raw, $tz);
+        $asUtcThenLocal = Carbon::parse($raw, 'UTC')->timezone($tz);
+
+        if ($asUtcThenLocal->greaterThan(now($tz))) {
+            return $asLocalWallClock;
+        }
+
+        return $asUtcThenLocal;
     }
 }

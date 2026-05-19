@@ -3,10 +3,36 @@
 namespace App\Models;
 
 use App\Services\DocumentFilenameParser;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class Document extends Model
 {
+    /**
+     * Persist timestamps in UTC; display via LocalDateTime / app timezone.
+     */
+    protected function serializeDate(DateTimeInterface $date): string
+    {
+        return Carbon::instance($date)->timezone('UTC')->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * @param  mixed  $value
+     */
+    protected function asDateTime($value): Carbon
+    {
+        if ($value instanceof DateTimeInterface) {
+            return Carbon::instance($value)->timezone(config('app.timezone', 'Asia/Dubai'));
+        }
+
+        if (is_string($value) && $value !== '') {
+            return Carbon::parse($value, 'UTC')->timezone(config('app.timezone', 'Asia/Dubai'));
+        }
+
+        return parent::asDateTime($value);
+    }
+
     protected $fillable = [
         'entity_id',
         'project_id',
