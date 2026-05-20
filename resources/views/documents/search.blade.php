@@ -323,6 +323,7 @@
                                     <td style="padding: 10px; min-width: 190px;">
                                         @if(!empty($doc->file_available))
                                             <button type="button" style="padding:6px 10px; margin-right:6px;" onclick="toggleInlinePreview('{{ $doc->id }}', '{{ route('documents.view', ['id' => $doc->id]) }}')">View here</button>
+                                            <a href="{{ route('documents.edit', ['id' => $doc->id, 'return_url' => request()->fullUrl()]) }}" style="padding:6px 10px; margin-right:6px; display:inline-block; text-decoration:none; background:#212d3e; color:#fff; border-radius:4px; font-size:0.9rem;">Replace</a>
                                             <button type="button" style="padding:6px 10px;" onclick="toggleShareForm('{{ $doc->id }}')">Share</button>
                                             <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline; margin-left:6px;" onsubmit="return confirm('Delete this file?');">
                                                 @csrf
@@ -450,6 +451,8 @@
                     <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open in new tab</a>
                     &nbsp;|&nbsp;
                     <button type="button" style="padding:4px 10px;" onclick="toggleInlinePreview('{{ $doc->id }}', '{{ route('documents.view', ['id' => $doc->id]) }}')">View here</button>
+                    &nbsp;|&nbsp;
+                    <a href="{{ route('documents.edit', ['id' => $doc->id, 'return_url' => request()->fullUrl()]) }}">Replace file</a>
                     &nbsp;|&nbsp;
                     <button type="button" style="padding:4px 10px;" onclick="toggleShareForm('{{ $doc->id }}')">Share</button>
                     &nbsp;|&nbsp;

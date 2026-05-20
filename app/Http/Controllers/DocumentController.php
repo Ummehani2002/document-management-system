@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Jobs\ProcessOCR;
 use App\Jobs\SendSharedDocumentEmail;
 use App\Services\DocumentFilenameParser;
+use App\Services\DocumentFileReplacer;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
 use Illuminate\Http\Request;
@@ -499,6 +500,91 @@ class DocumentController extends Controller
             'disciplines', 'documentTypes', 'totalDocuments', 'documentsWithoutOcr',
             'fromSidebar', 'needsProjectSelection'
         ));
+    }
+
+    public function edit(int $id)
+    {
+        $document = Document::with(['project', 'entity'])->find($id);
+
+        if (! $document) {
+            abort(404, 'Document not found.');
+        }
+
+        $fileAvailable = $this->resolveDocumentLocation((string) $document->file_path) !== null;
+
+        return view('documents.edit', [
+            'document' => $document,
+            'fileAvailable' => $fileAvailable,
+        ]);
+    }
+
+    /**
+     * Replace the stored file for an existing document (same record, same storage path).
+     */
+    public function replace(Request $request, int $id)
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+
+        $document = Document::find($id);
+
+        if (! $document) {
+            abort(404, 'Document not found.');
+        }
+
+        $maxFileMb = max(1, (int) env('DOC_UPLOAD_MAX_FILE_MB', 1024));
+        $maxFileKb = $maxFileMb * 1024;
+
+        $request->validate([
+            'file' => [
+                'required',
+                'file',
+                'max:'.$maxFileKb,
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! $value instanceof UploadedFile) {
+                        $fail('Invalid file upload.');
+
+                        return;
+                    }
+
+                    $allowed = ['pdf', 'doc', 'docx', 'xls', 'xlsx'];
+                    $originalExt = strtolower((string) $value->getClientOriginalExtension());
+                    $guessedExt = strtolower((string) $value->guessExtension());
+
+                    if (in_array($originalExt, $allowed, true) || in_array($guessedExt, $allowed, true)) {
+                        return;
+                    }
+
+                    $fail('The file must be one of: pdf, doc, docx, xls, xlsx.');
+                },
+            ],
+        ]);
+
+        /** @var UploadedFile $file */
+        $file = $request->file('file');
+
+        try {
+            (new DocumentFileReplacer)->replace($document, $file);
+        } catch (\Throwable $e) {
+            Log::warning('Document replace failed', [
+                'document_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()
+                ->withErrors(['file' => $e->getMessage()])
+                ->withInput();
+        }
+
+        $returnUrl = $request->input('return_url');
+        if (is_string($returnUrl) && $returnUrl !== '' && str_starts_with($returnUrl, url('/'))) {
+            return redirect($returnUrl)->with('success', 'File replaced successfully. Search text will refresh after OCR completes.');
+        }
+
+        return redirect()
+            ->route('documents.edit', ['id' => $id])
+            ->with('success', 'File replaced successfully. Search text will refresh after OCR completes.');
     }
 
     public function download(int $id)

@@ -114,6 +114,8 @@
                                     @if(!empty($doc->file_available))
                                         <span style="color: #cbd5e1;"> | </span>
                                         <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open PDF</a>
+                                        &nbsp;|&nbsp;
+                                        <a href="{{ route('documents.edit', ['id' => $doc->id]) }}">Replace</a>
                                         <span style="color: #cbd5e1;"> | </span>
                                         <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>
                                         <span style="color: #cbd5e1;"> | </span>
