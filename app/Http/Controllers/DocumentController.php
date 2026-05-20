@@ -12,6 +12,7 @@ use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileReplacer;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
+use App\Services\DocumentPreviewUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -511,10 +512,14 @@ class DocumentController extends Controller
         }
 
         $fileAvailable = $this->resolveDocumentLocation((string) $document->file_path) !== null;
+        $previewUrl = $fileAvailable ? DocumentPreviewUrl::inlineUrl($document) : null;
+        $fileSizeBytes = $fileAvailable ? DocumentPreviewUrl::fileSizeBytes($document) : null;
 
         return view('documents.edit', [
             'document' => $document,
             'fileAvailable' => $fileAvailable,
+            'previewUrl' => $previewUrl,
+            'fileSizeMb' => $fileSizeBytes !== null ? round($fileSizeBytes / 1024 / 1024, 1) : null,
         ]);
     }
 
@@ -650,6 +655,11 @@ class DocumentController extends Controller
                 'host' => request()->getHost(),
             ]);
             abort(404, 'File not found on disk: ' . $path);
+        }
+
+        $presigned = DocumentPreviewUrl::presignedRedirectUrl($document);
+        if ($presigned !== null) {
+            return redirect()->away($presigned);
         }
 
         $mimeType = $this->detectMimeType($location, $document->file_name);

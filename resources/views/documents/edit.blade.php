@@ -19,6 +19,9 @@
         <p style="margin: 0 0 8px;"><strong>Entity:</strong> {{ $document->entity?->name ?? '—' }}</p>
         <p style="margin: 0 0 8px;"><strong>Project:</strong> {{ $document->project?->project_number ?? '—' }} — {{ $document->project?->project_name ?? '—' }}</p>
         <p style="margin: 0;"><strong>Folder:</strong> {{ $document->display_folder }}</p>
+        @if(!empty($fileSizeMb))
+            <p style="margin: 8px 0 0; font-size: 0.9rem; color: #64748b;">Size: {{ $fileSizeMb }} MB</p>
+        @endif
     </div>
 
     @if(!$fileAvailable)
@@ -40,23 +43,82 @@
         @if($fileAvailable)
             <p style="margin-top: 12px;">
                 <a href="{{ route('documents.download', ['id' => $document->id]) }}">Download current file</a>
-                &nbsp;|&nbsp;
-                <a href="{{ route('documents.view', ['id' => $document->id]) }}" target="_blank" rel="noopener">Open in new tab</a>
+                @if(!empty($previewUrl))
+                    &nbsp;|&nbsp;
+                    <a href="{{ $previewUrl }}" target="_blank" rel="noopener">Open in new tab</a>
+                @endif
             </p>
         @endif
     </div>
 
-    @if($fileAvailable)
+    @if($fileAvailable && !empty($previewUrl))
         <div class="card" style="margin-bottom: 16px; padding: 0; overflow: hidden;">
-            <div style="padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+            <div style="padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between;">
                 <strong>Current file preview</strong>
+                <button type="button" id="load-preview-btn" style="margin: 0;">Show preview</button>
             </div>
+            <p id="preview-hint" style="margin: 0; padding: 12px 14px; font-size: 0.9rem; color: #64748b;">
+                Preview loads on demand from cloud storage (faster than before). Large PDFs may still take a few seconds to render.
+                @if(!empty($fileSizeMb) && $fileSizeMb > 25)
+                    This file is {{ $fileSizeMb }} MB — use <strong>Download</strong> if preview is slow.
+                @endif
+            </p>
+            <p id="preview-loading" style="display: none; margin: 0; padding: 8px 14px; color: #334155;">Loading preview…</p>
             <iframe
-                src="{{ route('documents.view', ['id' => $document->id]) }}"
+                id="preview-frame"
+                src="about:blank"
+                data-src="{{ $previewUrl }}"
                 title="Preview {{ $document->file_name }}"
-                style="width: 100%; height: 70vh; border: 0; display: block;"
+                style="width: 100%; height: 70vh; border: 0; display: none;"
             ></iframe>
         </div>
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var btn = document.getElementById('load-preview-btn');
+            var frame = document.getElementById('preview-frame');
+            var hint = document.getElementById('preview-hint');
+            var loading = document.getElementById('preview-loading');
+            if (!btn || !frame) return;
+
+            var loaded = false;
+            var visible = false;
+
+            btn.addEventListener('click', function () {
+                if (loaded) {
+                    visible = !visible;
+                    frame.style.display = visible ? 'block' : 'none';
+                    btn.textContent = visible ? 'Hide preview' : 'Show preview';
+                    return;
+                }
+
+                var url = frame.getAttribute('data-src');
+                if (!url) return;
+
+                loading.style.display = 'block';
+                hint.style.display = 'none';
+                btn.disabled = true;
+                btn.textContent = 'Loading…';
+
+                frame.onload = function () {
+                    loading.style.display = 'none';
+                    frame.style.display = 'block';
+                    btn.textContent = 'Hide preview';
+                    btn.disabled = false;
+                    loaded = true;
+                    visible = true;
+                };
+                frame.onerror = function () {
+                    loading.style.display = 'none';
+                    hint.style.display = 'block';
+                    hint.textContent = 'Preview could not load. Use Download or Open in new tab.';
+                    btn.disabled = false;
+                    btn.textContent = 'Retry preview';
+                    loaded = false;
+                };
+                frame.src = url;
+            });
+        });
+        </script>
     @endif
 
     <div class="card">
