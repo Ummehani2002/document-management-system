@@ -122,6 +122,9 @@ class DocumentFilenameParser
         if (preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $normalized)) {
             return 'Request For Information';
         }
+        if (self::textLooksLikeMaterialSubmittal($normalized)) {
+            return 'Material Submittal';
+        }
         if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $normalized)) {
             return 'BOQ Bill Of Quantities';
         }
@@ -227,6 +230,9 @@ class DocumentFilenameParser
         if (preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $normalized)) {
             return 'Request For Information';
         }
+        if (self::textLooksLikeMaterialSubmittal($normalized)) {
+            return 'Material Submittal';
+        }
         if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $normalized)) {
             return 'BOQ Bill Of Quantities';
         }
@@ -266,6 +272,9 @@ class DocumentFilenameParser
         }
         if (preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $window)) {
             return 'Request For Information';
+        }
+        if (self::textLooksLikeMaterialSubmittal($window)) {
+            return 'Material Submittal';
         }
         if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $window)) {
             return 'BOQ Bill Of Quantities';
@@ -332,6 +341,9 @@ class DocumentFilenameParser
                 }
                 if (preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $upper)) {
                     return 'Request For Information';
+                }
+                if (self::textLooksLikeMaterialSubmittal($subject)) {
+                    return 'Material Submittal';
                 }
                 if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $upper)) {
                     return 'BOQ Bill Of Quantities';
@@ -551,6 +563,22 @@ class DocumentFilenameParser
             . '|REQUEST\s+FOR\s+(?:INTERIM\s+)?PAYMENT(?:\s+APPLICATION)?'
             . '/i',
             $u
+        );
+    }
+
+    /**
+     * Material submittal forms often reference BOQ schedules in the body or checklist.
+     * Prefer the headline / early form title over incidental BOQ mentions later in OCR.
+     */
+    protected static function textLooksLikeMaterialSubmittal(string $text): bool
+    {
+        $head = substr(self::normalizeOcrText($text), 0, 4000);
+
+        return (bool) preg_match(
+            '/MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL(?:\s+FORM)?'
+            .'|(?:^|\n)\s*MATERIAL\s*SUBMITTAL\b'
+            .'/iu',
+            $head
         );
     }
 
@@ -854,6 +882,12 @@ class DocumentFilenameParser
                 && $contentCategory !== $fileCategory
                 && in_array($contentCategory, $fullBodyOcrWinsWhenFilenameCodeMatches, true)) {
                 $ocrOverride = $contentCategory;
+            }
+            if ($fileCategory === 'Material Submittal'
+                && ($hasStrongMaterialSignal || self::textLooksLikeMaterialSubmittal($ocr))
+                && $ocrOverride === 'BOQ Bill Of Quantities'
+                && !$hasStrongBoqSignal) {
+                $ocrOverride = 'Other';
             }
             if ($ocrOverride !== 'Other') {
                 $category = $ocrOverride;
