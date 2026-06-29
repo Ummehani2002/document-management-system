@@ -369,6 +369,7 @@
         <a href="{{ route('disciplines.index') }}">Disciplines</a>
         <a href="{{ route('documents.upload') }}">Upload</a>
         <a href="{{ route('documents.search') }}">Search</a>
+        <a href="{{ route('user-activities.index') }}">Activity Log</a>
         <form method="POST" action="{{ route('logout') }}" class="logout-form">
             @csrf
             <button type="submit" class="logout-btn">Logout</button>

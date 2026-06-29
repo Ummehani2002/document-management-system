@@ -13,6 +13,7 @@ use App\Services\DocumentFileReplacer;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
 use App\Services\DocumentPreviewUrl;
+use App\Services\UserActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -285,6 +286,8 @@ class DocumentController extends Controller
                     $document->ocr_text = null;
                     $document->save();
 
+                    UserActivityLogger::reattached($document, ['upload_mode' => $uploadMode]);
+
             try {
                 $this->dispatchProcessOcr($document->id);
             } catch (\Throwable $e) {
@@ -330,6 +333,7 @@ class DocumentController extends Controller
                 'file_name'     => $storedFileName,
                 'file_path'     => $path,
             ]);
+            UserActivityLogger::uploaded($document, ['upload_mode' => $uploadMode]);
             // Queue OCR so upload response returns immediately.
             try {
                 $this->dispatchProcessOcr($document->id);
@@ -696,6 +700,7 @@ class DocumentController extends Controller
             }
         }
 
+        UserActivityLogger::deleted($document);
         $document->delete();
 
         return back()->with('success', 'File successfully deleted');

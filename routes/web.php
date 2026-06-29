@@ -9,6 +9,7 @@ use App\Http\Controllers\EntityController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDashboardController;
 use App\Http\Controllers\DisciplineController;
+use App\Http\Controllers\UserActivityController;
 
 Route::get('/', function () {
     return auth()->check() ? redirect()->route('dashboard') : redirect()->route('login');
@@ -27,6 +28,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('entities', EntityController::class);
     Route::resource('projects', ProjectController::class);
     Route::resource('disciplines', DisciplineController::class)->except(['show']);
+    Route::get('/user-activities', [UserActivityController::class, 'index'])->name('user-activities.index');
 
     // Document routes:
     // - Keep /documents/... as canonical (named) routes used by Blade links.

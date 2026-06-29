@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
+use App\Services\UserActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -651,6 +652,9 @@ class DocumentDirectUploadController extends Controller
                 $document->file_path = $key;
                 $document->ocr_text = null;
                 $document->save();
+                UserActivityLogger::reattached($document, [
+                    'upload_mode' => (string) ($payload['upload_mode'] ?? 'auto'),
+                ]);
                 try {
                     $this->dispatchProcessOcr($document->id);
                 } catch (\Throwable $e) {
@@ -688,6 +692,9 @@ class DocumentDirectUploadController extends Controller
             'document_type' => $category,
             'file_name' => $storedFileName,
             'file_path' => $key,
+        ]);
+        UserActivityLogger::uploaded($document, [
+            'upload_mode' => (string) ($payload['upload_mode'] ?? 'auto'),
         ]);
         try {
             $this->dispatchProcessOcr($document->id);

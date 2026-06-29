@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\ProcessOCR;
 use App\Models\Document;
+use App\Services\UserActivityLogger;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -55,6 +56,8 @@ class DocumentFileReplacer
 
         $document->ocr_text = null;
         $document->save();
+
+        UserActivityLogger::replaced($document);
 
         $this->dispatchProcessOcr($document->id);
     }
