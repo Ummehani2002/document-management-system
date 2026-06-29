@@ -121,6 +121,14 @@ class DocumentReclassificationService
 
         $moveSucceeded = $this->moveOnDisk($disk, $oldPath, $newPath, $folderPath, $document->id);
         if (!$moveSucceeded) {
+            Log::warning('Document reclassification move failed; updating document_type only', [
+                'document_id' => $document->id,
+                'old_path' => $oldPath,
+                'planned_path' => $newPath,
+                'category' => $newCategory,
+            ]);
+            $document->update(['document_type' => $newCategory]);
+
             return;
         }
 

@@ -448,7 +448,7 @@ class DocumentController extends Controller
                 $query->where('discipline', $discipline);
             }
             if (!empty($documentTypeFilters)) {
-                $query->whereIn('document_type', $documentTypeFilters);
+                DocumentFilenameParser::applyFolderTypeFilter($query, $documentTypeFilters);
             }
 
             if ($keyword !== '') {

@@ -1519,6 +1519,60 @@ class DocumentFilenameParser
     }
 
     /**
+     * SQL LIKE patterns used when browsing a sidebar folder so rows whose stored
+     * document_type is stale still appear when the filename register code matches.
+     *
+     * @return list<string>
+     */
+    public static function folderSearchFilenameLikePatterns(string $category): array
+    {
+        return match ($category) {
+            'Material Submittal' => ['%-MAT-%', '%PIC-MAT%', '%-MB-%', '%-MAS-%'],
+            'Material Inspection Request' => ['%-MIR-%', '%-MIRR-%'],
+            'BOQ Bill Of Quantities' => ['%-BOQ-%'],
+            'Work Inspection' => ['%-WIR-%'],
+            'Shop Drawing' => ['%-SD-%', '%-DS-%'],
+            'Document Transmittal' => ['%-DTF-%', '%-TRS-%', '%-TRM-%'],
+            'Request For Information' => ['%-RFI-%'],
+            'Method Statement' => ['%-MST-%', '%-MTS-%', '%-MSS-%'],
+            'As Built Drawing Submittal' => ['%-ASB-%', '%-ABS-%'],
+            default => [],
+        };
+    }
+
+    /**
+     * Apply sidebar/search folder filter: stored document_type OR filename code,
+     * with cross-folder exclusions (e.g. MAT files hidden from BOQ browse).
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Document>  $query
+     * @param  list<string>  $documentTypeFilters
+     * @return \Illuminate\Database\Eloquent\Builder<Document>
+     */
+    public static function applyFolderTypeFilter($query, array $documentTypeFilters)
+    {
+        if ($documentTypeFilters === []) {
+            return $query;
+        }
+
+        return $query->where(function ($outer) use ($documentTypeFilters) {
+            $outer->where(function ($inner) use ($documentTypeFilters) {
+                $inner->whereIn('document_type', $documentTypeFilters);
+                foreach ($documentTypeFilters as $type) {
+                    foreach (self::folderSearchFilenameLikePatterns($type) as $pattern) {
+                        $inner->orWhere('file_name', 'like', $pattern);
+                    }
+                }
+            });
+
+            if (in_array('BOQ Bill Of Quantities', $documentTypeFilters, true)) {
+                foreach (self::folderSearchFilenameLikePatterns('Material Submittal') as $pattern) {
+                    $outer->where('file_name', 'not like', $pattern);
+                }
+            }
+        });
+    }
+
+    /**
      * Same subfolder lists as the left navigation (see layouts.app sidebar).
      *
      * @return array<string, list<string>>
