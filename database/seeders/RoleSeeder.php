@@ -21,10 +21,15 @@ class RoleSeeder extends Seeder
             );
         }
 
-        // Assign Admin to first user if exists (optional)
-        $user = \App\Models\User::first();
-        if ($user && !$user->hasRole('Admin')) {
-            $user->assignRole('Admin');
+        $adminEmail = strtolower(trim((string) env('DMS_ADMIN_EMAIL', '')));
+        $user = $adminEmail !== ''
+            ? \App\Models\User::query()->whereRaw('LOWER(email) = ?', [$adminEmail])->first()
+            : \App\Models\User::first();
+
+        if ($user && ! $user->hasRole('Admin')) {
+            $user->syncRoles(['Admin']);
+            $user->entityAccess()->delete();
+            $user->folderAccess()->delete();
         }
     }
 }
