@@ -26,6 +26,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Http\UploadedFile;
+use App\Services\UserActivityLogger;
+
 
 class DocumentController extends Controller
 {
