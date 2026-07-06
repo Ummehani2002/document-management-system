@@ -653,6 +653,7 @@ class DocumentController extends Controller
             'onlyOfficeServerUrl' => $onlyOfficeServerUrl,
             'onlyOfficeConfig' => $onlyOfficeConfig,
             'nextVersionName' => $nextVersionName,
+            'pdfEditorUrl' => route('documents.view', ['id' => $document->id, 'proxy' => 1]),
         ]);
     }
 
@@ -857,7 +858,7 @@ class DocumentController extends Controller
         }
 
         $presigned = DocumentPreviewUrl::presignedRedirectUrl($document);
-        if ($presigned !== null) {
+        if ($presigned !== null && ! request()->boolean('proxy')) {
             return redirect()->away($presigned);
         }
 

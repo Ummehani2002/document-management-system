@@ -60,7 +60,7 @@
         <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function () {
-                var pdfUrl = @json(route('documents.view', ['id' => $document->id]));
+                var pdfUrl = @json($pdfEditorUrl ?? route('documents.view', ['id' => $document->id, 'proxy' => 1]));
                 var saveUrl = @json(route('documents.replace', ['id' => $document->id]));
                 var csrf = @json(csrf_token());
                 var returnUrl = @json(request('return_url', route('documents.search')));
@@ -301,7 +301,11 @@
                         return renderPage(currentPage);
                     })
                     .catch(function (err) {
-                        loadingEl.innerHTML = '<p style="margin:0;color:#b91c1c;">' + (err.message || 'Could not open the PDF.') + '</p>';
+                        var msg = err && err.message ? err.message : 'Could not open the PDF.';
+                        if (msg === 'Failed to fetch' || msg.indexOf('fetch') !== -1) {
+                            msg = 'Could not load the PDF from storage. Try again or download the file first.';
+                        }
+                        loadingEl.innerHTML = '<p style="margin:0;color:#b91c1c;">' + msg + '</p>';
                     });
             });
         </script>
