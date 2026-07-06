@@ -24,7 +24,7 @@ class GrantUserAdminCommand extends Command
         $user = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
         if ($user === null) {
             $this->error("No user found with email: {$email}");
-            $this->line('The user must sign in at least once before granting access.');
+            $this->line('The user must sign in at least once (Microsoft or local login) before granting access.');
 
             return self::FAILURE;
         }
@@ -38,7 +38,7 @@ class GrantUserAdminCommand extends Command
         $user->entityAccess()->delete();
         $user->folderAccess()->delete();
 
-        $this->info("Admin granted to {$user->email}. Full access to all entities and folders.");
+        $this->info("Admin granted to {$user->email} ({$user->name}). Full access to all entities and folders.");
 
         return self::SUCCESS;
     }
