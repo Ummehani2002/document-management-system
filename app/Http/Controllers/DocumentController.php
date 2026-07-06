@@ -653,7 +653,7 @@ class DocumentController extends Controller
             'onlyOfficeServerUrl' => $onlyOfficeServerUrl,
             'onlyOfficeConfig' => $onlyOfficeConfig,
             'nextVersionName' => $nextVersionName,
-            'pdfEditorUrl' => route('documents.view', ['id' => $document->id, 'proxy' => 1]),
+            'pdfEditorUrl' => route('documents.download', ['id' => $document->id]),
         ]);
     }
 

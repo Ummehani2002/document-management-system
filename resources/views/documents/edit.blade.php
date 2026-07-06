@@ -60,7 +60,7 @@
         <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function () {
-                var pdfUrl = @json($pdfEditorUrl ?? route('documents.view', ['id' => $document->id, 'proxy' => 1]));
+                var pdfUrl = @json($pdfEditorUrl ?? route('documents.download', ['id' => $document->id]));
                 var saveUrl = @json(route('documents.replace', ['id' => $document->id]));
                 var csrf = @json(csrf_token());
                 var returnUrl = @json(request('return_url', route('documents.search')));
