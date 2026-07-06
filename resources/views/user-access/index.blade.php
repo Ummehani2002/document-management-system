@@ -8,14 +8,21 @@
     <div class="success">{{ session('success') }}</div>
 @endif
 
-<p style="color: #64748b; margin-bottom: 20px;">
-    Grant users access by entity and document folder. Users with the <strong>Admin</strong> role have full access.
-    For other users, select entities first, then choose folders and subfolders per entity.
+<p style="color: #64748b; margin-bottom: 16px;">
+    <strong>Admin</strong> — full access to every document.<br>
+    <strong>Entity / folder</strong> — all PDFs in selected companies and folders.<br>
+    <strong>Specific documents</strong> — individual files only (or in addition to folders).
+</p>
+
+<p style="margin-bottom: 20px;">
+    <a href="{{ route('user-access.create') }}" style="display:inline-block; padding:10px 18px; background:#212d3e; color:#fff; text-decoration:none; border-radius:5px;">
+        + Add user
+    </a>
 </p>
 
 @if($users->isEmpty())
     <div class="card">
-        <p>No users found.</p>
+        <p>No users yet. Add a user or ask them to sign in with Microsoft first.</p>
     </div>
 @else
     <div class="card">
@@ -25,7 +32,7 @@
                     <th style="padding: 10px 8px;">User</th>
                     <th style="padding: 10px 8px;">Email</th>
                     <th style="padding: 10px 8px;">Role</th>
-                    <th style="padding: 10px 8px;">Entities</th>
+                    <th style="padding: 10px 8px;">Access</th>
                     <th style="padding: 10px 8px;"></th>
                 </tr>
             </thead>
@@ -36,18 +43,24 @@
                         <td style="padding: 10px 8px;">{{ $user->email }}</td>
                         <td style="padding: 10px 8px;">
                             @if($user->hasRole('Admin'))
-                                <span style="color: #1a5c38;">Admin (full access)</span>
+                                <span style="color: #1a5c38;">Admin</span>
                             @else
                                 {{ $user->roles->pluck('name')->join(', ') ?: '—' }}
                             @endif
                         </td>
                         <td style="padding: 10px 8px;">
                             @if($user->hasRole('Admin'))
-                                All
-                            @elseif($user->entityAccess->isEmpty())
+                                All documents
+                            @elseif($user->entityAccess->isEmpty() && $user->documentAccess->isEmpty())
                                 <span style="color: #b91c1c;">No access</span>
                             @else
-                                {{ $user->entityAccess->map(fn ($a) => $a->entity?->name)->filter()->join(', ') }}
+                                @if($user->entityAccess->isNotEmpty())
+                                    Entities: {{ $user->entityAccess->map(fn ($a) => $a->entity?->name)->filter()->join(', ') }}
+                                @endif
+                                @if($user->documentAccess->isNotEmpty())
+                                    @if($user->entityAccess->isNotEmpty())<br>@endif
+                                    {{ $user->documentAccess->count() }} specific file(s)
+                                @endif
                             @endif
                         </td>
                         <td style="padding: 10px 8px; text-align: right;">

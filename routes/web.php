@@ -37,6 +37,8 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('role:Admin')->prefix('admin')->group(function () {
         Route::get('/user-access', [UserAccessController::class, 'index'])->name('user-access.index');
+        Route::get('/user-access/create', [UserAccessController::class, 'create'])->name('user-access.create');
+        Route::post('/user-access', [UserAccessController::class, 'store'])->name('user-access.store');
         Route::get('/user-access/{user}/edit', [UserAccessController::class, 'edit'])->name('user-access.edit');
         Route::put('/user-access/{user}', [UserAccessController::class, 'update'])->name('user-access.update');
     });

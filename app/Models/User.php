@@ -76,6 +76,11 @@ class User extends Authenticatable
         return $this->hasMany(UserFolderAccess::class);
     }
 
+    public function documentAccess(): HasMany
+    {
+        return $this->hasMany(UserDocumentAccess::class);
+    }
+
     public function accessibleEntities(): BelongsToMany
     {
         return $this->belongsToMany(Entity::class, 'user_entity_access');

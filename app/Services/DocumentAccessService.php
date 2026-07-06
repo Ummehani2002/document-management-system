@@ -135,6 +135,17 @@ class DocumentAccessService
         return false;
     }
 
+    /**
+     * @return list<int>
+     */
+    public function grantedDocumentIds(User $user): array
+    {
+        return $user->documentAccess()
+            ->pluck('document_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
     public function canAccessDocument(?User $user, Document $document): bool
     {
         if ($user === null) {
@@ -142,6 +153,10 @@ class DocumentAccessService
         }
 
         if ($this->isAdmin($user)) {
+            return true;
+        }
+
+        if (in_array((int) $document->id, $this->grantedDocumentIds($user), true)) {
             return true;
         }
 
@@ -183,14 +198,24 @@ class DocumentAccessService
         }
 
         $entityIds = $this->accessibleEntityIds($user);
-        if ($entityIds === []) {
+        $grantedDocIds = $this->grantedDocumentIds($user);
+
+        if ($entityIds === [] && $grantedDocIds === []) {
             return $query->whereRaw('1 = 0');
+        }
+
+        if ($entityIds === []) {
+            return $query->whereIn('id', $grantedDocIds);
         }
 
         $restricted = $this->entitiesWithFolderRestrictions($user);
         $unrestricted = array_values(array_diff($entityIds, $restricted));
 
-        return $query->where(function (Builder $outer) use ($user, $unrestricted, $restricted): void {
+        return $query->where(function (Builder $outer) use ($user, $unrestricted, $restricted, $grantedDocIds): void {
+            if ($grantedDocIds !== []) {
+                $outer->orWhereIn('id', $grantedDocIds);
+            }
+
             if ($unrestricted !== []) {
                 $outer->orWhereIn('entity_id', $unrestricted);
             }
@@ -374,5 +399,31 @@ class DocumentAccessService
         }
 
         return $result;
+    }
+
+    /**
+     * @param  list<int>  $documentIds
+     */
+    public function syncUserDocumentAccess(User $user, array $documentIds): void
+    {
+        $user->documentAccess()->delete();
+
+        $validIds = Document::query()
+            ->whereIn('id', array_map('intval', $documentIds))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        foreach (array_unique($validIds) as $documentId) {
+            $user->documentAccess()->create(['document_id' => $documentId]);
+        }
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function selectedDocumentIdsForUser(User $user): array
+    {
+        return $this->grantedDocumentIds($user);
     }
 }

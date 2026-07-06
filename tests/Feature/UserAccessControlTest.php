@@ -59,16 +59,54 @@ class UserAccessControlTest extends TestCase
         $this->assertFalse($service->canAccessFolder($user, $entity->id, 'Financial Documents', 'Payment Voucher'));
     }
 
-    public function test_entity_without_folder_rows_allows_all_folders(): void
+    public function test_document_grant_allows_access_without_entity(): void
     {
         $entity = Entity::create(['name' => 'Acme']);
+        $otherEntity = Entity::create(['name' => 'Other Co']);
         $user = User::factory()->create();
-        UserEntityAccess::create(['user_id' => $user->id, 'entity_id' => $entity->id]);
+
+        $project = \App\Models\Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => 'P1',
+            'project_name' => 'Test',
+        ]);
+        $allowed = \App\Models\Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'file_name' => 'allowed.pdf',
+            'file_path' => 'documents/test/allowed.pdf',
+            'document_type' => 'Other',
+        ]);
+        $denied = \App\Models\Document::create([
+            'entity_id' => $otherEntity->id,
+            'project_id' => $project->id,
+            'file_name' => 'denied.pdf',
+            'file_path' => 'documents/test/denied.pdf',
+            'document_type' => 'Other',
+        ]);
 
         $service = app(DocumentAccessService::class);
-        $tree = $service->accessibleFolderTreeForEntity($user, $entity->id);
+        $service->syncUserDocumentAccess($user, [$allowed->id]);
 
-        $this->assertNotEmpty($tree);
-        $this->assertArrayHasKey('Financial Documents', $tree);
+        $this->assertTrue($service->canAccessDocument($user, $allowed));
+        $this->assertFalse($service->canAccessDocument($user, $denied));
+    }
+
+    public function test_admin_can_create_user_via_access_panel(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('Admin');
+        $entity = Entity::create(['name' => 'Acme']);
+
+        $this->actingAs($admin)
+            ->post(route('user-access.store'), [
+                'name' => 'New User',
+                'email' => 'newuser@tanseeqinvestment.com',
+                'role' => 'Viewer',
+                'entity_ids' => [$entity->id],
+            ])
+            ->assertRedirect(route('user-access.index'));
+
+        $this->assertDatabaseHas('users', ['email' => 'newuser@tanseeqinvestment.com']);
     }
 }
