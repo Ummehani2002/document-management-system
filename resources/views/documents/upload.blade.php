@@ -55,42 +55,34 @@
 @endif
 
 @php
-    $selectedUploadMode = old('upload_mode', $mode ?? '');
+    $selectedUploadMode = old('upload_mode', $mode ?? 'auto');
     $selectedMainFolder = old('main_folder', '');
     $selectedDocumentType = old('document_type', '');
 @endphp
 
-@if($selectedUploadMode === '')
-    <div class="card" style="margin-bottom: 20px;">
-        <h3 style="margin-top: 0;">Choose Upload Type</h3>
-      
-        <div style="display:flex; gap:12px; flex-wrap: wrap;">
-            <a href="{{ route('documents.upload', ['mode' => 'auto']) }}" style="text-decoration:none;">
-                <button type="button">Auto Upload</button>
-            </a>
-            <a href="{{ route('documents.upload', ['mode' => 'manual']) }}" style="text-decoration:none;">
-                <button type="button">Manual Upload</button>
-            </a>
-        </div>
-    </div>
-@else
-    <div class="card" style="margin-bottom: 20px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-        <div>
-            <div style="margin-bottom:4px;">
-                Upload mode: <strong>{{ $selectedUploadMode === 'manual' ? 'Manual' : 'Auto' }}</strong>
-            </div>
-            <div style="color:#64748b;">
-                {{ $selectedUploadMode === 'manual' ? 'Select entity, project, category and folder manually.' : 'System classifies folder from OCR title after upload.' }}
-            </div>
-        </div>
-        <a href="{{ route('documents.upload') }}">Change mode</a>
+<div class="card" style="margin-bottom: 20px;">
+    <h3 style="margin-top: 0;">Choose Upload Type</h3>
+    <p style="margin: 0 0 12px; color: #64748b;">
+        <strong>Auto</strong> — folder is classified from the document after upload.
+        <strong>Manual</strong> — you pick category and folder before upload.
+    </p>
+</div>
+
+<form method="POST" action="{{ route('documents.store') }}" enctype="multipart/form-data" id="upload-form">
+    @csrf
+
+    <div class="card" style="margin-bottom: 20px; display:flex; gap:12px; flex-wrap: wrap; align-items:center;">
+        <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="radio" name="upload_mode" value="auto" {{ $selectedUploadMode !== 'manual' ? 'checked' : '' }}>
+            Auto Upload
+        </label>
+        <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="radio" name="upload_mode" value="manual" {{ $selectedUploadMode === 'manual' ? 'checked' : '' }}>
+            Manual Upload
+        </label>
     </div>
 
-    <form method="POST" action="{{ route('documents.store') }}" enctype="multipart/form-data" id="upload-form">
-        @csrf
-        <input type="hidden" name="upload_mode" value="{{ $selectedUploadMode }}">
-
-        <div class="upload-grid">
+    <div class="upload-grid">
             <div class="card">
                 <label for="entity_id">Select Entity *</label>
                 <select name="entity_id" id="entity_id" required>
@@ -145,38 +137,30 @@
                 @error('discipline_id')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
             </div>
 
-            @if($selectedUploadMode === 'manual')
-                <div class="card">
-                    <label for="main_folder">Category *</label>
-                    <select name="main_folder" id="main_folder" required>
-                        <option value="">— Select Category —</option>
-                        @foreach(array_keys($folderTree ?? []) as $mainFolderName)
-                            <option value="{{ $mainFolderName }}" {{ $selectedMainFolder === $mainFolderName ? 'selected' : '' }}>
-                                {{ $mainFolderName }}
-                            </option>
-                        @endforeach
-                    </select>
-                    @error('main_folder')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
-                </div>
+            <div class="card manual-upload-field" id="manual-main-folder-card" style="{{ $selectedUploadMode === 'manual' ? '' : 'display:none;' }}">
+                <label for="main_folder">Category *</label>
+                <select name="main_folder" id="main_folder" {{ $selectedUploadMode === 'manual' ? 'required' : '' }}>
+                    <option value="">— Select Category —</option>
+                    @foreach(array_keys($folderTree ?? []) as $mainFolderName)
+                        <option value="{{ $mainFolderName }}" {{ $selectedMainFolder === $mainFolderName ? 'selected' : '' }}>
+                            {{ $mainFolderName }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('main_folder')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
+            </div>
 
-                <div class="card">
-                    <label for="document_type">Folder *</label>
-                    <select name="document_type" id="document_type" required>
-                        <option value="">— Select Folder —</option>
-                    </select>
-                    @error('document_type')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
-                </div>
-            @endif
+            <div class="card manual-upload-field" id="manual-document-type-card" style="{{ $selectedUploadMode === 'manual' ? '' : 'display:none;' }}">
+                <label for="document_type">Folder *</label>
+                <select name="document_type" id="document_type" {{ $selectedUploadMode === 'manual' ? 'required' : '' }}>
+                    <option value="">— Select Folder —</option>
+                </select>
+                @error('document_type')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
+            </div>
 
             <div class="card full-width">
                 <label for="documents_input">Choose files (PDF/Word/Excel) *</label>
                 <input type="file" name="documents[]" id="documents_input" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" required>
-                @if(!empty($directUploadEnabled))
-                 
-                @endif
-                @if($selectedUploadMode === 'auto')
-
-                @endif
                 @error('documents')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
             </div>
         </div>
@@ -204,7 +188,44 @@
         var detailsBox = document.getElementById('project-details');
         var mainFolderSelect = document.getElementById('main_folder');
         var documentTypeSelect = document.getElementById('document_type');
+        var modeRadios = document.querySelectorAll('input[name="upload_mode"]');
+        var manualMainFolderCard = document.getElementById('manual-main-folder-card');
+        var manualDocumentTypeCard = document.getElementById('manual-document-type-card');
         if (!entitySelect || !projectSelect) return;
+
+        function currentUploadMode() {
+            var checked = document.querySelector('input[name="upload_mode"]:checked');
+            return checked ? checked.value : 'auto';
+        }
+
+        function syncManualFieldsVisibility() {
+            var isManual = currentUploadMode() === 'manual';
+            selectedUploadMode = currentUploadMode();
+            if (manualMainFolderCard) {
+                manualMainFolderCard.style.display = isManual ? '' : 'none';
+            }
+            if (manualDocumentTypeCard) {
+                manualDocumentTypeCard.style.display = isManual ? '' : 'none';
+            }
+            if (mainFolderSelect) {
+                mainFolderSelect.required = isManual;
+                if (!isManual) {
+                    mainFolderSelect.value = '';
+                }
+            }
+            if (documentTypeSelect) {
+                documentTypeSelect.required = isManual;
+                if (!isManual) {
+                    documentTypeSelect.innerHTML = '<option value="">— Select Folder —</option>';
+                } else {
+                    renderDocumentTypeOptions();
+                }
+            }
+        }
+
+        modeRadios.forEach(function(radio) {
+            radio.addEventListener('change', syncManualFieldsVisibility);
+        });
 
         var selectedProjectId = projectSelect.value || '';
         var projectOptions = Array.from(projectSelect.querySelectorAll('option[data-entity]')).map(function(opt) {
@@ -355,7 +376,7 @@
 
                     function buildPresignBody(file) {
                         var body = {
-                            upload_mode: uploadForm.querySelector('[name="upload_mode"]').value,
+                            upload_mode: currentUploadMode(),
                             entity_id: entitySelect.value,
                             project_id: projectSelect.value,
                             filename: file.name,
@@ -556,8 +577,8 @@
             showProjectDetails();
         }
         renderMainFolderOptions();
+        syncManualFieldsVisibility();
 
     });
     </script>
-@endif
 @endsection

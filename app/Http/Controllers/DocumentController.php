@@ -81,9 +81,9 @@ class DocumentController extends Controller
             $folderTreesByEntity[$entity->id] = $this->access->accessibleFolderTreeForEntity($user, (int) $entity->id);
         }
         $disciplines = Discipline::orderBy('name')->get(['id', 'name']);
-        $mode = (string) $request->query('mode', old('upload_mode', ''));
-        if (!in_array($mode, ['auto', 'manual'], true)) {
-            $mode = '';
+        $mode = (string) $request->query('mode', old('upload_mode', 'auto'));
+        if (! in_array($mode, ['auto', 'manual'], true)) {
+            $mode = 'auto';
         }
 
         $directUploadEnabled = config('filesystems.default') === 's3';
