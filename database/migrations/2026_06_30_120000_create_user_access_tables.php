@@ -8,25 +8,33 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('user_entity_access', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('entity_id')->constrained()->cascadeOnDelete();
-            $table->timestamps();
+        // Short index names: MySQL limits identifiers to 64 characters.
+        if (! Schema::hasTable('user_entity_access')) {
+            Schema::create('user_entity_access', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+                $table->foreignId('entity_id')->constrained()->cascadeOnDelete();
+                $table->timestamps();
 
-            $table->unique(['user_id', 'entity_id']);
-        });
+                $table->unique(['user_id', 'entity_id'], 'uea_user_entity_unique');
+            });
+        }
 
-        Schema::create('user_folder_access', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('entity_id')->constrained()->cascadeOnDelete();
-            $table->string('main_folder');
-            $table->string('document_type')->nullable();
-            $table->timestamps();
+        if (! Schema::hasTable('user_folder_access')) {
+            Schema::create('user_folder_access', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+                $table->foreignId('entity_id')->constrained()->cascadeOnDelete();
+                $table->string('main_folder');
+                $table->string('document_type')->nullable();
+                $table->timestamps();
 
-            $table->unique(['user_id', 'entity_id', 'main_folder', 'document_type']);
-        });
+                $table->unique(
+                    ['user_id', 'entity_id', 'main_folder', 'document_type'],
+                    'ufa_user_folder_unique'
+                );
+            });
+        }
     }
 
     public function down(): void
