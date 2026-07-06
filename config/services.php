@@ -35,4 +35,19 @@ return [
         ],
     ],
 
+    'azure' => [
+        'client_id' => env('AZURE_CLIENT_ID'),
+        'client_secret' => env('AZURE_CLIENT_SECRET'),
+        'redirect' => env('AZURE_REDIRECT_URI', env('APP_URL').'/login/microsoft/callback'),
+        'tenant' => env('AZURE_TENANT_ID', 'common'),
+    ],
+
+    'onlyoffice' => [
+        'document_server_url' => env('ONLYOFFICE_DOCUMENT_SERVER_URL'),
+        // Base URL OnlyOffice Document Server uses to fetch files and POST save callbacks.
+        // Local Docker: http://host.docker.internal:PORT (localhost inside the container is not the host).
+        'app_url' => env('ONLYOFFICE_APP_URL'),
+        'jwt_secret' => env('ONLYOFFICE_JWT_SECRET'),
+    ],
+
 ];

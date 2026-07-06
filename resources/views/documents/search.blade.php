@@ -3,6 +3,242 @@
 @section('content')
 
 <h2>Search Documents</h2>
+
+<style>
+    .doc-actions-menu {
+        position: relative;
+        display: inline-block;
+    }
+
+    .doc-actions-trigger {
+        background: transparent;
+        border: 1px solid #cbd5e1;
+        color: #334155;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        border-radius: 6px;
+        font-size: 1.1rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .doc-actions-trigger:hover {
+        background: #f1f5f9;
+        border-color: #94a3b8;
+    }
+
+    .doc-actions-dropdown {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 4px);
+        min-width: 140px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+        z-index: 30;
+        overflow: hidden;
+    }
+
+    .doc-actions-dropdown button,
+    .doc-actions-dropdown a,
+    .doc-actions-dropdown .doc-actions-delete-btn {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 10px 14px;
+        border: none;
+        background: #fff;
+        color: #1e293b;
+        font-size: 0.85rem;
+        text-decoration: none;
+        cursor: pointer;
+        box-sizing: border-box;
+    }
+
+    .doc-actions-dropdown button:hover,
+    .doc-actions-dropdown a:hover,
+    .doc-actions-dropdown .doc-actions-delete-btn:hover {
+        background: #f8fafc;
+    }
+
+    .doc-actions-dropdown .doc-actions-delete-btn {
+        color: #b91c1c;
+    }
+
+    .doc-actions-dropdown form {
+        margin: 0;
+    }
+
+    .preview-loading {
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        color: #475569;
+        font-size: 0.85rem;
+    }
+
+    .preview-frame {
+        width: 100%;
+        height: 75vh;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background: #fff;
+    }
+
+    .doc-grid-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 1100px;
+    }
+
+    .doc-grid-table th,
+    .doc-grid-table td {
+        border: 1px solid #cbd5e1;
+        padding: 10px;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .doc-grid-table thead th {
+        background: #212d3e;
+        color: #fff;
+        border-color: #2d3a52;
+    }
+
+    .doc-grid-table tbody tr:nth-child(even) td {
+        background: #f8fafc;
+    }
+
+    .share-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .share-modal.is-open {
+        display: flex;
+    }
+
+    .share-modal-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.55);
+    }
+
+    .share-modal-card {
+        position: relative;
+        width: 100%;
+        max-width: 480px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        box-shadow: 0 24px 60px -24px rgba(15, 23, 42, 0.45);
+        padding: 24px 24px 20px;
+        animation: shareModalIn 0.2s ease-out;
+    }
+
+    @keyframes shareModalIn {
+        from { opacity: 0; transform: translateY(12px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .share-modal-card h3 {
+        margin: 0 0 6px;
+        font-size: 1.15rem;
+        color: #212d3e;
+    }
+
+    .share-modal-file {
+        margin: 0 0 18px;
+        color: #64748b;
+        font-size: 0.88rem;
+        word-break: break-word;
+    }
+
+    .share-modal-field {
+        margin-bottom: 14px;
+    }
+
+    .share-modal-field label {
+        display: block;
+        margin-bottom: 6px;
+        color: #334155;
+        font-size: 0.85rem;
+    }
+
+    .share-modal-field input,
+    .share-modal-field textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font: inherit;
+        box-sizing: border-box;
+    }
+
+    .share-modal-field textarea {
+        resize: vertical;
+        min-height: 84px;
+    }
+
+    .share-modal-from {
+        margin: 0 0 18px;
+        padding: 10px 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        color: #475569;
+        font-size: 0.82rem;
+    }
+
+    .share-modal-error {
+        margin: 0 0 14px;
+        padding: 10px 12px;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #b91c1c;
+        border-radius: 8px;
+        font-size: 0.84rem;
+    }
+
+    .share-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .share-modal-actions button {
+        padding: 10px 16px;
+        border-radius: 8px;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .share-modal-cancel {
+        background: #fff;
+        border: 1px solid #cbd5e1;
+        color: #334155;
+    }
+
+    .share-modal-send {
+        background: #212d3e;
+        border: 1px solid #212d3e;
+        color: #fff;
+    }
+
+    .share-modal-send:disabled {
+        opacity: 0.6;
+        cursor: wait;
+    }
+</style>
 @if(session('success'))
     <div class="success">{{ session('success') }}</div>
 @endif
@@ -10,8 +246,6 @@
 
 @endif
 @if(!empty($needsProjectSelection))
-    <h3 style="margin-top: 0;">Select Project</h3>
-    <p style="color: #64748b; margin-top: 0;">Selected subfolder: <strong>{{ request('document_type') }}</strong></p>
     <form method="GET" action="{{ route('documents.search') }}" class="search-form">
         <input type="hidden" name="from_sidebar" value="1">
         <input type="hidden" name="main_folder" value="{{ request('main_folder') }}">
@@ -94,23 +328,23 @@
             @if(!empty($fromSidebar))
                 <input type="hidden" name="from_sidebar" value="1">
             @endif
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; align-items: flex-end; margin-bottom: 16px;">
-                <div style="min-width: 180px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px;">
+                <div style="flex: 1 1 180px; min-width: 160px;">
                     <label for="keyword" style="display: block; margin-bottom: 4px; font-weight: 500;">Keyword</label>
-                    <input type="text" name="keyword" id="keyword" placeholder="Search in text..." value="{{ old('keyword', $keyword ?? '') }}" style="width: 100%; padding: 8px 12px;">
+                    <input type="text" name="keyword" id="keyword" placeholder="Search in text..." value="{{ old('keyword', $keyword ?? '') }}" style="width: 100%; padding: 8px 12px; box-sizing: border-box; margin: 0;">
                 </div>
-                <div style="min-width: 160px;">
-                    <label for="entity_id" style="display: block; margin-bottom: 4px; font-weight: 500;">Entity (folder)</label>
-                    <select name="entity_id" id="entity_id" style="width: 100%; padding: 8px 12px;">
+                <div style="flex: 1 1 150px; min-width: 140px;">
+                    <label for="entity_id" style="display: block; margin-bottom: 4px; font-weight: 500;">Entity</label>
+                    <select name="entity_id" id="entity_id" style="width: 100%; padding: 8px 12px; box-sizing: border-box; margin: 0;">
                         <option value="">All entities</option>
                         @foreach($entities ?? [] as $e)
                             <option value="{{ $e->id }}" {{ (int) request('entity_id') === $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div style="min-width: 200px;">
-                    <label for="project_id" style="display: block; margin-bottom: 4px; font-weight: 500;">Project (folder)</label>
-                    <select name="project_id" id="project_id" style="width: 100%; padding: 8px 12px;">
+                <div style="flex: 1 1 180px; min-width: 160px;">
+                    <label for="project_id" style="display: block; margin-bottom: 4px; font-weight: 500;">Project</label>
+                    <select name="project_id" id="project_id" style="width: 100%; padding: 8px 12px; box-sizing: border-box; margin: 0;">
                         <option value="">All projects</option>
                         @foreach($projects ?? [] as $p)
                             <option
@@ -123,25 +357,27 @@
                         @endforeach
                     </select>
                 </div>
-                <div style="min-width: 140px;">
-                    <label for="discipline" style="display: block; margin-bottom: 4px; font-weight: 500;">Discipline (folder)</label>
-                    <select name="discipline" id="discipline" style="width: 100%; padding: 8px 12px;">
+                <div style="flex: 1 1 150px; min-width: 140px;">
+                    <label for="discipline" style="display: block; margin-bottom: 4px; font-weight: 500;">Discipline</label>
+                    <select name="discipline" id="discipline" style="width: 100%; padding: 8px 12px; box-sizing: border-box; margin: 0;">
                         <option value="">All disciplines</option>
                         @foreach($disciplines ?? [] as $d)
                             <option value="{{ $d }}" {{ request('discipline') === $d ? 'selected' : '' }}>{{ $d }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div style="min-width: 140px;">
-                    <label for="document_type" style="display: block; margin-bottom: 4px; font-weight: 500;">Doc type (folder)</label>
-                    <select name="document_type" id="document_type" style="width: 100%; padding: 8px 12px;">
+                <div style="flex: 1 1 150px; min-width: 140px;">
+                    <label for="document_type" style="display: block; margin-bottom: 4px; font-weight: 500;">Doc type</label>
+                    <select name="document_type" id="document_type" style="width: 100%; padding: 8px 12px; box-sizing: border-box; margin: 0;">
                         <option value="">All types</option>
                         @foreach($documentTypes ?? [] as $t)
                             <option value="{{ $t }}" {{ request('document_type') === $t ? 'selected' : '' }}>{{ $t }}</option>
                         @endforeach
                     </select>
                 </div>
-                <button type="submit">Search</button>
+                <div style="flex: 0 0 100%;">
+                    <button type="submit" style="margin: 4px 0 0; padding: 9px 22px;">Search</button>
+                </div>
             </div>
         </form>
         <script>
@@ -201,29 +437,6 @@
 @endif
 
 @if(isset($documents) && $documents !== null)
-    @php
-        $documentsCount = method_exists($documents, 'total')
-            ? $documents->total()
-            : $documents->count();
-    @endphp
-
-    <p style="margin: 0 0 12px; color: #64748b;">
-        File count: <span style="color:#212d3e;">{{ $documentsCount }}</span>
-    </p>
-
-    @php
-        $parts = array_filter([
-            $keyword !== '' ? '"' . e($keyword) . '"' : null,
-            request('entity_id') ? 'entity' : null,
-            request('project_id') ? 'project' : null,
-            request('discipline') ? 'discipline: ' . e(request('discipline')) : null,
-            request('document_type') ? 'type: ' . e(request('document_type')) : null,
-        ]);
-    @endphp
-    @if(empty($fromSidebar) || empty(request('project_id')) || empty(request('document_type')))
-        <h4>Results: {{ count($parts) ? implode(' · ', $parts) : 'all documents' }}</h4>
-    @endif
-
     @if(!empty($fromSidebar) && request('project_id') && request('document_type'))
         @php
             $folderTree = \App\Services\DocumentFilenameParser::sidebarFolderTree();
@@ -275,7 +488,7 @@
                     </div>
                 </div>
                 <p style="margin: 10px 0 0; color: #64748b; font-size: 0.86rem;">
-                    Folder: <strong>{{ $activeType }}</strong>
+                    Document Type: <strong>{{ $activeType }}</strong>
                 </p>
             </form>
 
@@ -293,7 +506,8 @@
                                 <th style="text-align: left; padding: 10px;">Project Client</th>
                                 <th style="text-align: left; padding: 10px;">Project Consultant</th>
                                 <th style="text-align: left; padding: 10px;">Modified</th>
-                                <th style="text-align: left; padding: 10px;">Share</th>
+                                <th style="text-align: left; padding: 10px;">Modified By</th>
+                                <th style="text-align: center; padding: 10px; width: 48px;"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -320,61 +534,57 @@
                                     <td style="padding: 10px;">{{ $doc->project?->client_name ?? '—' }}</td>
                                     <td style="padding: 10px;">{{ $doc->project?->consultant ?? '—' }}</td>
                                     <td style="padding: 10px;">{{ format_model_datetime($doc, 'updated_at') }}</td>
-                                    <td style="padding: 10px; min-width: 190px;">
-                                        @if(!empty($doc->file_available))
-                                            <button type="button" style="padding:6px 10px; margin-right:6px;" onclick="toggleInlinePreview('{{ $doc->id }}', '{{ route('documents.view', ['id' => $doc->id]) }}')">View here</button>
-                                            <a href="{{ route('documents.edit', ['id' => $doc->id, 'return_url' => request()->fullUrl()]) }}" style="padding:6px 10px; margin-right:6px; display:inline-block; text-decoration:none; background:#212d3e; color:#fff; border-radius:4px; font-size:0.9rem;">Replace</a>
-                                            <button type="button" style="padding:6px 10px;" onclick="toggleShareForm('{{ $doc->id }}')">Share</button>
-                                            <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline; margin-left:6px;" onsubmit="return confirm('Delete this file?');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" style="padding:6px 10px; background:#b91c1c;">Delete</button>
-                                            </form>
-                                            <div id="share-box-{{ $doc->id }}" style="display:{{ $errors->has('share_email_' . $doc->id) ? 'block' : 'none' }}; margin-top:8px;">
-                                                <form method="POST" action="{{ route('documents.share', ['id' => $doc->id]) }}">
-                                                    @csrf
-                                                    <input
-                                                        type="email"
-                                                        name="email"
-                                                        placeholder="Enter email"
-                                                        value="{{ old('email') }}"
-                                                        required
-                                                        style="width: 100%; padding: 6px 8px; margin: 0 0 6px;"
-                                                    >
-                                                    <button type="submit" style="padding:6px 10px;">Send</button>
-                                                </form>
-                                                @error('share_email_' . $doc->id)
-                                                    <p style="margin:6px 0 0; color:#b91c1c; font-size:0.82rem;">{{ $message }}</p>
-                                                @enderror
+                                    <td style="padding: 10px;">{{ $doc->modifiedBy?->username ?? '—' }}</td>
+                                    <td style="padding: 10px; text-align: center;">
+                                        <div class="doc-actions-menu">
+                                            <button
+                                                type="button"
+                                                class="doc-actions-trigger"
+                                                onclick="toggleDocActionsMenu(event, '{{ $doc->id }}')"
+                                                aria-label="Document actions"
+                                            >&#8942;</button>
+                                            <div id="doc-actions-dropdown-{{ $doc->id }}" class="doc-actions-dropdown" style="display: none;" onclick="event.stopPropagation();">
+                                                @if(!empty($doc->file_available))
+                                                    <button type="button" onclick="closeDocActionsMenu('{{ $doc->id }}'); toggleInlinePreview('{{ $doc->id }}')">View</button>
+                                                    <a href="{{ route('documents.edit', ['id' => $doc->id, 'return_url' => request()->fullUrl()]) }}">Edit</a>
+                                                    <button type="button" class="doc-share-btn" data-share-id="{{ $doc->id }}" data-share-file="{{ $doc->file_name }}" data-share-project="{{ $doc->project?->project_number ?? '' }}">Share</button>
+                                                    <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" onsubmit="return confirm('Delete this file?');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="doc-actions-delete-btn">Delete</button>
+                                                    </form>
+                                                @else
+                                                    <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" onsubmit="return confirm('Delete this record? File is already missing from storage.');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="doc-actions-delete-btn">Delete</button>
+                                                    </form>
+                                                @endif
                                             </div>
-                                        @else
-                                            <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this record? File is already missing from storage.');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" style="padding:6px 10px; background:#b91c1c;">Delete record</button>
-                                            </form>
-                                        @endif
+                                        </div>
                                     </td>
                                 </tr>
                                 @if(!empty($doc->file_available))
                                     <tr id="preview-row-{{ $doc->id }}" style="display:none; border-bottom: 1px solid #e2e8f0;">
-                                        <td colspan="10" style="padding: 10px;">
+                                        <td colspan="11" style="padding: 10px;">
                                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                                                 <strong>Inline Preview</strong>
                                                 <button type="button" style="padding:4px 10px;" onclick="closeInlinePreview('{{ $doc->id }}')">Close preview</button>
                                             </div>
+                                            <p id="preview-loading-{{ $doc->id }}" class="preview-loading" style="display:none;">Loading preview…</p>
                                             <iframe
                                                 id="preview-frame-{{ $doc->id }}"
-                                                src=""
+                                                class="preview-frame"
+                                                src="about:blank"
                                                 title="Preview {{ $doc->file_name }}"
-                                                style="width:100%; height:75vh; border:1px solid #cbd5e1; border-radius:6px;"
+                                                style="display:none;"
                                             ></iframe>
                                         </td>
                                     </tr>
                                 @endif
                             @empty
                                 <tr>
-                                    <td colspan="10" style="padding: 14px;">No files found in this folder for selected project.</td>
+                                    <td colspan="11" style="padding: 14px;">No files found in this folder for selected project.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -429,87 +639,214 @@
             });
         </script>
     @else
-        @forelse($documents as $doc)
-            <div class="card">
-                <strong>{{ $doc->file_name }}</strong>
-                <span style="color: #64748b; font-weight: normal;"> — File</span>
-                <br><br>
-
-                <strong>Folder:</strong>
-                <span style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 4px; display: inline-block; margin: 4px 0;">
-                    {{ $doc->entity?->name ?? '—' }} / {{ $doc->project?->project_number ?? '—' }} / {{ $doc->display_folder }}
-                </span>
-                <br>
-
-                @if($doc->project)
-                    <strong>Project:</strong> {{ $doc->project->project_name }} ({{ $doc->project->project_number }})<br>
-                @endif
-                <br>
-                @if(!empty($doc->file_available))
-                    <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download file</a>
-                    &nbsp;|&nbsp;
-                    <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open in new tab</a>
-                    &nbsp;|&nbsp;
-                    <button type="button" style="padding:4px 10px;" onclick="toggleInlinePreview('{{ $doc->id }}', '{{ route('documents.view', ['id' => $doc->id]) }}')">View here</button>
-                    &nbsp;|&nbsp;
-                    <a href="{{ route('documents.edit', ['id' => $doc->id, 'return_url' => request()->fullUrl()]) }}">Replace file</a>
-                    &nbsp;|&nbsp;
-                    <button type="button" style="padding:4px 10px;" onclick="toggleShareForm('{{ $doc->id }}')">Share</button>
-                    &nbsp;|&nbsp;
-                    <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this file?');">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" style="padding:4px 10px; background:#b91c1c;">Delete</button>
-                    </form>
-                    <div id="share-box-{{ $doc->id }}" style="display:{{ $errors->has('share_email_' . $doc->id) ? 'block' : 'none' }}; margin-top:8px;">
-                        <form method="POST" action="{{ route('documents.share', ['id' => $doc->id]) }}">
-                            @csrf
-                            <input
-                                type="email"
-                                name="email"
-                                placeholder="Enter email"
-                                value="{{ old('email') }}"
-                                required
-                                style="width: 100%; max-width: 320px; padding: 6px 8px; margin: 0 0 6px;"
-                            >
-                            <button type="submit" style="padding:6px 10px;">Send</button>
-                        </form>
-                        @error('share_email_' . $doc->id)
-                            <p style="margin:6px 0 0; color:#b91c1c; font-size:0.82rem;">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <div id="preview-row-{{ $doc->id }}" style="display:none; margin-top:12px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                            <strong>Inline Preview</strong>
-                            <button type="button" style="padding:4px 10px;" onclick="closeInlinePreview('{{ $doc->id }}')">Close preview</button>
-                        </div>
-                        <iframe
-                            id="preview-frame-{{ $doc->id }}"
-                            src=""
-                            title="Preview {{ $doc->file_name }}"
-                            style="width:100%; height:75vh; border:1px solid #cbd5e1; border-radius:6px;"
-                        ></iframe>
-                    </div>
-                @else
-                    <span style="color:#b91c1c;">File unavailable in storage</span>
-                    <div style="margin-top: 8px;">
-                        <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this record? File is already missing.');">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" style="padding:4px 10px; background:#b91c1c;">Delete record</button>
-                        </form>
-                    </div>
-                @endif
-            </div>
-        @empty
-            <p>No documents found.</p>
-        @endforelse
+        <div class="card" style="padding: 0; overflow-x: auto; margin-top: 0;">
+            <table class="doc-grid-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Reference No</th>
+                        <th>Subject</th>
+                        <th>Folder</th>
+                        <th>Project</th>
+                        <th>Modified</th>
+                        <th>Modified By</th>
+                        <th style="text-align: center; width: 48px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($documents as $doc)
+                        @php
+                            $meta = \App\Services\DocumentFilenameParser::extractReferenceAndSubject($doc->ocr_text, $doc->file_name);
+                            $referenceNo = $meta['reference_no'] ?? '—';
+                            $subject = $meta['subject'] ?? '—';
+                        @endphp
+                        <tr>
+                            <td>
+                                @if(!empty($doc->file_available))
+                                    <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank">{{ $doc->file_name }}</a>
+                                @else
+                                    <span>{{ $doc->file_name }}</span>
+                                    <div style="color:#b91c1c; font-size:0.8rem; margin-top:4px;">File unavailable in storage</div>
+                                @endif
+                            </td>
+                            <td>{{ $referenceNo }}</td>
+                            <td>{{ $subject }}</td>
+                            <td>{{ $doc->display_folder }}</td>
+                            <td>{{ $doc->project?->project_number ?? '—' }}@if($doc->project) — {{ $doc->project->project_name }}@endif</td>
+                            <td>{{ format_model_datetime($doc, 'updated_at') }}</td>
+                            <td>{{ $doc->modifiedBy?->username ?? '—' }}</td>
+                            <td style="text-align: center;">
+                                <div class="doc-actions-menu">
+                                    <button
+                                        type="button"
+                                        class="doc-actions-trigger"
+                                        onclick="toggleDocActionsMenu(event, '{{ $doc->id }}')"
+                                        aria-label="Document actions"
+                                    >&#8942;</button>
+                                    <div id="doc-actions-dropdown-{{ $doc->id }}" class="doc-actions-dropdown" style="display: none;" onclick="event.stopPropagation();">
+                                        @if(!empty($doc->file_available))
+                                            <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>
+                                            <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open in new tab</a>
+                                            <button type="button" onclick="closeDocActionsMenu('{{ $doc->id }}'); toggleInlinePreview('{{ $doc->id }}')">View</button>
+                                            <a href="{{ route('documents.edit', ['id' => $doc->id, 'return_url' => request()->fullUrl()]) }}">Edit</a>
+                                            <button type="button" class="doc-share-btn" data-share-id="{{ $doc->id }}" data-share-file="{{ $doc->file_name }}" data-share-project="{{ $doc->project?->project_number ?? '' }}">Share</button>
+                                            <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" onsubmit="return confirm('Delete this file?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="doc-actions-delete-btn">Delete</button>
+                                            </form>
+                                        @else
+                                            <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" onsubmit="return confirm('Delete this record? File is already missing.');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="doc-actions-delete-btn">Delete</button>
+                                            </form>
+                                        @endif
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        @if(!empty($doc->file_available))
+                            <tr id="preview-row-{{ $doc->id }}" style="display:none;">
+                                <td colspan="8">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                        <strong>Inline Preview</strong>
+                                        <button type="button" style="padding:4px 10px;" onclick="closeInlinePreview('{{ $doc->id }}')">Close preview</button>
+                                    </div>
+                                    <p id="preview-loading-{{ $doc->id }}" class="preview-loading" style="display:none;">Loading preview…</p>
+                                    <iframe
+                                        id="preview-frame-{{ $doc->id }}"
+                                        class="preview-frame"
+                                        src="about:blank"
+                                        title="Preview {{ $doc->file_name }}"
+                                        style="display:none;"
+                                    ></iframe>
+                                </td>
+                            </tr>
+                        @endif
+                    @empty
+                        <tr>
+                            <td colspan="8">No documents found.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
         {{ $documents->links() }}
     @endif
 @endif
 
+@php
+    $shareErrorDocId = null;
+    $shareErrorMessage = null;
+    $shareContext = session('share_context', []);
+    foreach ($errors->keys() as $errorKey) {
+        if (str_starts_with($errorKey, 'share_email_')) {
+            $shareErrorDocId = (int) str_replace('share_email_', '', $errorKey);
+            $shareErrorMessage = $errors->first($errorKey);
+            break;
+        }
+    }
+@endphp
+
+<div id="share-modal" class="share-modal" aria-hidden="true">
+    <div class="share-modal-backdrop" onclick="closeShareModal()"></div>
+    <div class="share-modal-card" role="dialog" aria-labelledby="share-modal-title" aria-modal="true">
+        <h3 id="share-modal-title">Share document</h3>
+        <p class="share-modal-file" id="share-modal-file-name"></p>
+
+        <div id="share-modal-error" class="share-modal-error" style="display:none;"></div>
+
+        <form id="share-modal-form" method="POST" action="">
+            @csrf
+            <div class="share-modal-field">
+                <label for="share-modal-email">Recipient email address</label>
+                <input
+                    type="email"
+                    id="share-modal-email"
+                    name="email"
+                    placeholder="name@company.com"
+                    value="{{ old('email') }}"
+                    required
+                    autocomplete="email"
+                >
+            </div>
+            <div class="share-modal-field">
+                <label for="share-modal-message">Message <span style="color:#94a3b8;">(optional)</span></label>
+                <textarea
+                    id="share-modal-message"
+                    name="message"
+                    placeholder="Add a short note for the recipient..."
+                    maxlength="500"
+                >{{ old('message') }}</textarea>
+            </div>
+            <p class="share-modal-from">
+                This email will be sent from <strong>{{ auth()->user()?->email }}</strong>
+                with the document attached.
+            </p>
+            <div class="share-modal-actions">
+                <button type="button" class="share-modal-cancel" onclick="closeShareModal()">Cancel</button>
+                <button type="submit" class="share-modal-send" id="share-modal-send-btn">Send email</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
-    function toggleInlinePreview(documentId, pdfUrl) {
+    function toggleDocActionsMenu(event, documentId) {
+        event.stopPropagation();
+        var dropdown = document.getElementById('doc-actions-dropdown-' + documentId);
+        if (!dropdown) return;
+
+        var opening = dropdown.style.display === 'none' || dropdown.style.display === '';
+        document.querySelectorAll('.doc-actions-dropdown').forEach(function (menu) {
+            menu.style.display = 'none';
+        });
+        dropdown.style.display = opening ? 'block' : 'none';
+    }
+
+    function closeDocActionsMenu(documentId) {
+        var dropdown = document.getElementById('doc-actions-dropdown-' + documentId);
+        if (dropdown) {
+            dropdown.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('click', function () {
+        document.querySelectorAll('.doc-actions-dropdown').forEach(function (menu) {
+            menu.style.display = 'none';
+        });
+    });
+
+    var previewCache = {};
+
+    function previewUrlEndpoint(documentId) {
+        return @json(url('/documents')) + '/' + documentId + '/preview-url';
+    }
+
+    function showPreviewLoading(documentId, message) {
+        var loading = document.getElementById('preview-loading-' + documentId);
+        if (!loading) return;
+        loading.textContent = message || 'Loading preview…';
+        loading.style.display = 'block';
+    }
+
+    function hidePreviewLoading(documentId) {
+        var loading = document.getElementById('preview-loading-' + documentId);
+        if (loading) {
+            loading.style.display = 'none';
+        }
+    }
+
+    function showPreviewFrame(documentId) {
+        var frame = document.getElementById('preview-frame-' + documentId);
+        if (frame) {
+            frame.style.display = 'block';
+        }
+        hidePreviewLoading(documentId);
+    }
+
+    function toggleInlinePreview(documentId) {
         var previewRow = document.getElementById('preview-row-' + documentId);
         var frame = document.getElementById('preview-frame-' + documentId);
         if (!previewRow || !frame) return;
@@ -517,37 +854,159 @@
         var opening = previewRow.style.display === 'none' || previewRow.style.display === '';
 
         document.querySelectorAll('[id^="preview-row-"]').forEach(function (row) {
-            row.style.display = 'none';
-        });
-        document.querySelectorAll('[id^="preview-frame-"]').forEach(function (f) {
-            f.src = '';
+            if (row.id !== 'preview-row-' + documentId) {
+                row.style.display = 'none';
+            }
         });
 
-        if (opening) {
-            frame.src = pdfUrl;
-            previewRow.style.display = 'table-row';
-            if (previewRow.tagName.toLowerCase() !== 'tr') {
-                previewRow.style.display = 'block';
-            }
+        if (!opening) {
+            previewRow.style.display = 'none';
+            return;
         }
+
+        previewRow.style.display = previewRow.tagName.toLowerCase() === 'tr' ? 'table-row' : 'block';
+
+        if (previewCache[documentId]) {
+            frame.src = previewCache[documentId];
+            showPreviewFrame(documentId);
+            return;
+        }
+
+        showPreviewLoading(documentId);
+        frame.style.display = 'none';
+        frame.src = 'about:blank';
+
+        fetch(previewUrlEndpoint(documentId), {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('Preview unavailable');
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                if (!data.url) {
+                    throw new Error('Preview unavailable');
+                }
+
+                previewCache[documentId] = data.url;
+
+                var revealFrame = function () {
+                    showPreviewFrame(documentId);
+                };
+
+                var revealTimer = window.setTimeout(revealFrame, 700);
+                frame.onload = function () {
+                    window.clearTimeout(revealTimer);
+                    revealFrame();
+                };
+                frame.onerror = function () {
+                    window.clearTimeout(revealTimer);
+                    delete previewCache[documentId];
+                    showPreviewLoading(documentId, 'Preview could not load. Try opening in a new tab.');
+                    frame.style.display = 'none';
+                };
+
+                frame.src = data.url;
+            })
+            .catch(function () {
+                showPreviewLoading(documentId, 'Preview could not load. Try opening in a new tab.');
+                frame.style.display = 'none';
+            });
     }
 
     function closeInlinePreview(documentId) {
         var previewRow = document.getElementById('preview-row-' + documentId);
-        var frame = document.getElementById('preview-frame-' + documentId);
         if (previewRow) {
             previewRow.style.display = 'none';
         }
-        if (frame) {
-            frame.src = '';
+    }
+
+    function openShareModal(documentId, fileName, projectNumber) {
+        var modal = document.getElementById('share-modal');
+        var form = document.getElementById('share-modal-form');
+        var fileEl = document.getElementById('share-modal-file-name');
+        var errorEl = document.getElementById('share-modal-error');
+        var emailInput = document.getElementById('share-modal-email');
+        var sendBtn = document.getElementById('share-modal-send-btn');
+        if (!modal || !form || !fileEl) return;
+
+        form.action = @json(url('/documents')) + '/' + documentId + '/share';
+        fileEl.textContent = fileName + (projectNumber ? ' · Project ' + projectNumber : '');
+        if (errorEl) {
+            errorEl.style.display = 'none';
+            errorEl.textContent = '';
+        }
+        if (sendBtn) {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Send email';
+        }
+
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+
+        if (emailInput) {
+            setTimeout(function () { emailInput.focus(); }, 50);
         }
     }
 
-    function toggleShareForm(documentId) {
-        var el = document.getElementById('share-box-' + documentId);
-        if (!el) return;
-        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    function closeShareModal() {
+        var modal = document.getElementById('share-modal');
+        if (!modal) return;
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
     }
+
+    document.querySelectorAll('.doc-share-btn').forEach(function (shareBtn) {
+        shareBtn.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            var docId = shareBtn.getAttribute('data-share-id');
+            closeDocActionsMenu(docId);
+            openShareModal(
+                docId,
+                shareBtn.getAttribute('data-share-file') || 'Document',
+                shareBtn.getAttribute('data-share-project') || ''
+            );
+        });
+    });
+
+    document.getElementById('share-modal-form')?.addEventListener('submit', function () {
+        var sendBtn = document.getElementById('share-modal-send-btn');
+        if (sendBtn) {
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Sending...';
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeShareModal();
+        }
+    });
+
+    @if($shareErrorDocId)
+        document.addEventListener('DOMContentLoaded', function () {
+            openShareModal(
+                '{{ $shareErrorDocId }}',
+                @json($shareContext['file_name'] ?? 'Document'),
+                @json($shareContext['project_number'] ?? '')
+            );
+            var errorEl = document.getElementById('share-modal-error');
+            if (errorEl) {
+                errorEl.style.display = 'block';
+                errorEl.textContent = @json($shareErrorMessage);
+            }
+        });
+    @endif
 </script>
 
 @endsection

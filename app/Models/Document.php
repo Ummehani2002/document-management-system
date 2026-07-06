@@ -41,6 +41,7 @@ class Document extends Model
         'file_name',
         'file_path',
         'ocr_text',
+        'modified_by_user_id',
     ];
 
     public function entity()
@@ -51,6 +52,11 @@ class Document extends Model
     public function project()
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function modifiedBy()
+    {
+        return $this->belongsTo(User::class, 'modified_by_user_id');
     }
 
     /**

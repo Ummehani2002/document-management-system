@@ -1,0 +1,9 @@
+services:
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    container_name: dms-onlyoffice
+    ports:
+      - "8082:80"
+    environment:
+      - JWT_ENABLED=false
+    restart: unless-stopped

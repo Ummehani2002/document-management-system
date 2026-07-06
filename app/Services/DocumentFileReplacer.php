@@ -6,6 +6,7 @@ use App\Jobs\ProcessOCR;
 use App\Models\Document;
 use App\Services\UserActivityLogger;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -55,6 +56,7 @@ class DocumentFileReplacer
         }
 
         $document->ocr_text = null;
+        $document->modified_by_user_id = Auth::id();
         $document->save();
 
         UserActivityLogger::replaced($document);

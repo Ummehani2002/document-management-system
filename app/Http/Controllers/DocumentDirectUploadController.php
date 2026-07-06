@@ -7,6 +7,7 @@ use App\Models\Discipline;
 use App\Models\Document;
 use App\Models\Entity;
 use App\Models\Project;
+use App\Services\DocumentAccessService;
 use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
@@ -14,6 +15,7 @@ use App\Services\UserActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -26,6 +28,10 @@ use Illuminate\Validation\Rule;
  */
 class DocumentDirectUploadController extends Controller
 {
+    public function __construct(
+        protected DocumentAccessService $access
+    ) {}
+
     protected function s3Client(): ?\Aws\S3\S3Client
     {
         if (config('filesystems.default') !== 's3') {
@@ -111,6 +117,10 @@ class DocumentDirectUploadController extends Controller
         $entity = Entity::findOrFail($validated['entity_id']);
         $project = Project::where('id', $validated['project_id'])->where('entity_id', $entity->id)->firstOrFail();
 
+        if (! $this->access->canAccessEntity(Auth::user(), (int) $entity->id)) {
+            return response()->json(['message' => 'You do not have access to this entity.'], 403);
+        }
+
         $disciplineName = null;
         if (! empty($validated['discipline_id'])) {
             $disciplineName = Discipline::whereKey((int) $validated['discipline_id'])->value('name');
@@ -125,6 +135,13 @@ class DocumentDirectUploadController extends Controller
             if ($predicted !== '' && in_array($predicted, $validSubfolders, true)) {
                 $category = $predicted;
             }
+        }
+
+        $mainFolder = $uploadMode === 'manual'
+            ? $manualMainFolder
+            : (DocumentFilenameParser::mainFolderForDocumentType($category) ?? '');
+        if (! $this->access->canAccessFolder(Auth::user(), (int) $entity->id, $mainFolder, $category)) {
+            return response()->json(['message' => 'You do not have permission to upload to this folder.'], 403);
         }
 
         $folderPath = 'documents/'
@@ -651,6 +668,7 @@ class DocumentDirectUploadController extends Controller
                 }
                 $document->file_path = $key;
                 $document->ocr_text = null;
+                $document->modified_by_user_id = Auth::id();
                 $document->save();
                 UserActivityLogger::reattached($document, [
                     'upload_mode' => (string) ($payload['upload_mode'] ?? 'auto'),
@@ -692,6 +710,7 @@ class DocumentDirectUploadController extends Controller
             'document_type' => $category,
             'file_name' => $storedFileName,
             'file_path' => $key,
+            'modified_by_user_id' => Auth::id(),
         ]);
         UserActivityLogger::uploaded($document, [
             'upload_mode' => (string) ($payload['upload_mode'] ?? 'auto'),

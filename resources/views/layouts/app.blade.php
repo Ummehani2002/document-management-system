@@ -24,14 +24,19 @@
             --sidebar-muted: #94a3b8;
         }
 
+        html, body {
+            overflow-x: hidden;
+            max-width: 100%;
+        }
+
         body {
-            font-family: Arial, sans-serif;
+            font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
             background: var(--bg-page);
             margin: 0;
             color: var(--text);
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 400;
-            line-height: 1.4;
+            line-height: 1.45;
         }
 
         h1, h2, h3, h4, h5, h6 {
@@ -39,10 +44,10 @@
             line-height: 1.3;
         }
 
-        h1 { font-size: 1.4rem; }
-        h2 { font-size: 1.2rem; }
-        h3 { font-size: 1.05rem; }
-        h4 { font-size: 1rem; }
+        h1 { font-size: 1.3rem; }
+        h2 { font-size: 1.1rem; }
+        h3 { font-size: 1rem; }
+        h4 { font-size: 0.95rem; }
 
         strong, b, th, label, button {
             font-weight: 400;
@@ -62,6 +67,12 @@
             color: #fff;
             display: flex;
             justify-content: space-between;
+            font-size: 12px;
+        }
+
+        .navbar strong {
+            font-size: 13px;
+            font-weight: 500;
         }
 
         .navbar a {
@@ -92,6 +103,7 @@
         .main-content {
             flex: 1;
             overflow-y: auto;
+            overflow-x: hidden;
             background: var(--bg-page);
             min-width: 0;
             padding: 0 32px 40px 24px;
@@ -169,17 +181,19 @@
         }
 
         .sidebar {
-            width: 280px;
-            min-width: 280px;
+            width: 215px;
+            min-width: 215px;
             background: var(--navy);
             border-right: 1px solid rgba(0, 0, 0, 0.15);
             padding: 16px;
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
 
         .sidebar h3 {
             margin: 0 0 12px 0;
-            font-size: 0.9rem;
+            font-size: 0.82rem;
             color: var(--sidebar-muted);
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -209,7 +223,8 @@
             background: rgba(255, 255, 255, 0.06);
             color: var(--sidebar-text);
             border-radius: 10px;
-            padding: 14px 16px;
+            padding: 12px 14px;
+            font-size: 12.5px;
             font-weight: 400;
             display: flex;
             align-items: center;
@@ -228,6 +243,27 @@
         .sidebar .folder-toggle.active {
             background: var(--navy-hover);
             border-color: rgba(196, 164, 124, 0.35);
+        }
+
+        .sidebar-logout-form {
+            margin-top: 18px;
+        }
+
+        .sidebar-logout-btn {
+            width: 100%;
+            text-align: left;
+            border: 1px solid rgba(196, 164, 124, 0.38);
+            background: rgba(196, 164, 124, 0.12);
+            color: #fff;
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: 12.5px;
+            font-weight: 400;
+            cursor: pointer;
+        }
+
+        .sidebar-logout-btn:hover {
+            background: rgba(196, 164, 124, 0.2);
         }
 
         .folder-blocks-main {
@@ -275,7 +311,7 @@
             min-height: 88px;
             padding: 14px 14px 16px;
             background: #f8fafc;
-            border: 1px solid var(--border);
+            border: 1.5px solid #94a3b8;
             border-radius: 10px;
             color: var(--navy) !important;
             text-decoration: none !important;
@@ -283,13 +319,13 @@
             font-weight: 600;
             line-height: 1.3;
             box-shadow: 0 1px 3px rgba(33, 45, 62, 0.06);
-            transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+            transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s ease;
         }
 
         .folder-blocks-main .folder-block-card a:hover {
             border-color: rgba(196, 164, 124, 0.85);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-            transform: translateY(-2px);
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
+            transform: scale(1.06);
             color: var(--navy) !important;
         }
 
@@ -351,8 +387,8 @@
 
         @media (max-width: 1200px) {
             .sidebar {
-                width: 240px;
-                min-width: 240px;
+                width: 190px;
+                min-width: 190px;
             }
         }
     </style>
@@ -370,25 +406,24 @@
         <a href="{{ route('documents.upload') }}">Upload</a>
         <a href="{{ route('documents.search') }}">Search</a>
         <a href="{{ route('user-activities.index') }}">Activity Log</a>
-        <form method="POST" action="{{ route('logout') }}" class="logout-form">
-            @csrf
-            <button type="submit" class="logout-btn">Logout</button>
-        </form>
+        @role('Admin')
+            <a href="{{ route('user-access.index') }}">User Access</a>
+        @endrole
     </div>
 </div>
 
 <div class="layout-row">
     <aside class="sidebar">
-        <div style="background:#ffffff; border-radius:14px; padding:14px; margin-bottom:14px; border:1px solid rgba(255,255,255,0.18); display:flex; align-items:center; justify-content:center; overflow:hidden;">
+        <div style="background:#ffffff; border-radius:10px; margin-bottom:14px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
             <img
                 src="{{ asset('images/tanseeq.png') }}"
                 alt="TANSEEQ INVESTMENT"
-                style="width: 100%; max-width: 220px; height: auto; object-fit: contain; object-position: center; display:block;"
+                style="width: 100%; max-width: 220px; height: auto; object-fit: contain; object-position: center; display:block; transform: scale(1.18);"
             />
         </div>
         <h3>Folders</h3>
         @php
-            $sidebarFolders = collect(\App\Services\DocumentFilenameParser::sidebarFolderTree())
+            $sidebarFolders = collect(app(\App\Services\DocumentAccessService::class)->accessibleSidebarFolderTree(auth()->user()))
                 ->map(fn (array $items, string $name): array => ['name' => $name, 'items' => $items])
                 ->values()
                 ->all();
@@ -412,6 +447,10 @@
                 @endforeach
             </ul>
         </div>
+        <form method="POST" action="{{ route('logout') }}" class="sidebar-logout-form">
+            @csrf
+            <button type="submit" class="sidebar-logout-btn">Logout</button>
+        </form>
     </aside>
     <main class="main-content">
         <div id="folderBlocksMain" class="folder-blocks-main" hidden>

@@ -6,15 +6,21 @@ use App\Models\Discipline;
 use App\Models\Document;
 use App\Models\Entity;
 use App\Models\Project;
+use App\Models\UserActivity;
 use App\Jobs\ProcessOCR;
 use App\Jobs\SendSharedDocumentEmail;
+use App\Services\DocumentAccessService;
 use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileReplacer;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
 use App\Services\DocumentPreviewUrl;
-use App\Services\UserActivityLogger;
+use App\Services\MicrosoftGraphMailService;
+use App\Services\DocumentVersionSaver;
+use App\Services\OnlyOfficeService;
+use App\Services\SharedDocumentMailBuilder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -23,6 +29,21 @@ use Illuminate\Http\UploadedFile;
 
 class DocumentController extends Controller
 {
+    public function __construct(
+        protected DocumentAccessService $access
+    ) {}
+
+    protected function authorizeDocument(?Document $document): void
+    {
+        if ($document === null) {
+            abort(404, 'Document not found.');
+        }
+
+        if (! $this->access->canAccessDocument(Auth::user(), $document)) {
+            abort(403, 'You do not have access to this document.');
+        }
+    }
+
     /** Document categories = folder names under entity/project */
     protected static function documentCategories(): array
     {
@@ -41,9 +62,24 @@ class DocumentController extends Controller
 
     public function create(Request $request)
     {
-        $entities = Entity::orderBy('name')->get(['id', 'name']);
-        $projects = Project::with('entity:id,name')->orderBy('project_number')->get();
-        $folderTree = DocumentFilenameParser::sidebarFolderTree();
+        $user = Auth::user();
+        $entityQuery = Entity::orderBy('name');
+        if (! $this->access->isAdmin($user)) {
+            $entityIds = $this->access->accessibleEntityIds($user);
+            $entityQuery->whereIn('id', $entityIds);
+        }
+        $entities = $entityQuery->get(['id', 'name']);
+        $projects = Project::with('entity:id,name')->orderBy('project_number');
+        if (! $this->access->isAdmin($user)) {
+            $entityIds = $this->access->accessibleEntityIds($user);
+            $projects->whereIn('entity_id', $entityIds);
+        }
+        $projects = $projects->get();
+        $folderTree = $this->access->accessibleSidebarFolderTree($user);
+        $folderTreesByEntity = [];
+        foreach ($entities as $entity) {
+            $folderTreesByEntity[$entity->id] = $this->access->accessibleFolderTreeForEntity($user, (int) $entity->id);
+        }
         $disciplines = Discipline::orderBy('name')->get(['id', 'name']);
         $mode = (string) $request->query('mode', old('upload_mode', ''));
         if (!in_array($mode, ['auto', 'manual'], true)) {
@@ -53,7 +89,10 @@ class DocumentController extends Controller
         $directUploadEnabled = config('filesystems.default') === 's3';
         $directUploadMinMb = max(1, (int) env('DOC_DIRECT_UPLOAD_MIN_MB', 75));
 
-        return view('documents.upload', compact('entities', 'projects', 'folderTree', 'mode', 'disciplines', 'directUploadEnabled', 'directUploadMinMb'));
+        return view('documents.upload', compact(
+            'entities', 'projects', 'folderTree', 'folderTreesByEntity', 'mode', 'disciplines',
+            'directUploadEnabled', 'directUploadMinMb'
+        ));
     }
 
     /**
@@ -138,6 +177,10 @@ class DocumentController extends Controller
         $entity = Entity::findOrFail($request->entity_id);
         $project = Project::where('id', $request->project_id)->where('entity_id', $entity->id)->firstOrFail();
 
+        if (! $this->access->canAccessEntity(Auth::user(), (int) $entity->id)) {
+            abort(403, 'You do not have access to this entity.');
+        }
+
         $disciplineName = null;
         if ($request->filled('discipline_id')) {
             $disciplineName = Discipline::whereKey((int) $request->discipline_id)->value('name');
@@ -183,6 +226,15 @@ class DocumentController extends Controller
                 // In auto mode, keep prediction lightweight so upload returns quickly.
                 // OCR-based refinement still runs after upload via ProcessOCR.
                 $category = $this->predictUploadCategory($file, $originalName, $validSubfolders);
+            }
+
+            $mainFolder = $uploadMode === 'manual'
+                ? $manualMainFolder
+                : (DocumentFilenameParser::mainFolderForDocumentType($category) ?? '');
+            if (! $this->access->canAccessFolder(Auth::user(), (int) $entity->id, $mainFolder, $category)) {
+                return back()->withErrors([
+                    'document_type' => 'You do not have permission to upload to this folder.',
+                ])->withInput();
             }
 
             $folderPath = 'documents/'
@@ -284,6 +336,7 @@ class DocumentController extends Controller
                     // Preserve orphan's document_type. OCR/reclassification will adjust if needed.
                     $document->file_path = $reattachPath;
                     $document->ocr_text = null;
+                    $document->modified_by_user_id = Auth::id();
                     $document->save();
 
                     UserActivityLogger::reattached($document, ['upload_mode' => $uploadMode]);
@@ -332,6 +385,7 @@ class DocumentController extends Controller
                 'document_type' => $category,
                 'file_name'     => $storedFileName,
                 'file_path'     => $path,
+                'modified_by_user_id' => Auth::id(),
             ]);
             UserActivityLogger::uploaded($document, ['upload_mode' => $uploadMode]);
             // Queue OCR so upload response returns immediately.
@@ -424,9 +478,16 @@ class DocumentController extends Controller
         // entity/project dropdowns can filter client-side when the user switches entity
         // (otherwise only the initially selected entity's projects exist in the DOM).
         $projects = Project::query()
-            ->orderBy('project_name')
-            ->get(['id', 'entity_id', 'project_number', 'project_name']);
-        $entities = Entity::orderBy('name')->get(['id', 'name']);
+            ->orderBy('project_name');
+        $entities = Entity::orderBy('name');
+        $user = Auth::user();
+        if (! $this->access->isAdmin($user)) {
+            $entityIds = $this->access->accessibleEntityIds($user);
+            $entities->whereIn('id', $entityIds);
+            $projects->whereIn('entity_id', $entityIds);
+        }
+        $projects = $projects->get(['id', 'entity_id', 'project_number', 'project_name']);
+        $entities = $entities->get(['id', 'name']);
         $fromMaster = Discipline::orderBy('name')->pluck('name');
         $fromDocuments = Document::whereNotNull('discipline')->where('discipline', '!=', '')
             ->distinct()->orderBy('discipline')->pluck('discipline');
@@ -436,7 +497,21 @@ class DocumentController extends Controller
 
         $documents = null;
         if (!$needsProjectSelection && $hasSearchFilters) {
-            $query = Document::with(['project', 'entity']);
+            if ($entityId && ! $this->access->canAccessEntity($user, $entityId)) {
+                abort(403, 'You do not have access to this entity.');
+            }
+            if ($documentType !== '' && $entityId) {
+                $mainFolder = (string) $request->input('main_folder', '');
+                if ($mainFolder === '') {
+                    $mainFolder = DocumentFilenameParser::mainFolderForDocumentType($documentType) ?? '';
+                }
+                if (! $this->access->canAccessFolder($user, $entityId, $mainFolder, $documentType)) {
+                    abort(403, 'You do not have access to this folder.');
+                }
+            }
+
+            $query = Document::with(['project', 'entity', 'modifiedBy']);
+            $this->access->scopeAccessible($query, $user);
 
             if ($entityId) {
                 $query->where('entity_id', $entityId);
@@ -488,8 +563,33 @@ class DocumentController extends Controller
             }
 
             $documents = $query->paginate(10)->withQueryString();
-            $documents->getCollection()->transform(function (Document $document) {
+            $collection = $documents->getCollection();
+            $missingModifierIds = $collection
+                ->filter(fn (Document $document) => $document->modified_by_user_id === null)
+                ->pluck('id');
+
+            $activityUsers = collect();
+            if ($missingModifierIds->isNotEmpty()) {
+                $activityUsers = UserActivity::query()
+                    ->whereIn('document_id', $missingModifierIds)
+                    ->whereIn('action', [
+                        UserActivity::ACTION_UPLOADED,
+                        UserActivity::ACTION_REPLACED,
+                        UserActivity::ACTION_REATTACHED,
+                    ])
+                    ->with('user:id,name,username')
+                    ->orderByDesc('created_at')
+                    ->get()
+                    ->groupBy('document_id')
+                    ->map(fn ($group) => $group->first()?->user);
+            }
+
+            $collection->transform(function (Document $document) use ($activityUsers) {
                 $document->file_available = $this->resolveDocumentLocation((string) $document->file_path) !== null;
+
+                if ($document->modifiedBy === null && $activityUsers->has($document->id)) {
+                    $document->setRelation('modifiedBy', $activityUsers->get($document->id));
+                }
 
                 return $document;
             });
@@ -507,7 +607,7 @@ class DocumentController extends Controller
         ));
     }
 
-    public function edit(int $id)
+    public function edit(Request $request, int $id)
     {
         $document = Document::with(['project', 'entity'])->find($id);
 
@@ -515,20 +615,70 @@ class DocumentController extends Controller
             abort(404, 'Document not found.');
         }
 
+        $this->authorizeDocument($document);
+
         $fileAvailable = $this->resolveDocumentLocation((string) $document->file_path) !== null;
         $previewUrl = $fileAvailable ? DocumentPreviewUrl::inlineUrl($document) : null;
         $fileSizeBytes = $fileAvailable ? DocumentPreviewUrl::fileSizeBytes($document) : null;
 
+        $isPdf = strtolower(pathinfo($document->file_name, PATHINFO_EXTENSION)) === 'pdf';
+
+        $onlyOffice = app(OnlyOfficeService::class);
+        $onlyOfficeServerUrl = $onlyOffice->serverUrl();
+        $onlyOfficeReachable = $onlyOffice->isEnabled() && $onlyOffice->isReachable();
+        // OnlyOffice PDF editing is unreliable on many files; PDFs use download → edit → save-version instead.
+        $onlyOfficeEnabled = $onlyOfficeReachable
+            && $fileAvailable
+            && ! $isPdf
+            && $onlyOffice->supportsFile($document->file_name);
+        $onlyOfficeConfig = $onlyOfficeEnabled
+            ? $onlyOffice->editorConfig($document, $request->user())
+            : null;
+        $nextVersionName = DocumentFileVersioning::buildNextEditVersionFilename(
+            $document->file_name,
+            (int) $document->project_id,
+            (string) ($document->document_type ?: 'Other')
+        );
+
         return view('documents.edit', [
             'document' => $document,
             'fileAvailable' => $fileAvailable,
+            'isPdf' => $isPdf,
             'previewUrl' => $previewUrl,
+            'downloadUrl' => route('documents.download', ['id' => $document->id]),
             'fileSizeMb' => $fileSizeBytes !== null ? round($fileSizeBytes / 1024 / 1024, 1) : null,
+            'onlyOfficeEnabled' => $onlyOfficeEnabled,
+            'onlyOfficeReachable' => $onlyOfficeReachable,
+            'onlyOfficeConfigured' => $onlyOffice->isEnabled(),
+            'onlyOfficeServerUrl' => $onlyOfficeServerUrl,
+            'onlyOfficeConfig' => $onlyOfficeConfig,
+            'nextVersionName' => $nextVersionName,
+        ]);
+    }
+
+    public function versionSaveStatus(int $id)
+    {
+        $document = Document::find($id);
+        if ($document === null) {
+            abort(404);
+        }
+
+        $this->authorizeDocument($document);
+
+        $payload = \Illuminate\Support\Facades\Cache::get('doc_version_saved_from_'.$id);
+        if (! is_array($payload)) {
+            return response()->json(['saved' => false]);
+        }
+
+        return response()->json([
+            'saved' => true,
+            'new_document_id' => (int) ($payload['new_document_id'] ?? 0),
+            'new_file_name' => (string) ($payload['new_file_name'] ?? ''),
         ]);
     }
 
     /**
-     * Replace the stored file for an existing document (same record, same storage path).
+     * Save uploaded edits as a new version (V1, V2, …). Prior versions are kept.
      */
     public function replace(Request $request, int $id)
     {
@@ -541,6 +691,8 @@ class DocumentController extends Controller
         if (! $document) {
             abort(404, 'Document not found.');
         }
+
+        $this->authorizeDocument($document);
 
         $maxFileMb = max(1, (int) env('DOC_UPLOAD_MAX_FILE_MB', 1024));
         $maxFileKb = $maxFileMb * 1024;
@@ -574,12 +726,19 @@ class DocumentController extends Controller
         $file = $request->file('file');
 
         try {
-            (new DocumentFileReplacer)->replace($document, $file);
+            $newDocument = (new DocumentVersionSaver)->saveFromUpload($document, $file);
         } catch (\Throwable $e) {
-            Log::warning('Document replace failed', [
+            Log::warning('Document version save failed', [
                 'document_id' => $id,
                 'error' => $e->getMessage(),
             ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
 
             return back()
                 ->withErrors(['file' => $e->getMessage()])
@@ -587,13 +746,22 @@ class DocumentController extends Controller
         }
 
         $returnUrl = $request->input('return_url');
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'new_document_id' => $newDocument->id,
+                'new_file_name' => $newDocument->file_name,
+                'message' => 'Saved as '.$newDocument->file_name,
+            ]);
+        }
+
         if (is_string($returnUrl) && $returnUrl !== '' && str_starts_with($returnUrl, url('/'))) {
-            return redirect($returnUrl)->with('success', 'File replaced successfully. Search text will refresh after OCR completes.');
+            return redirect($returnUrl)->with('success', 'Saved as '.$newDocument->file_name.'. Search text will refresh after OCR completes.');
         }
 
         return redirect()
-            ->route('documents.edit', ['id' => $id])
-            ->with('success', 'File replaced successfully. Search text will refresh after OCR completes.');
+            ->route('documents.edit', ['id' => $newDocument->id])
+            ->with('success', 'Saved as '.$newDocument->file_name.'. Search text will refresh after OCR completes.');
     }
 
     public function download(int $id)
@@ -608,6 +776,8 @@ class DocumentController extends Controller
             ]);
             abort(404, 'Document not found. Use Search to find a file and click Download from the result.');
         }
+
+        $this->authorizeDocument($document);
 
         $path = (string) $document->file_path;
         $location = $this->resolveDocumentLocation($path);
@@ -635,6 +805,29 @@ class DocumentController extends Controller
     }
 
     /** Serve file with inline disposition where browser supports preview. */
+    public function previewUrl(int $id)
+    {
+        $document = Document::find($id);
+
+        if (! $document) {
+            abort(404, 'Document not found.');
+        }
+
+        $this->authorizeDocument($document);
+
+        if ($this->resolveDocumentLocation((string) $document->file_path) === null) {
+            abort(404, 'File not found on disk.');
+        }
+
+        $url = DocumentPreviewUrl::inlineUrl($document);
+        if ($url === null) {
+            abort(404, 'Preview unavailable.');
+        }
+
+        return response()->json(['url' => $url]);
+    }
+
+    /** Serve file with inline disposition where browser supports preview. */
     public function viewPdf(int $id)
     {
         $document = Document::find($id);
@@ -647,6 +840,8 @@ class DocumentController extends Controller
             ]);
             abort(404, 'Document not found.');
         }
+
+        $this->authorizeDocument($document);
 
         $path = (string) $document->file_path;
         $location = $this->resolveDocumentLocation($path);
@@ -690,6 +885,8 @@ class DocumentController extends Controller
             return back()->with('success', 'File not found');
         }
 
+        $this->authorizeDocument($document);
+
         $path = (string) $document->file_path;
         $location = $this->resolveDocumentLocation($path);
         if ($location !== null) {
@@ -706,70 +903,98 @@ class DocumentController extends Controller
         return back()->with('success', 'File successfully deleted');
     }
 
-    public function share(Request $request, int $id)
+    protected function shareErrorResponse(Request $request, int $id, string $message, ?Document $document = null)
     {
-        $email = trim((string) $request->input('email', ''));
-        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return back()->withErrors([
-                'share_email_' . $id => 'Enter a valid email address.',
-            ])->withInput();
+        return back()
+            ->withErrors(['share_email_' . $id => $message])
+            ->withInput($request->only('email', 'message'))
+            ->with('share_context', [
+                'id' => $id,
+                'file_name' => $document?->file_name ?? 'Document',
+                'project_number' => $document?->project?->project_number ?? '',
+            ]);
+    }
+
+    public function share(Request $request, int $id, MicrosoftGraphMailService $graphMail)
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+            'message' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $email = trim((string) $validated['email']);
+        $personalMessage = trim((string) ($validated['message'] ?? ''));
+
+        $sender = $request->user();
+        if ($sender === null) {
+            abort(403);
         }
 
-        $document = Document::find($id);
-        if (!$document) {
-            return back()->withErrors([
-                'share_email_' . $id => 'Document not found.',
-            ])->withInput();
+        if (! $graphMail->canSendAsUser($sender)) {
+            return redirect()->route('login.microsoft.mail')->withErrors([
+                'share_email_' . $id => 'Allow Microsoft mail access first, then try Share again.',
+            ]);
         }
+
+        $document = Document::with(['entity', 'project'])->find($id);
+        if (!$document) {
+            return $this->shareErrorResponse($request, $id, 'Document not found.');
+        }
+
+        $this->authorizeDocument($document);
 
         $path = (string) $document->file_path;
         $location = $this->resolveDocumentLocation($path);
         if ($location === null) {
-            return back()->withErrors([
-                'share_email_' . $id => 'File not found in storage.',
-            ])->withInput();
+            return $this->shareErrorResponse($request, $id, 'File not found in storage.', $document);
         }
 
         try {
-            if ($location['source'] === 'disk') {
-                $fileBytes = Storage::disk($location['disk'])->get($location['path']);
-            } else {
-                $fileBytes = @file_get_contents($location['path']);
-                if ($fileBytes === false) {
-                    throw new \RuntimeException('Unable to read file content.');
-                }
-            }
+            $meta = DocumentFilenameParser::extractReferenceAndSubject($document->ocr_text, $document->file_name);
+            $referenceNo = $meta['reference_no'] ?? null;
+            $documentSubject = $meta['subject'] ?? null;
+            $projectNumber = (string) ($document->project?->project_number ?? '');
+            $projectName = (string) ($document->project?->project_name ?? '');
+            $entityName = (string) ($document->entity?->name ?? '');
+            $folderLabel = DocumentFilenameParser::folderDisplayLabel($document->document_type, $document->file_name, $document->ocr_text);
 
-            $recipient = $email;
-            $subject = 'Shared file: ' . $document->file_name;
-            $mimeType = $this->detectMimeType($location, $document->file_name);
-            $fromAddress = (string) config('mail.from.address');
-            $fromName = (string) config('mail.from.name');
+            $fromAddress = (string) $sender->email;
+            $fromName = (string) ($sender->name ?: $sender->username ?: $sender->email);
+            $subject = SharedDocumentMailBuilder::subject($document->file_name, $referenceNo, $projectNumber);
 
-            SendSharedDocumentEmail::dispatch(
+            SendSharedDocumentEmail::dispatchSync(
                 documentId: $id,
-                recipient: $recipient,
+                senderUserId: $sender->id,
+                recipient: $email,
                 subject: $subject,
                 fileName: $document->file_name,
-                fileBytes: $fileBytes,
-                mimeType: $mimeType,
-                projectNumber: (string) ($document->project?->project_number ?? '-'),
                 fromAddress: $fromAddress,
-                fromName: $fromName
-            )->onQueue('emails');
+                fromName: $fromName,
+                mailData: [
+                    'referenceNo' => $referenceNo,
+                    'documentSubject' => $documentSubject,
+                    'projectNumber' => $projectNumber,
+                    'projectName' => $projectName,
+                    'entityName' => $entityName,
+                    'folderLabel' => $folderLabel,
+                    'personalMessage' => $personalMessage,
+                ]
+            );
         } catch (\Throwable $e) {
             Log::warning('Document share failed', [
                 'document_id' => $id,
-                'email' => $request->input('email'),
+                'email' => $email,
                 'error' => $e->getMessage(),
             ]);
 
-            return back()->withErrors([
-                'share_email_' . $id => 'Could not send email. Check mail settings and try again.',
-            ])->withInput();
+            $message = config('app.debug')
+                ? 'Could not send email: '.$e->getMessage()
+                : 'Could not send email. Check mail settings and try again.';
+
+            return $this->shareErrorResponse($request, $id, $message, $document);
         }
 
-        return back()->with('success', 'PDF is being sent to ' . $request->input('email') . '.');
+        return back()->with('success', 'Email sent successfully.');
     }
 
     protected function detectMimeType(array $location, string $fileName): string

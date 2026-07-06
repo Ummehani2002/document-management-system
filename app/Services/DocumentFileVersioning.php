@@ -65,6 +65,48 @@ class DocumentFileVersioning
         return 0;
     }
 
+    /**
+     * Next filename when saving an edited copy (V1, V2, …). Keeps prior versions.
+     */
+    public static function buildNextEditVersionFilename(string $currentFileName, int $projectId, string $category): string
+    {
+        $extension = pathinfo($currentFileName, PATHINFO_EXTENSION);
+        $baseName = pathinfo($currentFileName, PATHINFO_FILENAME);
+        $rootBase = self::stripEditVersionSuffix($baseName);
+        $targetKey = self::versionKey($rootBase);
+
+        $maxVersion = 0;
+        $existingNames = Document::query()
+            ->where('project_id', $projectId)
+            ->where('document_type', $category)
+            ->pluck('file_name');
+
+        foreach ($existingNames as $existingName) {
+            $existingBase = pathinfo((string) $existingName, PATHINFO_FILENAME);
+            $existingRoot = self::stripEditVersionSuffix($existingBase);
+            if (self::versionKey($existingRoot) !== $targetKey) {
+                continue;
+            }
+            if (preg_match('/\s+V(\d+)$/i', $existingBase, $matches)) {
+                $maxVersion = max($maxVersion, (int) $matches[1]);
+            } else {
+                $maxVersion = max($maxVersion, 0);
+            }
+        }
+
+        $nextVersion = $maxVersion + 1;
+        $newBase = $rootBase.' V'.$nextVersion;
+
+        return $extension !== '' ? ($newBase.'.'.$extension) : $newBase;
+    }
+
+    public static function stripEditVersionSuffix(string $baseName): string
+    {
+        $stripped = preg_replace('/\s+V\d+$/i', '', $baseName) ?? $baseName;
+
+        return trim($stripped);
+    }
+
     public static function injectVersionNumber(string $baseName, int $version): string
     {
         if (preg_match('/\bR\s*NO\.?\s*[-.:]?\s*\d+\b/ui', $baseName)) {

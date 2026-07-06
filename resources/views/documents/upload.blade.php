@@ -197,6 +197,7 @@
         var chunkFinishUrl = @json(route('documents.upload.chunk-finish'));
         var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
         var folderTree = @json($folderTree ?? []);
+        var folderTreesByEntity = @json($folderTreesByEntity ?? []);
         var selectedDocumentType = @json($selectedDocumentType);
         var entitySelect = document.getElementById('entity_id');
         var projectSelect = document.getElementById('project_id');
@@ -254,10 +255,35 @@
             document.getElementById('disp-dc').textContent = opt.getAttribute('data-dc') || '—';
         }
 
+        function currentFolderTree() {
+            var entityId = entitySelect ? entitySelect.value : '';
+            if (entityId && folderTreesByEntity[entityId]) {
+                return folderTreesByEntity[entityId];
+            }
+            return folderTree;
+        }
+
+        function renderMainFolderOptions() {
+            if (!mainFolderSelect) return;
+            var tree = currentFolderTree();
+            var previous = mainFolderSelect.value;
+            mainFolderSelect.innerHTML = '<option value="">— Select Category —</option>';
+            Object.keys(tree).forEach(function(mainName) {
+                var option = document.createElement('option');
+                option.value = mainName;
+                option.textContent = mainName;
+                if (previous && previous === mainName) {
+                    option.selected = true;
+                }
+                mainFolderSelect.appendChild(option);
+            });
+            renderDocumentTypeOptions();
+        }
+
         function renderDocumentTypeOptions() {
             if (!mainFolderSelect || !documentTypeSelect) return;
             var selectedMain = mainFolderSelect.value;
-            var folders = folderTree[selectedMain] || [];
+            var folders = currentFolderTree()[selectedMain] || [];
             documentTypeSelect.innerHTML = '<option value="">— Select Folder —</option>';
             folders.forEach(function(folderName) {
                 var option = document.createElement('option');
@@ -276,6 +302,7 @@
         entitySelect.addEventListener('change', function() {
             selectedProjectId = '';
             filterProjects();
+            renderMainFolderOptions();
         });
         projectSelect.addEventListener('change', showProjectDetails);
         if (mainFolderSelect) {
@@ -528,7 +555,7 @@
         } else {
             showProjectDetails();
         }
-        renderDocumentTypeOptions();
+        renderMainFolderOptions();
 
     });
     </script>

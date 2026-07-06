@@ -4,6 +4,34 @@
     <h2>User Activity Log</h2>
     <p style="color: #64748b; margin-top: -8px;">Track document uploads, replacements, re-attaches, and deletions.</p>
 
+    <style>
+        .activity-grid-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 2200px;
+        }
+
+        .activity-grid-table th,
+        .activity-grid-table td {
+            border: 1px solid #cbd5e1;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+            font-size: 0.85rem;
+        }
+
+        .activity-grid-table thead th {
+            background: #212d3e;
+            color: #fff;
+            border-color: #2d3a52;
+            white-space: nowrap;
+        }
+
+        .activity-grid-table tbody tr:nth-child(even) td {
+            background: #f8fafc;
+        }
+    </style>
+
     <form method="GET" action="{{ route('user-activities.index') }}" class="card" style="margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
         <div style="min-width: 220px;">
             <label for="user_id" style="display: block; margin-bottom: 6px;">User</label>
@@ -25,58 +53,61 @@
                 @endforeach
             </select>
         </div>
-        <button type="submit">Filter</button>
-        @if($selectedUserId || $selectedAction !== '')
-            <a href="{{ route('user-activities.index') }}">Clear</a>
-        @endif
+        <div style="flex: 0 0 100%;">
+            <button type="submit" style="margin: 4px 0 0; padding: 9px 22px;">Filter</button>
+            @if($selectedUserId || $selectedAction !== '')
+                <a href="{{ route('user-activities.index') }}" style="margin-left: 10px;">Clear</a>
+            @endif
+        </div>
     </form>
 
     <div class="card" style="padding: 0; overflow-x: auto;">
         @if($activities->isEmpty())
             <p style="margin: 0; padding: 16px;">No activity recorded yet.</p>
         @else
-            <table style="width: 100%; border-collapse: collapse; min-width: 900px;">
+            <table class="activity-grid-table">
                 <thead>
-                    <tr style="background: #212d3e; color: #fff;">
-                        <th style="text-align: left; padding: 10px 12px;">When</th>
-                        <th style="text-align: left; padding: 10px 12px;">User</th>
-                        <th style="text-align: left; padding: 10px 12px;">Action</th>
-                        <th style="text-align: left; padding: 10px 12px;">Document</th>
-                        <th style="text-align: left; padding: 10px 12px;">Project / Entity</th>
+                    <tr>
+                        <th>File Type</th>
+                        <th>File Name</th>
+                        <th>Date</th>
+                        <th>Reference Number</th>
+                        <th>Subject</th>
+                        <th>Project Number</th>
+                        <th>Project Name</th>
+                        <th>Project Client</th>
+                        <th>Project Consultant</th>
+                        <th>Project Discipline</th>
+                        <th>Modified Date</th>
+                        <th>Modified By</th>
+                        <th>Created Date</th>
+                        <th>Created By</th>
+                        <th>File Size</th>
+                        <th>Item Child Count</th>
+                        <th>Folder Child Count</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach($activities as $activity)
-                        @php
-                            $props = $activity->properties ?? [];
-                            $fileName = $props['file_name'] ?? ($activity->document?->file_name ?? '—');
-                            $docType = $props['document_type'] ?? ($activity->document?->document_type ?? '—');
-                            $projectLabel = $activity->document?->project?->project_number
-                                ?? (isset($props['project_id']) ? 'Project #'.$props['project_id'] : '—');
-                            $entityLabel = $activity->document?->entity?->name
-                                ?? (isset($props['entity_id']) ? 'Entity #'.$props['entity_id'] : '—');
-                        @endphp
-                        <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 10px 12px; white-space: nowrap;">
-                                {{ format_model_datetime($activity, 'created_at') }}
-                            </td>
-                            <td style="padding: 10px 12px;">
-                                {{ $activity->user?->name ?? 'System' }}
-                                @if($activity->user?->username)
-                                    <br><span style="font-size: 0.85rem; color: #64748b;">{{ $activity->user->username }}</span>
-                                @endif
-                            </td>
-                            <td style="padding: 10px 12px;">{{ $activity->actionLabel() }}</td>
-                            <td style="padding: 10px 12px;">
-                                <span style="word-break: break-word;">{{ $fileName }}</span>
-                                @if($docType && $docType !== '—')
-                                    <br><span style="font-size: 0.85rem; color: #64748b;">{{ $docType }}</span>
-                                @endif
-                            </td>
-                            <td style="padding: 10px 12px;">
-                                {{ $projectLabel }}
-                                <br><span style="font-size: 0.85rem; color: #64748b;">{{ $entityLabel }}</span>
-                            </td>
+                        @php($row = $activity->grid_row ?? [])
+                        <tr>
+                            <td>{{ $row['file_type'] ?? '—' }}</td>
+                            <td style="word-break: break-word;">{{ $row['file_name'] ?? '—' }}</td>
+                            <td style="white-space: nowrap;">{{ $row['date'] ?? '—' }}</td>
+                            <td>{{ $row['reference_no'] ?? '—' }}</td>
+                            <td>{{ $row['subject'] ?? '—' }}</td>
+                            <td>{{ $row['project_number'] ?? '—' }}</td>
+                            <td>{{ $row['project_name'] ?? '—' }}</td>
+                            <td>{{ $row['project_client'] ?? '—' }}</td>
+                            <td>{{ $row['project_consultant'] ?? '—' }}</td>
+                            <td>{{ $row['project_discipline'] ?? '—' }}</td>
+                            <td style="white-space: nowrap;">{{ $row['modified_date'] ?? '—' }}</td>
+                            <td>{{ $row['modified_by'] ?? '—' }}</td>
+                            <td style="white-space: nowrap;">{{ $row['created_date'] ?? '—' }}</td>
+                            <td>{{ $row['created_by'] ?? '—' }}</td>
+                            <td>{{ $row['file_size'] ?? '—' }}</td>
+                            <td>{{ $row['item_child_count'] ?? '0' }}</td>
+                            <td>{{ $row['folder_child_count'] ?? '0' }}</td>
                         </tr>
                     @endforeach
                 </tbody>

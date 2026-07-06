@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
+use App\Http\Controllers\Auth\MicrosoftAuthController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -22,6 +23,9 @@ Route::middleware('guest')->group(function () {
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
 
+    Route::get('login/microsoft', [MicrosoftAuthController::class, 'redirect'])
+        ->name('login.microsoft');
+
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
 
@@ -35,7 +39,13 @@ Route::middleware('guest')->group(function () {
         ->name('password.store');
 });
 
+Route::get('login/microsoft/callback', [MicrosoftAuthController::class, 'callback'])
+    ->name('login.microsoft.callback');
+
 Route::middleware('auth')->group(function () {
+    Route::get('login/microsoft/mail', [MicrosoftAuthController::class, 'redirectForMail'])
+        ->name('login.microsoft.mail');
+
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
 

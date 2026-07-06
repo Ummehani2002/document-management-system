@@ -1,142 +1,339 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Login — Document Management System</title>
+    <title>Sign in — Tanseeq DMS</title>
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <style>
+        :root {
+            --navy: #212d3e;
+            --navy-deep: #18222f;
+            --navy-soft: #2d3a52;
+            --gold: #c4a47c;
+            --gold-dark: #a88962;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
         * { box-sizing: border-box; }
+
+        html, body { height: 100%; }
+
         body {
             margin: 0;
-            font-family: Arial, sans-serif;
-            background: #111;
+            font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+            color: var(--text);
+            background: #f1f5f9;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .login-shell {
+            display: grid;
+            grid-template-columns: 1.05fr 1fr;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        /* ---------- Brand panel ---------- */
+        .brand-panel {
+            position: relative;
+            overflow: hidden;
+            background: radial-gradient(circle at 20% 20%, var(--navy-soft), var(--navy) 45%, var(--navy-deep) 100%);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 64px 72px;
+        }
+
+        .brand-panel::before,
+        .brand-panel::after {
+            content: "";
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(196, 164, 124, 0.14);
+            filter: blur(2px);
+            animation: float 12s ease-in-out infinite;
+        }
+
+        .brand-panel::before {
+            width: 320px; height: 320px;
+            top: -90px; right: -80px;
+        }
+
+        .brand-panel::after {
+            width: 240px; height: 240px;
+            bottom: -70px; left: -60px;
+            animation-delay: -4s;
+            background: rgba(196, 164, 124, 0.10);
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) translateX(0); }
+            50%      { transform: translateY(-22px) translateX(12px); }
+        }
+
+        .brand-content { position: relative; z-index: 1; max-width: 420px; }
+
+        .brand-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.72rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--gold);
+            border: 1px solid rgba(196, 164, 124, 0.4);
+            padding: 6px 14px;
+            border-radius: 999px;
+            margin-bottom: 30px;
+        }
+
+        .brand-title {
+            font-size: 2.4rem;
+            line-height: 1.18;
+            font-weight: 600;
+            margin: 0 0 18px;
+        }
+
+        .brand-title .accent { color: var(--gold); }
+
+        .brand-tagline {
+            font-size: 1.02rem;
+            line-height: 1.6;
+            color: #cbd5e1;
+            margin: 0 0 36px;
+        }
+
+        .brand-points { list-style: none; margin: 0; padding: 0; }
+
+        .brand-points li {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 16px;
+            color: #e2e8f0;
+            font-size: 0.95rem;
+        }
+
+        .brand-points .dot {
+            flex: none;
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: rgba(196, 164, 124, 0.18);
+            color: var(--gold);
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
-            color: #fff;
+            font-size: 0.8rem;
+            margin-top: 1px;
         }
 
-        .app-title {
-            position: absolute;
-            top: 40px;
-            left: 0;
-            right: 0;
-            text-align: center;
-            color: #fff;
-            font-size: 22px;
-            font-weight: bold;
+        /* ---------- Form panel ---------- */
+        .form-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 48px 32px;
         }
 
-        .auth-box {
+        .auth-card {
+            width: 100%;
+            max-width: 420px;
             background: #fff;
-            color: #111;
-            padding: 40px;
-            width: 400px;
-            border-radius: 6px;
-            border: 1px solid #333;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 44px 40px 40px;
+            box-shadow: 0 24px 60px -28px rgba(15, 23, 42, 0.45);
+            animation: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
 
-        .auth-box h2 {
+        @keyframes rise {
+            from { opacity: 0; transform: translateY(18px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo-wrap {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 26px;
+        }
+
+        .logo-wrap img {
+            width: 168px;
+            height: auto;
+            object-fit: contain;
+        }
+
+        .auth-card h1 {
             text-align: center;
-            margin: 0 0 24px 0;
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             font-weight: 600;
-            color: #111;
+            margin: 0 0 6px;
+            color: var(--navy);
         }
 
-        .auth-box input {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 12px;
-            border: 1px solid #333;
-            border-radius: 4px;
-            font-size: 1rem;
-            background: #fff;
-            color: #111;
-        }
-
-        .auth-box input::placeholder {
-            color: #666;
-        }
-
-        .auth-box input:focus {
-            outline: none;
-            border-color: #111;
-        }
-
-        .auth-box button[type="submit"] {
-            width: 100%;
-            padding: 12px;
-            background: #111;
-            color: #fff;
-            border: 1px solid #111;
-            border-radius: 4px;
-            font-size: 1rem;
-            cursor: pointer;
-            margin-top: 8px;
-        }
-
-        .auth-box button[type="submit"]:hover {
-            background: #333;
-            border-color: #333;
-        }
-
-        .auth-footer {
+        .auth-card .sub {
             text-align: center;
-            margin-top: 20px;
-            font-size: 0.9rem;
-            color: #111;
-        }
-
-        .auth-footer a {
-            color: #111;
-            text-decoration: underline;
-        }
-
-        .auth-footer a:hover {
-            color: #333;
+            color: var(--text-muted);
+            font-size: 0.92rem;
+            margin: 0 0 28px;
         }
 
         .error-msg {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
             color: #b91c1c;
-            font-size: 0.875rem;
-            margin-bottom: 8px;
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+        }
+        .error-msg div + div { margin-top: 4px; }
+
+        .microsoft-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            padding: 15px;
+            background: var(--navy);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.98rem;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+
+        .microsoft-btn:hover {
+            background: var(--navy-soft);
+            box-shadow: 0 12px 24px -12px rgba(33, 45, 62, 0.7);
+            transform: translateY(-2px);
+        }
+
+        .microsoft-btn:active { transform: translateY(0); }
+
+        .microsoft-btn .ms-logo {
+            display: grid;
+            grid-template-columns: 9px 9px;
+            grid-template-rows: 9px 9px;
+            gap: 2px;
+        }
+        .microsoft-btn .ms-logo span { display: block; width: 9px; height: 9px; }
+        .ms-logo .s1 { background: #f25022; }
+        .ms-logo .s2 { background: #7fba00; }
+        .ms-logo .s3 { background: #00a4ef; }
+        .ms-logo .s4 { background: #ffb900; }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 24px 0;
+            color: #94a3b8;
+            font-size: 0.78rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+        .divider::before, .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .secure-note {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: var(--text-muted);
+            font-size: 0.82rem;
+        }
+        .secure-note svg { flex: none; }
+
+        .form-footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.78rem;
+        }
+
+        /* ---------- Responsive ---------- */
+        @media (max-width: 920px) {
+            .login-shell { grid-template-columns: 1fr; }
+            .brand-panel { display: none; }
+            .form-panel { padding: 32px 20px; min-height: 100vh; }
         }
     </style>
 </head>
 <body>
 
-<div class="app-title">
-    Document Management System
-</div>
-
-<div class="auth-box">
-    <h2>Login</h2>
-    <p style="text-align: center; color: #444; font-size: 0.9rem; margin: -8px 0 16px 0;">Sign in to continue</p>
-
-    @if ($errors->any())
-        <div class="error-msg">
-            @foreach ($errors->all() as $err)
-                {{ $err }}
-            @endforeach
+<div class="login-shell">
+    <section class="brand-panel">
+        <div class="brand-content">
+            <span class="brand-badge">Tanseeq Investment</span>
+            <h1 class="brand-title">Document Management <span class="accent">System</span></h1>
+            <p class="brand-tagline">
+                One secure home for every project document — organized by entity, folder and subfolder,
+                searchable in seconds, and shared straight from your inbox.
+            </p>
+            <ul class="brand-points">
+                <li><span class="dot">&#10003;</span> Smart search across all your files &amp; scanned text</li>
+                <li><span class="dot">&#10003;</span> Entity, folder &amp; subfolder access control</li>
+                <li><span class="dot">&#10003;</span> Full activity history and version tracking</li>
+            </ul>
         </div>
-    @endif
+    </section>
 
-    <form method="POST" action="{{ route('login') }}">
-        @csrf
+    <section class="form-panel">
+        <div class="auth-card">
+            <div class="logo-wrap">
+                <img src="{{ asset('images/tanseeq.png') }}" alt="Tanseeq Investment">
+            </div>
 
-        <input type="text" name="username" value="{{ old('username') }}" placeholder="Username" required autofocus autocomplete="username">
-        <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
+            <h1>Welcome back</h1>
+            <p class="sub">Sign in with your company Microsoft account to continue.</p>
 
-        <button type="submit">Sign In</button>
-    </form>
+            @if ($errors->any())
+                <div class="error-msg">
+                    @foreach ($errors->all() as $err)
+                        <div>{{ $err }}</div>
+                    @endforeach
+                </div>
+            @endif
 
-    <p class="auth-footer">
-        New user? <a href="{{ route('register') }}">Register here</a>
-    </p>
+            <a href="{{ route('login.microsoft') }}" class="microsoft-btn">
+                <span class="ms-logo">
+                    <span class="s1"></span><span class="s2"></span>
+                    <span class="s3"></span><span class="s4"></span>
+                </span>
+                <span>Sign in with Microsoft</span>
+            </a>
+
+            <div class="divider">Secure sign-in</div>
+
+            <div class="secure-note">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <span>Protected by your organization's Microsoft account</span>
+            </div>
+
+            <div class="form-footer">
+                &copy; {{ date('Y') }} Tanseeq Investment · Document Management System
+            </div>
+        </div>
+    </section>
 </div>
 
 </body>

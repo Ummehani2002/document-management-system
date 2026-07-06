@@ -10,6 +10,8 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDashboardController;
 use App\Http\Controllers\DisciplineController;
 use App\Http\Controllers\UserActivityController;
+use App\Http\Controllers\UserAccessController;
+use App\Http\Controllers\OnlyOfficeController;
 
 Route::get('/', function () {
     return auth()->check() ? redirect()->route('dashboard') : redirect()->route('login');
@@ -17,6 +19,9 @@ Route::get('/', function () {
 
 Route::get('/dashboard', DashboardController::class)->middleware(['auth'])->name('dashboard');
 Route::get('/project-dashboard', [ProjectDashboardController::class, 'index'])->middleware(['auth'])->name('project-dashboard');
+
+Route::get('/documents/{id}/office-source', [OnlyOfficeController::class, 'source'])->name('documents.office-source')->where('id', '[0-9]+');
+Route::post('/onlyoffice/callback/{id}', [OnlyOfficeController::class, 'callback'])->name('onlyoffice.callback')->where('id', '[0-9]+');
 
 Route::middleware('auth')->group(function () {
 
@@ -30,13 +35,21 @@ Route::middleware('auth')->group(function () {
     Route::resource('disciplines', DisciplineController::class)->except(['show']);
     Route::get('/user-activities', [UserActivityController::class, 'index'])->name('user-activities.index');
 
+    Route::middleware('role:Admin')->prefix('admin')->group(function () {
+        Route::get('/user-access', [UserAccessController::class, 'index'])->name('user-access.index');
+        Route::get('/user-access/{user}/edit', [UserAccessController::class, 'edit'])->name('user-access.edit');
+        Route::put('/user-access/{user}', [UserAccessController::class, 'update'])->name('user-access.update');
+    });
+
     // Document routes:
     // - Keep /documents/... as canonical (named) routes used by Blade links.
     // - Keep legacy /download/pdf/... URLs as fallback for older links/bookmarks.
     Route::get('/documents/{id}/download', [DocumentController::class, 'download'])->name('documents.download')->where('id', '[0-9]+');
     Route::get('/download/pdf/{id}', [DocumentController::class, 'download'])->where('id', '[0-9]+');
     Route::get('/documents/{id}/view', [DocumentController::class, 'viewPdf'])->name('documents.view')->where('id', '[0-9]+');
+    Route::get('/documents/{id}/preview-url', [DocumentController::class, 'previewUrl'])->name('documents.preview-url')->where('id', '[0-9]+');
     Route::get('/download/pdf/{id}/view', [DocumentController::class, 'viewPdf'])->where('id', '[0-9]+');
+    Route::get('/documents/{id}/version-save-status', [DocumentController::class, 'versionSaveStatus'])->name('documents.version-save-status')->where('id', '[0-9]+');
     Route::get('/documents/{id}/edit', [DocumentController::class, 'edit'])->name('documents.edit')->where('id', '[0-9]+');
     Route::post('/documents/{id}/replace', [DocumentController::class, 'replace'])->name('documents.replace')->where('id', '[0-9]+');
     Route::get('/upload', [DocumentController::class, 'create'])->name('documents.upload');
