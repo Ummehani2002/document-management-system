@@ -267,15 +267,19 @@
         }
 
         .sidebar-logo-wrap {
-            background: #ffffff;
-            border: 2px solid var(--gold);
-            border-radius: 10px;
             margin-bottom: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
-            padding: 8px;
+            padding: 4px 0;
+        }
+
+        .sidebar-logo-wrap img {
+            width: 100%;
+            max-width: 200px;
+            height: auto;
+            object-fit: contain;
+            display: block;
         }
 
         .folder-blocks-main {
@@ -469,9 +473,8 @@
     <aside class="sidebar">
         <div class="sidebar-logo-wrap">
             <img
-                src="{{ asset('images/tanseeq.png') }}"
+                src="{{ asset('images/tanseeq.png') }}?v=4"
                 alt="TANSEEQ INVESTMENT"
-                style="width: 100%; max-width: 220px; height: auto; object-fit: contain; object-position: center; display:block; transform: scale(1.18);"
             />
         </div>
         <h3>Document types</h3>

@@ -560,7 +560,9 @@ class DocumentController extends Controller
                               ->orWhereRaw('LOWER(COALESCE(client_name, \'\')) LIKE LOWER(?)', [$like])
                               ->orWhereRaw('LOWER(COALESCE(consultant, \'\')) LIKE LOWER(?)', [$like])
                               ->orWhereRaw('LOWER(COALESCE(project_manager, \'\')) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(COALESCE(document_controller, \'\')) LIKE LOWER(?)', [$like]));
+                              ->orWhereRaw('LOWER(COALESCE(project_manager_email, \'\')) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(COALESCE(document_controller, \'\')) LIKE LOWER(?)', [$like])
+                              ->orWhereRaw('LOWER(COALESCE(document_controller_email, \'\')) LIKE LOWER(?)', [$like]));
                     });
                 }
             }

@@ -32,7 +32,7 @@
     </div>
 @else
     <div class="card dms-grid-wrap">
-        <table class="dms-grid-table min-w-lg">
+        <table class="dms-grid-table min-w-xl">
             <thead>
                 <tr>
                     <th>Entity</th>
@@ -53,8 +53,18 @@
                         <td>{{ $project->project_name }}</td>
                         <td>{{ $project->client_name ?? '-' }}</td>
                         <td>{{ $project->consultant ?? '-' }}</td>
-                        <td>{{ $project->project_manager ?? '-' }}</td>
-                        <td>{{ $project->document_controller ?? '-' }}</td>
+                        <td>
+                            {{ $project->project_manager ?? '-' }}
+                            @if($project->project_manager_email)
+                                <div style="color:#64748b; font-size:0.82rem; margin-top:2px;">{{ $project->project_manager_email }}</div>
+                            @endif
+                        </td>
+                        <td>
+                            {{ $project->document_controller ?? '-' }}
+                            @if($project->document_controller_email)
+                                <div style="color:#64748b; font-size:0.82rem; margin-top:2px;">{{ $project->document_controller_email }}</div>
+                            @endif
+                        </td>
                         <td class="text-right" style="white-space: nowrap;">
                             <a href="{{ route('documents.upload') }}">Upload</a>
                             &nbsp;·&nbsp;

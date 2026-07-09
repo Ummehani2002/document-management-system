@@ -41,6 +41,8 @@
     <div class="card">
         <label for="project_manager">Project Manager</label>
         <input type="text" name="project_manager" id="project_manager" value="{{ old('project_manager', $project->project_manager) }}" placeholder="Enter project manager name">
+        <label for="project_manager_email" style="margin-top: 10px;">Project Manager Email</label>
+        <input type="email" name="project_manager_email" id="project_manager_email" value="{{ old('project_manager_email', $project->project_manager_email) }}" placeholder="Enter project manager email">
     </div>
 
     <div class="card">
@@ -56,6 +58,8 @@
     <div class="card">
         <label for="document_controller">Document Controller</label>
         <input type="text" name="document_controller" id="document_controller" value="{{ old('document_controller', $project->document_controller) }}" placeholder="Enter document controller name">
+        <label for="document_controller_email" style="margin-top: 10px;">Document Controller Email</label>
+        <input type="email" name="document_controller_email" id="document_controller_email" value="{{ old('document_controller_email', $project->document_controller_email) }}" placeholder="Enter document controller email">
     </div>
 
     <div style="margin-top: 20px;">

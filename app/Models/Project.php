@@ -13,7 +13,9 @@ class Project extends Model
         'client_name',
         'consultant',
         'project_manager',
+        'project_manager_email',
         'document_controller',
+        'document_controller_email',
     ];
 
     public function entity()

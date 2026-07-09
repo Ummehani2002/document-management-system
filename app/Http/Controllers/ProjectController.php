@@ -34,11 +34,14 @@ class ProjectController extends Controller
             'client_name' => 'nullable|string|max:255',
             'consultant' => 'nullable|string|max:255',
             'project_manager' => 'nullable|string|max:255',
+            'project_manager_email' => 'nullable|email|max:255',
             'document_controller' => 'nullable|string|max:255',
+            'document_controller_email' => 'nullable|email|max:255',
         ]);
         Project::create($request->only([
             'entity_id', 'project_number', 'project_name',
-            'client_name', 'consultant', 'project_manager', 'document_controller',
+            'client_name', 'consultant', 'project_manager', 'project_manager_email',
+            'document_controller', 'document_controller_email',
         ]));
         return redirect()->route('projects.index')->with('success', 'Project created. You can now upload PDFs whose file name starts with "' . $request->project_number . '".');
     }
@@ -58,11 +61,14 @@ class ProjectController extends Controller
             'client_name' => 'nullable|string|max:255',
             'consultant' => 'nullable|string|max:255',
             'project_manager' => 'nullable|string|max:255',
+            'project_manager_email' => 'nullable|email|max:255',
             'document_controller' => 'nullable|string|max:255',
+            'document_controller_email' => 'nullable|email|max:255',
         ]);
         $project->update($request->only([
             'entity_id', 'project_number', 'project_name',
-            'client_name', 'consultant', 'project_manager', 'document_controller',
+            'client_name', 'consultant', 'project_manager', 'project_manager_email',
+            'document_controller', 'document_controller_email',
         ]));
         return redirect()->route('projects.index')->with('success', 'Project updated.');
     }

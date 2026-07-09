@@ -145,7 +145,7 @@
             width: 100%;
             max-width: 420px;
             background: #fff;
-            border: 1px solid var(--border);
+            border: 2px solid var(--gold);
             border-radius: 16px;
             padding: 44px 40px 40px;
             box-shadow: 0 24px 60px -28px rgba(15, 23, 42, 0.45);
@@ -157,36 +157,20 @@
             to   { opacity: 1; transform: translateY(0); }
         }
 
-        .logo-wrap {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 26px;
-            padding: 14px 18px;
-            background: #fff;
-            border: 2px solid var(--gold);
-            border-radius: 12px;
-        }
-
-        .logo-wrap img {
-            width: 168px;
+        .login-logo {
+            display: block;
+            margin: 0 auto 26px;
+            width: 180px;
             height: auto;
             object-fit: contain;
-            display: block;
         }
 
         .auth-card h1 {
             text-align: center;
             font-size: 1.4rem;
             font-weight: 600;
-            margin: 0 0 6px;
-            color: var(--navy);
-        }
-
-        .auth-card .sub {
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 0.92rem;
             margin: 0 0 28px;
+            color: var(--navy);
         }
 
         .error-msg {
@@ -274,12 +258,13 @@
 
     <section class="form-panel">
         <div class="auth-card">
-            <div class="logo-wrap">
-                <img src="{{ asset('images/tanseeq.png') }}" alt="Tanseeq Investment">
-            </div>
+            <img
+                class="login-logo"
+                src="{{ asset('images/tanseeq.png') }}?v=4"
+                alt="Tanseeq Investment"
+            >
 
             <h1>Welcome back</h1>
-            <p class="sub">Sign in with your company Microsoft account to continue.</p>
 
             @if ($errors->any())
                 <div class="error-msg">
