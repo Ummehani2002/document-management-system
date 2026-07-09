@@ -35,6 +35,7 @@ class MicrosoftAuthController extends Controller
         'User.Read',
         'Mail.Send',
         'People.Read',
+        'User.ReadBasic.All',
     ];
 
     public function redirect(): RedirectResponse

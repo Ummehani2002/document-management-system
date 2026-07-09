@@ -922,8 +922,8 @@ class DocumentController extends Controller
     public function shareEmailSuggestions(Request $request, MicrosoftGraphPeopleService $people)
     {
         $query = trim((string) $request->query('q', ''));
-        if (mb_strlen($query) < 2) {
-            return response()->json(['suggestions' => []]);
+        if ($query === '') {
+            return response()->json(['suggestions' => [], 'hint' => null]);
         }
 
         $user = $request->user();
@@ -931,9 +931,7 @@ class DocumentController extends Controller
             return response()->json(['suggestions' => []], 401);
         }
 
-        return response()->json([
-            'suggestions' => $people->search($user, $query),
-        ]);
+        return response()->json($people->searchWithMeta($user, $query));
     }
 
     public function share(Request $request, int $id, MicrosoftGraphMailService $graphMail)

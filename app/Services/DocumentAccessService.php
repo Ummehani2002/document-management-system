@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Document;
+use App\Models\Project;
 use App\Models\User;
 use App\Models\UserFolderAccess;
 use Illuminate\Database\Eloquent\Builder;
@@ -52,7 +53,54 @@ class DocumentAccessService
      */
     public function folderAccessForEntity(User $user, int $entityId): Collection
     {
-        return $user->folderAccess()->where('entity_id', $entityId)->get();
+        return $user->folderAccess()
+            ->where('entity_id', $entityId)
+            ->whereNull('project_id')
+            ->get();
+    }
+
+  /**
+     * @return Collection<int, UserFolderAccess>
+     */
+    public function folderAccessForProject(User $user, int $projectId): Collection
+    {
+        return $user->folderAccess()->where('project_id', $projectId)->get();
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function allowedProjectIdsForEntity(User $user, int $entityId): array
+    {
+        return $user->projectAccess()
+            ->whereHas('project', fn (Builder $query) => $query->where('entity_id', $entityId))
+            ->pluck('project_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function entitiesWithProjectRestrictions(User $user): array
+    {
+        return $user->projectAccess()
+            ->join('projects', 'projects.id', '=', 'user_project_access.project_id')
+            ->distinct()
+            ->pluck('projects.entity_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function selectedProjectIdsForUser(User $user): array
+    {
+        return $user->projectAccess()
+            ->pluck('project_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     /**
@@ -61,8 +109,22 @@ class DocumentAccessService
     public function entitiesWithFolderRestrictions(User $user): array
     {
         return $user->folderAccess()
+            ->whereNull('project_id')
             ->distinct()
             ->pluck('entity_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function projectsWithFolderRestrictions(User $user): array
+    {
+        return $user->folderAccess()
+            ->whereNotNull('project_id')
+            ->distinct()
+            ->pluck('project_id')
             ->map(fn ($id) => (int) $id)
             ->all();
     }
@@ -164,7 +226,15 @@ class DocumentAccessService
             return false;
         }
 
-        $rows = $this->folderAccessForEntity($user, (int) $document->entity_id);
+        $allowedProjectIds = $this->allowedProjectIdsForEntity($user, (int) $document->entity_id);
+        if ($allowedProjectIds !== [] && ! in_array((int) $document->project_id, $allowedProjectIds, true)) {
+            return false;
+        }
+
+        $rows = $this->folderAccessForProject($user, (int) $document->project_id);
+        if ($rows->isEmpty()) {
+            $rows = $this->folderAccessForEntity($user, (int) $document->entity_id);
+        }
         if ($rows->isEmpty()) {
             return true;
         }
@@ -209,9 +279,11 @@ class DocumentAccessService
         }
 
         $restricted = $this->entitiesWithFolderRestrictions($user);
-        $unrestricted = array_values(array_diff($entityIds, $restricted));
+        $projectRestricted = $this->entitiesWithProjectRestrictions($user);
+        $restrictedEntityIds = array_values(array_unique(array_merge($restricted, $projectRestricted)));
+        $unrestricted = array_values(array_diff($entityIds, $restrictedEntityIds));
 
-        return $query->where(function (Builder $outer) use ($user, $unrestricted, $restricted, $grantedDocIds): void {
+        return $query->where(function (Builder $outer) use ($user, $unrestricted, $restrictedEntityIds, $grantedDocIds): void {
             if ($grantedDocIds !== []) {
                 $outer->orWhereIn('id', $grantedDocIds);
             }
@@ -220,13 +292,49 @@ class DocumentAccessService
                 $outer->orWhereIn('entity_id', $unrestricted);
             }
 
-            foreach ($restricted as $entityId) {
+            foreach ($restrictedEntityIds as $entityId) {
                 $outer->orWhere(function (Builder $inner) use ($user, $entityId): void {
                     $inner->where('entity_id', $entityId);
-                    $this->applyFolderFilterToQuery($inner, $user, $entityId);
+                    $this->applyEntityAccessFilterToQuery($inner, $user, $entityId);
                 });
             }
         });
+    }
+
+    public function applyEntityAccessFilterToQuery(Builder $query, User $user, int $entityId): void
+    {
+        $projectIds = $this->allowedProjectIdsForEntity($user, $entityId);
+        if ($projectIds !== []) {
+            $query->where(function (Builder $projectOuter) use ($user, $projectIds): void {
+                foreach ($projectIds as $projectId) {
+                    $projectOuter->orWhere(function (Builder $projectInner) use ($user, $projectId): void {
+                        $projectInner->where('project_id', $projectId);
+                        $this->applyFolderFilterForProject($projectInner, $user, $projectId);
+                    });
+                }
+            });
+
+            return;
+        }
+
+        $this->applyFolderFilterToQuery($query, $user, $entityId);
+    }
+
+    public function applyFolderFilterForProject(Builder $query, User $user, int $projectId): void
+    {
+        $rows = $this->folderAccessForProject($user, $projectId);
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        $allowed = $this->documentTypesFromFolderRows($rows);
+        if ($allowed === []) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        DocumentFilenameParser::applyFolderTypeFilter($query, $allowed);
     }
 
     public function applyFolderFilterToQuery(Builder $query, User $user, int $entityId): void
@@ -321,11 +429,114 @@ class DocumentAccessService
     }
 
     /**
+     * @param  array<int, list<string>>  $selectedFoldersByProject  project_id => list of "main_folder|document_type" keys
+     */
+    public function syncUserProjectAccess(User $user, array $projectIds, array $selectedFoldersByProject): void
+    {
+        $user->entityAccess()->delete();
+        $user->projectAccess()->delete();
+        $user->folderAccess()->delete();
+
+        $projectIds = array_values(array_unique(array_map('intval', $projectIds)));
+        if ($projectIds === []) {
+            return;
+        }
+
+        $projects = Project::query()
+            ->whereIn('id', $projectIds)
+            ->get(['id', 'entity_id']);
+
+        foreach ($projects->pluck('entity_id')->unique() as $entityId) {
+            $user->entityAccess()->create(['entity_id' => (int) $entityId]);
+        }
+
+        $tree = DocumentFilenameParser::sidebarFolderTree();
+
+        foreach ($projects as $project) {
+            $user->projectAccess()->create(['project_id' => $project->id]);
+
+            $keys = $selectedFoldersByProject[$project->id]
+                ?? $selectedFoldersByProject[(string) $project->id]
+                ?? [];
+            if ($keys === []) {
+                continue;
+            }
+
+            $mainSelections = [];
+            foreach ($keys as $key) {
+                if (! is_string($key) || ! str_contains($key, '|')) {
+                    continue;
+                }
+                [$main, $sub] = explode('|', $key, 2);
+                if (! isset($tree[$main])) {
+                    continue;
+                }
+                $mainSelections[$main][] = $sub;
+            }
+
+            foreach ($mainSelections as $mainFolder => $subs) {
+                $validSubs = $tree[$mainFolder] ?? [];
+                $subs = array_values(array_intersect($subs, $validSubs));
+                if ($subs === []) {
+                    continue;
+                }
+
+                if (count($subs) === count($validSubs)) {
+                    $user->folderAccess()->create([
+                        'entity_id' => $project->entity_id,
+                        'project_id' => $project->id,
+                        'main_folder' => $mainFolder,
+                        'document_type' => null,
+                    ]);
+                } else {
+                    foreach ($subs as $sub) {
+                        $user->folderAccess()->create([
+                            'entity_id' => $project->entity_id,
+                            'project_id' => $project->id,
+                            'main_folder' => $mainFolder,
+                            'document_type' => $sub,
+                        ]);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Build selected folder keys grouped by project for the access form.
+     *
+     * @return array<int, list<string>>
+     */
+    public function selectedFolderKeysByProject(User $user): array
+    {
+        $tree = DocumentFilenameParser::sidebarFolderTree();
+        $result = [];
+
+        foreach ($user->folderAccess as $row) {
+            if ($row->project_id === null) {
+                continue;
+            }
+
+            $projectId = (int) $row->project_id;
+            if ($row->document_type === null) {
+                foreach ($tree[$row->main_folder] ?? [] as $sub) {
+                    $result[$projectId][] = $row->main_folder.'|'.$sub;
+                }
+            } else {
+                $result[$projectId][] = $row->main_folder.'|'.$row->document_type;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * @param  array<int, list<string>>  $selectedFolders  entity_id => list of "main_folder|document_type" keys
      */
     public function syncUserAccess(User $user, array $entityIds, array $selectedFolders): void
     {
         $user->entityAccess()->delete();
+        $user->projectAccess()->delete();
         $user->folderAccess()->delete();
 
         $validEntityIds = array_map('intval', $entityIds);

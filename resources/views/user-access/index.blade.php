@@ -10,8 +10,8 @@
 
 <p style="color: #64748b; margin-bottom: 16px;">
     <strong>Admin</strong> — full access to every document.<br>
-    <strong>Entity / folder</strong> — all PDFs in selected companies and folders.<br>
-    <strong>Specific documents</strong> — individual files only (or in addition to folders).
+    <strong>Project / folder</strong> — PDFs in selected projects and optional folders.<br>
+    <strong>Specific documents</strong> — individual files only (or in addition to projects).
 </p>
 
 <p style="margin-bottom: 20px;">
@@ -51,14 +51,24 @@
                         <td style="padding: 10px 8px;">
                             @if($user->hasRole('Admin'))
                                 All documents
-                            @elseif($user->entityAccess->isEmpty() && $user->documentAccess->isEmpty())
+                            @elseif($user->projectAccess->isEmpty() && $user->documentAccess->isEmpty())
                                 <span style="color: #b91c1c;">No access</span>
                             @else
-                                @if($user->entityAccess->isNotEmpty())
-                                    Entities: {{ $user->entityAccess->map(fn ($a) => $a->entity?->name)->filter()->join(', ') }}
+                                @if($user->projectAccess->isNotEmpty())
+                                    {{ $user->projectAccess->count() }} project(s)
+                                    @php
+                                        $projectLabels = $user->projectAccess
+                                            ->map(fn ($access) => $access->project?->project_number)
+                                            ->filter()
+                                            ->take(3)
+                                            ->join(', ');
+                                    @endphp
+                                    @if($projectLabels !== '')
+                                        <span style="color:#64748b;"> — {{ $projectLabels }}@if($user->projectAccess->count() > 3)…@endif</span>
+                                    @endif
                                 @endif
                                 @if($user->documentAccess->isNotEmpty())
-                                    @if($user->entityAccess->isNotEmpty())<br>@endif
+                                    @if($user->projectAccess->isNotEmpty())<br>@endif
                                     {{ $user->documentAccess->count() }} specific file(s)
                                 @endif
                             @endif

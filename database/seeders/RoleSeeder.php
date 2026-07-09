@@ -29,6 +29,7 @@ class RoleSeeder extends Seeder
         if ($user && ! $user->hasRole('Admin')) {
             $user->syncRoles(['Admin']);
             $user->entityAccess()->delete();
+            $user->projectAccess()->delete();
             $user->folderAccess()->delete();
         }
     }

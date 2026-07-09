@@ -97,16 +97,59 @@ class UserAccessControlTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole('Admin');
         $entity = Entity::create(['name' => 'Acme']);
+        $project = \App\Models\Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => 'P1',
+            'project_name' => 'Test Project',
+        ]);
 
         $this->actingAs($admin)
             ->post(route('user-access.store'), [
                 'name' => 'New User',
                 'email' => 'newuser@tanseeqinvestment.com',
                 'role' => 'Viewer',
-                'entity_ids' => [$entity->id],
+                'project_ids' => [$project->id],
             ])
             ->assertRedirect(route('user-access.index'));
 
         $this->assertDatabaseHas('users', ['email' => 'newuser@tanseeqinvestment.com']);
+        $this->assertDatabaseHas('user_project_access', ['project_id' => $project->id]);
+    }
+
+    public function test_project_restriction_limits_documents_to_selected_project(): void
+    {
+        $entity = Entity::create(['name' => 'Acme']);
+        $user = User::factory()->create();
+        $allowedProject = \App\Models\Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => 'P1',
+            'project_name' => 'Allowed',
+        ]);
+        $deniedProject = \App\Models\Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => 'P2',
+            'project_name' => 'Denied',
+        ]);
+
+        $allowed = \App\Models\Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $allowedProject->id,
+            'file_name' => 'allowed.pdf',
+            'file_path' => 'documents/test/allowed.pdf',
+            'document_type' => 'Other',
+        ]);
+        $denied = \App\Models\Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $deniedProject->id,
+            'file_name' => 'denied.pdf',
+            'file_path' => 'documents/test/denied.pdf',
+            'document_type' => 'Other',
+        ]);
+
+        $service = app(DocumentAccessService::class);
+        $service->syncUserProjectAccess($user, [$allowedProject->id], []);
+
+        $this->assertTrue($service->canAccessDocument($user, $allowed));
+        $this->assertFalse($service->canAccessDocument($user, $denied));
     }
 }

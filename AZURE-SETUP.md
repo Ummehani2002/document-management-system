@@ -46,9 +46,10 @@ In **App registration → API permissions**, add these **Microsoft Graph delegat
 
 - `User.Read`
 - `Mail.Send`
-- `People.Read` (company contact suggestions while typing)
+- `People.Read` (frequent contacts while typing)
+- `User.ReadBasic.All` (search everyone in your company directory — **admin consent** usually required)
 
-Grant **admin consent** if your tenant requires it. After adding `People.Read`, users who already granted mail access should open Share once more and approve the updated permission when prompted.
+Grant **admin consent** if your tenant requires it. After adding permissions, users who already granted mail access should open **Share** once more and approve the updated permissions when prompted.
 
 If Share says to sign in with Microsoft, log out and use the **Sign in with Microsoft** button on the login page again.
 

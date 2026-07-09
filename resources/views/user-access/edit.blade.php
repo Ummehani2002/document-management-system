@@ -19,20 +19,6 @@
     &nbsp;·&nbsp; {{ $user->email }}
 </p>
 
-<div class="card" style="margin-bottom: 20px;">
-    <h3 style="margin-top: 0;">Find documents to grant</h3>
-    <form method="GET" action="{{ route('user-access.edit', $user) }}" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom: 12px;">
-        <input type="search" name="doc_q" value="{{ $documentSearch }}" placeholder="Search by file name…" style="padding:8px; min-width:260px;">
-        <button type="submit">Search</button>
-        @if($documentSearch !== '')
-            <a href="{{ route('user-access.edit', $user) }}">Clear search</a>
-        @endif
-    </form>
-    @if($documentSearch !== '' && $documentResults->isEmpty())
-        <p style="color:#64748b; margin:0;">No documents match "{{ $documentSearch }}".</p>
-    @endif
-</div>
-
 <form method="POST" action="{{ route('user-access.update', $user) }}">
     @csrf
     @method('PUT')
@@ -42,12 +28,10 @@
         'roles' => $roles,
         'entities' => $entities,
         'folderTree' => $folderTree,
-        'selectedEntityIds' => $selectedEntityIds,
-        'selectedFolders' => $selectedFolders,
+        'selectedProjectIds' => $selectedProjectIds,
+        'selectedFoldersByProject' => $selectedFoldersByProject,
         'selectedDocumentIds' => $selectedDocumentIds,
         'grantedDocuments' => $grantedDocuments,
-        'documentSearch' => $documentSearch,
-        'documentResults' => $documentResults,
         'isEdit' => true,
     ])
 </form>

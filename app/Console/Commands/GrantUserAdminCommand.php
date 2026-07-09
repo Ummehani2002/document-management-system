@@ -36,6 +36,7 @@ class GrantUserAdminCommand extends Command
 
         $user->syncRoles(['Admin']);
         $user->entityAccess()->delete();
+        $user->projectAccess()->delete();
         $user->folderAccess()->delete();
 
         $this->info("Admin granted to {$user->email} ({$user->name}). Full access to all entities and folders.");

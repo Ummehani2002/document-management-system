@@ -21,7 +21,7 @@ class UserAccessController extends Controller
     public function index()
     {
         $users = User::query()
-            ->with(['roles', 'entityAccess.entity', 'documentAccess'])
+            ->with(['roles', 'entityAccess.entity', 'projectAccess.project', 'documentAccess'])
             ->orderBy('name')
             ->paginate(20);
 
@@ -30,11 +30,19 @@ class UserAccessController extends Controller
 
     public function create()
     {
-        $entities = Entity::orderBy('name')->get(['id', 'name']);
+        $entities = $this->entitiesWithProjects();
         $folderTree = DocumentFilenameParser::sidebarFolderTree();
         $roles = Role::orderBy('name')->pluck('name');
+        $selectedProjectIds = array_map('intval', old('project_ids', []));
+        $selectedFoldersByProject = $this->normalizeFoldersInput(old('folders', []));
 
-        return view('user-access.create', compact('entities', 'folderTree', 'roles'));
+        return view('user-access.create', compact(
+            'entities',
+            'folderTree',
+            'roles',
+            'selectedProjectIds',
+            'selectedFoldersByProject'
+        ));
     }
 
     public function store(Request $request)
@@ -45,8 +53,8 @@ class UserAccessController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
             'role' => ['nullable', 'string', 'in:'.implode(',', $validRoles)],
-            'entity_ids' => ['nullable', 'array'],
-            'entity_ids.*' => ['integer', 'exists:entities,id'],
+            'project_ids' => ['nullable', 'array'],
+            'project_ids.*' => ['integer', 'exists:projects,id'],
             'folders' => ['nullable', 'array'],
             'folders.*' => ['nullable', 'array'],
             'folders.*.*' => ['string', 'max:255'],
@@ -70,42 +78,29 @@ class UserAccessController extends Controller
             ->with('success', 'User '.$user->name.' added. They can sign in with Microsoft using '.$user->email.'.');
     }
 
-    public function edit(Request $request, User $user)
+    public function edit(User $user)
     {
-        $user->load(['roles', 'entityAccess', 'folderAccess', 'documentAccess.document']);
-        $entities = Entity::orderBy('name')->get(['id', 'name']);
+        $user->load(['roles', 'entityAccess', 'folderAccess', 'projectAccess', 'documentAccess.document']);
+        $entities = $this->entitiesWithProjects();
         $folderTree = DocumentFilenameParser::sidebarFolderTree();
         $roles = Role::orderBy('name')->pluck('name');
-        $selectedEntityIds = $user->entityAccess->pluck('entity_id')->map(fn ($id) => (int) $id)->all();
-        $selectedFolders = $this->access->selectedFolderKeysForUser($user);
+        $selectedProjectIds = $this->access->selectedProjectIdsForUser($user);
+        $selectedFoldersByProject = $this->access->selectedFolderKeysByProject($user);
         $selectedDocumentIds = $this->access->selectedDocumentIdsForUser($user);
         $grantedDocuments = Document::query()
             ->whereIn('id', $selectedDocumentIds)
             ->orderByDesc('created_at')
             ->get(['id', 'file_name', 'document_type']);
 
-        $documentSearch = trim((string) $request->query('doc_q', ''));
-        $documentResults = collect();
-        if ($documentSearch !== '') {
-            $documentResults = Document::query()
-                ->with('entity:id,name')
-                ->where('file_name', 'like', '%'.$documentSearch.'%')
-                ->orderByDesc('created_at')
-                ->limit(40)
-                ->get(['id', 'file_name', 'document_type', 'entity_id']);
-        }
-
         return view('user-access.edit', compact(
             'user',
             'entities',
             'folderTree',
             'roles',
-            'selectedEntityIds',
-            'selectedFolders',
+            'selectedProjectIds',
+            'selectedFoldersByProject',
             'selectedDocumentIds',
-            'grantedDocuments',
-            'documentSearch',
-            'documentResults'
+            'grantedDocuments'
         ));
     }
 
@@ -115,8 +110,8 @@ class UserAccessController extends Controller
 
         $validated = $request->validate([
             'role' => ['nullable', 'string', 'in:'.implode(',', $validRoles)],
-            'entity_ids' => ['nullable', 'array'],
-            'entity_ids.*' => ['integer', 'exists:entities,id'],
+            'project_ids' => ['nullable', 'array'],
+            'project_ids.*' => ['integer', 'exists:projects,id'],
             'folders' => ['nullable', 'array'],
             'folders.*' => ['nullable', 'array'],
             'folders.*.*' => ['string', 'max:255'],
@@ -145,23 +140,48 @@ class UserAccessController extends Controller
 
         if ($user->hasRole('Admin')) {
             $user->entityAccess()->delete();
+            $user->projectAccess()->delete();
             $user->folderAccess()->delete();
             $user->documentAccess()->delete();
 
             return;
         }
 
-        $entityIds = array_map('intval', $validated['entity_ids'] ?? []);
-        $selectedFolders = [];
+        $this->access->syncUserProjectAccess(
+            $user,
+            $validated['project_ids'] ?? [],
+            $this->normalizeFoldersInput($validated['folders'] ?? [])
+        );
+        $this->access->syncUserDocumentAccess($user, $validated['document_ids'] ?? []);
+    }
 
-        foreach ($entityIds as $entityId) {
-            $keys = $validated['folders'][$entityId] ?? [];
-            if (is_array($keys)) {
-                $selectedFolders[$entityId] = array_values(array_filter($keys, 'is_string'));
+    /**
+     * @param  array<mixed, mixed>  $folders
+     * @return array<int, list<string>>
+     */
+    protected function normalizeFoldersInput(array $folders): array
+    {
+        $normalized = [];
+
+        foreach ($folders as $projectId => $keys) {
+            if (! is_array($keys)) {
+                continue;
             }
+
+            $normalized[(int) $projectId] = array_values(array_filter($keys, 'is_string'));
         }
 
-        $this->access->syncUserAccess($user, $entityIds, $selectedFolders);
-        $this->access->syncUserDocumentAccess($user, $validated['document_ids'] ?? []);
+        return $normalized;
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Entity>
+     */
+    protected function entitiesWithProjects()
+    {
+        return Entity::query()
+            ->with(['projects' => fn ($query) => $query->orderBy('project_number')])
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 }

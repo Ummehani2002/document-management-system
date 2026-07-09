@@ -76,6 +76,11 @@ class User extends Authenticatable
         return $this->hasMany(UserFolderAccess::class);
     }
 
+    public function projectAccess(): HasMany
+    {
+        return $this->hasMany(UserProjectAccess::class);
+    }
+
     public function documentAccess(): HasMany
     {
         return $this->hasMany(UserDocumentAccess::class);

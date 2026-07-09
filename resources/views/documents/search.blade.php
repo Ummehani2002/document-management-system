@@ -178,24 +178,34 @@
         top: calc(100% + 4px);
         z-index: 20;
         background: #fff;
-        border: 1px solid #cbd5e1;
-        border-radius: 8px;
-        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
-        max-height: 220px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+        max-height: 320px;
         overflow-y: auto;
         display: none;
+        padding: 4px 0;
     }
 
     .share-email-suggestions.is-open {
         display: block;
     }
 
+    .share-email-suggestions-section {
+        padding: 6px 12px 4px;
+        color: #0f6cbd;
+        font-size: 0.78rem;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+
     .share-email-suggestion {
-        display: block;
+        display: flex;
+        align-items: center;
+        gap: 10px;
         width: 100%;
-        padding: 10px 12px;
-        border: none;
-        border-bottom: 1px solid #f1f5f9;
+        padding: 6px 12px;
+        border: 1px solid transparent;
         background: #fff;
         text-align: left;
         cursor: pointer;
@@ -203,26 +213,50 @@
         box-sizing: border-box;
     }
 
-    .share-email-suggestion:last-child {
-        border-bottom: none;
-    }
-
     .share-email-suggestion:hover,
     .share-email-suggestion.is-active {
-        background: #f8fafc;
+        background: #f3f2f1;
+        border-color: #c8c6c4;
+    }
+
+    .share-email-suggestion-avatar {
+        flex: 0 0 32px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
+
+    .share-email-suggestion-body {
+        min-width: 0;
+        flex: 1;
     }
 
     .share-email-suggestion-name {
         display: block;
         color: #1e293b;
         font-size: 0.88rem;
+        line-height: 1.25;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .share-email-suggestion-email {
         display: block;
         color: #64748b;
-        font-size: 0.8rem;
-        margin-top: 2px;
+        font-size: 0.78rem;
+        line-height: 1.25;
+        margin-top: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .share-email-suggestions-empty {
@@ -1060,10 +1094,34 @@
         shareEmailSuggestionsData = [];
     }
 
-    function renderShareEmailSuggestions(items) {
+    function shareEmailInitials(name, email) {
+        var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        if (parts.length >= 2) {
+            return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+        }
+        if (parts.length === 1 && parts[0].length >= 2) {
+            return parts[0].slice(0, 2).toUpperCase();
+        }
+        var local = String(email || '').split('@')[0] || '';
+        return (local.slice(0, 2) || '?').toUpperCase();
+    }
+
+    function shareEmailAvatarColor(email) {
+        var palette = ['#0f6cbd', '#8764b8', '#13a10e', '#c239b3', '#ca5010', '#038387', '#4f6bed', '#6b4c9a'];
+        var sum = 0;
+        for (var i = 0; i < email.length; i++) {
+            sum += email.charCodeAt(i);
+        }
+        return palette[sum % palette.length];
+    }
+
+    function renderShareEmailSuggestions(payload) {
         var list = document.getElementById('share-email-suggestions');
         var input = document.getElementById('share-modal-email');
         if (!list || !input) return;
+
+        var items = Array.isArray(payload) ? payload : (payload.suggestions || []);
+        var hint = payload && payload.hint ? payload.hint : null;
 
         shareEmailSuggestionsData = items;
         shareEmailActiveIndex = -1;
@@ -1072,40 +1130,67 @@
         if (!items.length) {
             var empty = document.createElement('div');
             empty.className = 'share-email-suggestions-empty';
-            empty.textContent = 'No company contacts found. Type the full email address.';
+            empty.textContent = hint || 'No company contacts found. Keep typing the email address.';
             list.appendChild(empty);
             list.classList.add('is-open');
             input.setAttribute('aria-expanded', 'true');
             return;
         }
 
-        items.forEach(function (item, index) {
-            var button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'share-email-suggestion';
-            button.setAttribute('role', 'option');
-            button.dataset.index = String(index);
+        var recent = items.filter(function (item) { return item.group === 'recent'; });
+        var other = items.filter(function (item) { return item.group !== 'recent'; });
+        var flatIndex = 0;
 
-            var nameEl = document.createElement('span');
-            nameEl.className = 'share-email-suggestion-name';
-            nameEl.textContent = item.name || item.email;
+        function appendSection(title, sectionItems) {
+            if (!sectionItems.length) return;
 
-            var emailEl = document.createElement('span');
-            emailEl.className = 'share-email-suggestion-email';
-            emailEl.textContent = item.email;
+            var heading = document.createElement('div');
+            heading.className = 'share-email-suggestions-section';
+            heading.textContent = title;
+            list.appendChild(heading);
 
-            button.appendChild(nameEl);
-            if (item.name && item.name !== item.email) {
-                button.appendChild(emailEl);
-            }
+            sectionItems.forEach(function (item) {
+                var currentIndex = flatIndex;
+                flatIndex += 1;
 
-            button.addEventListener('mousedown', function (event) {
-                event.preventDefault();
-                selectShareEmailSuggestion(index);
+                var button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'share-email-suggestion';
+                button.setAttribute('role', 'option');
+                button.dataset.index = String(currentIndex);
+
+                var avatar = document.createElement('span');
+                avatar.className = 'share-email-suggestion-avatar';
+                avatar.style.background = shareEmailAvatarColor(item.email);
+                avatar.textContent = shareEmailInitials(item.name, item.email);
+
+                var body = document.createElement('span');
+                body.className = 'share-email-suggestion-body';
+
+                var nameEl = document.createElement('span');
+                nameEl.className = 'share-email-suggestion-name';
+                nameEl.textContent = item.name || item.email;
+
+                var emailEl = document.createElement('span');
+                emailEl.className = 'share-email-suggestion-email';
+                emailEl.textContent = item.email;
+
+                body.appendChild(nameEl);
+                body.appendChild(emailEl);
+                button.appendChild(avatar);
+                button.appendChild(body);
+
+                button.addEventListener('mousedown', function (event) {
+                    event.preventDefault();
+                    selectShareEmailSuggestion(currentIndex);
+                });
+
+                list.appendChild(button);
             });
+        }
 
-            list.appendChild(button);
-        });
+        appendSection('Recent people', recent);
+        appendSection('Other suggestions', other);
 
         list.classList.add('is-open');
         input.setAttribute('aria-expanded', 'true');
@@ -1141,11 +1226,21 @@
         })
             .then(function (res) { return res.json(); })
             .then(function (data) {
-                return Array.isArray(data.suggestions) ? data.suggestions : [];
+                return {
+                    suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+                    hint: data.hint || null
+                };
             })
             .catch(function () {
-                return [];
+                return { suggestions: [], hint: null };
             });
+    }
+
+    function requestShareEmailSuggestions(query) {
+        window.clearTimeout(shareEmailSuggestTimer);
+        shareEmailSuggestTimer = window.setTimeout(function () {
+            fetchShareEmailSuggestions(query).then(renderShareEmailSuggestions);
+        }, 200);
     }
 
     function initShareEmailAutocomplete() {
@@ -1155,16 +1250,20 @@
 
         input.addEventListener('input', function () {
             var query = input.value.trim();
-            window.clearTimeout(shareEmailSuggestTimer);
 
-            if (query.length < 2) {
+            if (query.length < 1) {
                 hideShareEmailSuggestions();
                 return;
             }
 
-            shareEmailSuggestTimer = window.setTimeout(function () {
-                fetchShareEmailSuggestions(query).then(renderShareEmailSuggestions);
-            }, 250);
+            requestShareEmailSuggestions(query);
+        });
+
+        input.addEventListener('focus', function () {
+            var query = input.value.trim();
+            if (query.length >= 1) {
+                requestShareEmailSuggestions(query);
+            }
         });
 
         input.addEventListener('keydown', function (event) {

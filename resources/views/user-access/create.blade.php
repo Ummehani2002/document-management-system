@@ -41,13 +41,9 @@
         'roles' => $roles,
         'entities' => $entities,
         'folderTree' => $folderTree,
-        'selectedEntityIds' => old('entity_ids', []),
-        'selectedFolders' => old('folders', []),
-        'selectedDocumentIds' => old('document_ids', []),
+        'selectedProjectIds' => $selectedProjectIds,
+        'selectedFoldersByProject' => $selectedFoldersByProject,
         'grantedDocuments' => collect(),
-        'documentSearch' => '',
-        'documentResults' => collect(),
-        'formAction' => route('user-access.store'),
         'isEdit' => false,
     ])
 </form>
