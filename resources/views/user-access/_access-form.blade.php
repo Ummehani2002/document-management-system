@@ -8,10 +8,6 @@
             @endforeach
         </select>
     </label>
-    <p style="color: #64748b; margin: 8px 0 0;">
-        Choose <strong>Admin</strong> for access to <em>all</em> PDFs and folders.
-        Otherwise pick an entity, its projects, and optional folders below.
-    </p>
 </div>
 
 @php
@@ -32,11 +28,6 @@
 
 <div class="card" style="margin-bottom: 20px;">
     <h3 style="margin-top: 0;">Entity, project &amp; folder access</h3>
-    <p style="color: #64748b;">
-        Select an <strong>entity</strong>, then choose one or more <strong>projects</strong>.
-        Optionally restrict to specific <strong>folders</strong> for the selected projects in that entity.
-        Leave folders unchecked to allow every folder in those projects.
-    </p>
 
     @if($entities->isEmpty())
         <p>No entities yet. <a href="{{ route('entities.create') }}">Create an entity</a> first.</p>
