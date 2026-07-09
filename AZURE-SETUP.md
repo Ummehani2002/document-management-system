@@ -36,8 +36,19 @@ This adds the `azure_id` column to the `users` table.
 
 1. User must sign in with **Microsoft** (not only the local username/password form).
 2. In Search, open the **⋮** menu on a file → **Share**.
-3. Enter the recipient email address and click **Send**.
-4. The file is sent **from the logged-in user’s Microsoft email address** via Microsoft Graph.
+3. Start typing a colleague’s name or email — the app suggests company contacts from Microsoft 365 and DMS users.
+4. Pick a suggestion (or type the full address) and click **Send**.
+5. The file is sent **from the logged-in user’s Microsoft email address** via Microsoft Graph.
+
+### Azure permissions for Share
+
+In **App registration → API permissions**, add these **Microsoft Graph delegated** permissions:
+
+- `User.Read`
+- `Mail.Send`
+- `People.Read` (company contact suggestions while typing)
+
+Grant **admin consent** if your tenant requires it. After adding `People.Read`, users who already granted mail access should open Share once more and approve the updated permission when prompted.
 
 If Share says to sign in with Microsoft, log out and use the **Sign in with Microsoft** button on the login page again.
 

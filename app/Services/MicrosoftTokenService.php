@@ -35,7 +35,7 @@ class MicrosoftTokenService
             'client_secret' => config('services.azure.client_secret'),
             'grant_type' => 'refresh_token',
             'refresh_token' => $refreshToken,
-            'scope' => 'openid profile email offline_access User.Read Mail.Send',
+            'scope' => 'openid profile email offline_access User.Read Mail.Send People.Read',
         ]);
 
         if (! $response->successful()) {

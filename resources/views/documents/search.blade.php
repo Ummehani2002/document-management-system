@@ -167,6 +167,70 @@
         margin-bottom: 14px;
     }
 
+    .share-email-wrap {
+        position: relative;
+    }
+
+    .share-email-suggestions {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(100% + 4px);
+        z-index: 20;
+        background: #fff;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+        max-height: 220px;
+        overflow-y: auto;
+        display: none;
+    }
+
+    .share-email-suggestions.is-open {
+        display: block;
+    }
+
+    .share-email-suggestion {
+        display: block;
+        width: 100%;
+        padding: 10px 12px;
+        border: none;
+        border-bottom: 1px solid #f1f5f9;
+        background: #fff;
+        text-align: left;
+        cursor: pointer;
+        font: inherit;
+        box-sizing: border-box;
+    }
+
+    .share-email-suggestion:last-child {
+        border-bottom: none;
+    }
+
+    .share-email-suggestion:hover,
+    .share-email-suggestion.is-active {
+        background: #f8fafc;
+    }
+
+    .share-email-suggestion-name {
+        display: block;
+        color: #1e293b;
+        font-size: 0.88rem;
+    }
+
+    .share-email-suggestion-email {
+        display: block;
+        color: #64748b;
+        font-size: 0.8rem;
+        margin-top: 2px;
+    }
+
+    .share-email-suggestions-empty {
+        padding: 10px 12px;
+        color: #64748b;
+        font-size: 0.82rem;
+    }
+
     .share-modal-field label {
         display: block;
         margin-bottom: 6px;
@@ -761,15 +825,25 @@
             @csrf
             <div class="share-modal-field">
                 <label for="share-modal-email">Recipient email address</label>
-                <input
-                    type="email"
-                    id="share-modal-email"
-                    name="email"
-                    placeholder="name@company.com"
-                    value="{{ old('email') }}"
-                    required
-                    autocomplete="email"
-                >
+                <div class="share-email-wrap">
+                    <input
+                        type="text"
+                        id="share-modal-email"
+                        name="email"
+                        placeholder="Start typing a name or email..."
+                        value="{{ old('email') }}"
+                        required
+                        autocomplete="off"
+                        autocorrect="off"
+                        autocapitalize="off"
+                        spellcheck="false"
+                        role="combobox"
+                        aria-autocomplete="list"
+                        aria-expanded="false"
+                        aria-controls="share-email-suggestions"
+                    >
+                    <div id="share-email-suggestions" class="share-email-suggestions" role="listbox"></div>
+                </div>
             </div>
             <div class="share-modal-field">
                 <label for="share-modal-message">Message <span style="color:#94a3b8;">(optional)</span></label>
@@ -952,8 +1026,10 @@
         document.body.style.overflow = 'hidden';
 
         if (emailInput) {
+            emailInput.value = emailInput.value || '';
             setTimeout(function () { emailInput.focus(); }, 50);
         }
+        hideShareEmailSuggestions();
     }
 
     function closeShareModal() {
@@ -962,7 +1038,166 @@
         modal.classList.remove('is-open');
         modal.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
+        hideShareEmailSuggestions();
     }
+
+    var shareEmailSuggestTimer = null;
+    var shareEmailActiveIndex = -1;
+    var shareEmailSuggestionsData = [];
+    var shareEmailSuggestionsUrl = @json(route('documents.share.email-suggestions'));
+
+    function hideShareEmailSuggestions() {
+        var list = document.getElementById('share-email-suggestions');
+        var input = document.getElementById('share-modal-email');
+        if (list) {
+            list.classList.remove('is-open');
+            list.innerHTML = '';
+        }
+        if (input) {
+            input.setAttribute('aria-expanded', 'false');
+        }
+        shareEmailActiveIndex = -1;
+        shareEmailSuggestionsData = [];
+    }
+
+    function renderShareEmailSuggestions(items) {
+        var list = document.getElementById('share-email-suggestions');
+        var input = document.getElementById('share-modal-email');
+        if (!list || !input) return;
+
+        shareEmailSuggestionsData = items;
+        shareEmailActiveIndex = -1;
+        list.innerHTML = '';
+
+        if (!items.length) {
+            var empty = document.createElement('div');
+            empty.className = 'share-email-suggestions-empty';
+            empty.textContent = 'No company contacts found. Type the full email address.';
+            list.appendChild(empty);
+            list.classList.add('is-open');
+            input.setAttribute('aria-expanded', 'true');
+            return;
+        }
+
+        items.forEach(function (item, index) {
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'share-email-suggestion';
+            button.setAttribute('role', 'option');
+            button.dataset.index = String(index);
+
+            var nameEl = document.createElement('span');
+            nameEl.className = 'share-email-suggestion-name';
+            nameEl.textContent = item.name || item.email;
+
+            var emailEl = document.createElement('span');
+            emailEl.className = 'share-email-suggestion-email';
+            emailEl.textContent = item.email;
+
+            button.appendChild(nameEl);
+            if (item.name && item.name !== item.email) {
+                button.appendChild(emailEl);
+            }
+
+            button.addEventListener('mousedown', function (event) {
+                event.preventDefault();
+                selectShareEmailSuggestion(index);
+            });
+
+            list.appendChild(button);
+        });
+
+        list.classList.add('is-open');
+        input.setAttribute('aria-expanded', 'true');
+    }
+
+    function selectShareEmailSuggestion(index) {
+        var item = shareEmailSuggestionsData[index];
+        var input = document.getElementById('share-modal-email');
+        if (!item || !input) return;
+        input.value = item.email;
+        hideShareEmailSuggestions();
+        input.focus();
+    }
+
+    function setShareEmailActiveSuggestion(index) {
+        var list = document.getElementById('share-email-suggestions');
+        if (!list) return;
+
+        var buttons = list.querySelectorAll('.share-email-suggestion');
+        buttons.forEach(function (button, i) {
+            button.classList.toggle('is-active', i === index);
+        });
+        shareEmailActiveIndex = index;
+    }
+
+    function fetchShareEmailSuggestions(query) {
+        return fetch(shareEmailSuggestionsUrl + '?q=' + encodeURIComponent(query), {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                return Array.isArray(data.suggestions) ? data.suggestions : [];
+            })
+            .catch(function () {
+                return [];
+            });
+    }
+
+    function initShareEmailAutocomplete() {
+        var input = document.getElementById('share-modal-email');
+        if (!input || input.dataset.autocompleteReady === '1') return;
+        input.dataset.autocompleteReady = '1';
+
+        input.addEventListener('input', function () {
+            var query = input.value.trim();
+            window.clearTimeout(shareEmailSuggestTimer);
+
+            if (query.length < 2) {
+                hideShareEmailSuggestions();
+                return;
+            }
+
+            shareEmailSuggestTimer = window.setTimeout(function () {
+                fetchShareEmailSuggestions(query).then(renderShareEmailSuggestions);
+            }, 250);
+        });
+
+        input.addEventListener('keydown', function (event) {
+            var list = document.getElementById('share-email-suggestions');
+            if (!list || !list.classList.contains('is-open')) return;
+
+            var count = shareEmailSuggestionsData.length;
+            if (!count) return;
+
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                var next = shareEmailActiveIndex + 1;
+                if (next >= count) next = 0;
+                setShareEmailActiveSuggestion(next);
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                var prev = shareEmailActiveIndex - 1;
+                if (prev < 0) prev = count - 1;
+                setShareEmailActiveSuggestion(prev);
+            } else if (event.key === 'Enter' && shareEmailActiveIndex >= 0) {
+                event.preventDefault();
+                selectShareEmailSuggestion(shareEmailActiveIndex);
+            } else if (event.key === 'Escape') {
+                hideShareEmailSuggestions();
+            }
+        });
+
+        input.addEventListener('blur', function () {
+            window.setTimeout(hideShareEmailSuggestions, 150);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', initShareEmailAutocomplete);
 
     document.querySelectorAll('.doc-share-btn').forEach(function (shareBtn) {
         shareBtn.addEventListener('click', function (event) {

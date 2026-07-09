@@ -30,8 +30,11 @@ class MicrosoftAuthController extends Controller
     protected array $mailScopes = [
         'openid',
         'offline_access',
+        'profile',
+        'email',
         'User.Read',
         'Mail.Send',
+        'People.Read',
     ];
 
     public function redirect(): RedirectResponse
@@ -91,8 +94,11 @@ class MicrosoftAuthController extends Controller
             ]);
         }
 
+        $intent = (string) session('microsoft_auth_intent', 'login');
+        $scopes = $intent === 'mail' ? $this->mailScopes : $this->loginScopes;
+
         try {
-            $azureUser = $this->azureDriver($this->loginScopes)->user();
+            $azureUser = $this->azureDriver($scopes)->user();
         } catch (InvalidStateException $e) {
             Log::warning('Microsoft sign-in state mismatch', [
                 'error' => $e->getMessage(),

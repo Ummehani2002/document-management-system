@@ -16,6 +16,7 @@ use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
 use App\Services\DocumentPreviewUrl;
 use App\Services\MicrosoftGraphMailService;
+use App\Services\MicrosoftGraphPeopleService;
 use App\Services\DocumentVersionSaver;
 use App\Services\OnlyOfficeService;
 use App\Services\SharedDocumentMailBuilder;
@@ -916,6 +917,23 @@ class DocumentController extends Controller
                 'file_name' => $document?->file_name ?? 'Document',
                 'project_number' => $document?->project?->project_number ?? '',
             ]);
+    }
+
+    public function shareEmailSuggestions(Request $request, MicrosoftGraphPeopleService $people)
+    {
+        $query = trim((string) $request->query('q', ''));
+        if (mb_strlen($query) < 2) {
+            return response()->json(['suggestions' => []]);
+        }
+
+        $user = $request->user();
+        if ($user === null) {
+            return response()->json(['suggestions' => []], 401);
+        }
+
+        return response()->json([
+            'suggestions' => $people->search($user, $query),
+        ]);
     }
 
     public function share(Request $request, int $id, MicrosoftGraphMailService $graphMail)

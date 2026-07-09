@@ -63,6 +63,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/upload/chunk-finish', [DocumentDirectUploadController::class, 'chunkFinish'])->name('documents.upload.chunk-finish');
     Route::get('/upload/suggest', [DocumentController::class, 'suggestFromFilename'])->name('documents.suggest');
     Route::get('/search', [DocumentController::class, 'search'])->name('documents.search');
+    Route::get('/share/email-suggestions', [DocumentController::class, 'shareEmailSuggestions'])->name('documents.share.email-suggestions');
     Route::post('/documents/{id}/share', [DocumentController::class, 'share'])->name('documents.share')->where('id', '[0-9]+');
     Route::delete('/documents/{id}', [DocumentController::class, 'destroy'])->name('documents.destroy')->where('id', '[0-9]+');
 });
