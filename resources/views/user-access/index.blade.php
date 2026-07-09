@@ -10,8 +10,7 @@
 
 <p style="color: #64748b; margin-bottom: 16px;">
     <strong>Admin</strong> — full access to every document.<br>
-    <strong>Project / folder</strong> — PDFs in selected projects and optional folders.<br>
-    <strong>Specific documents</strong> — individual files only (or in addition to projects).
+    <strong>Project / folder</strong> — PDFs in selected projects and optional folders.
 </p>
 
 <p style="margin-bottom: 20px;">
@@ -25,30 +24,30 @@
         <p>No users yet. Add a user or ask them to sign in with Microsoft first.</p>
     </div>
 @else
-    <div class="card">
-        <table style="width: 100%; border-collapse: collapse;">
+    <div class="card dms-grid-wrap">
+        <table class="dms-grid-table">
             <thead>
-                <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;">
-                    <th style="padding: 10px 8px;">User</th>
-                    <th style="padding: 10px 8px;">Email</th>
-                    <th style="padding: 10px 8px;">Role</th>
-                    <th style="padding: 10px 8px;">Access</th>
-                    <th style="padding: 10px 8px;"></th>
+                <tr>
+                    <th>User</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Access</th>
+                    <th class="text-right">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($users as $user)
-                    <tr style="border-bottom: 1px solid #e2e8f0;">
-                        <td style="padding: 10px 8px;">{{ $user->name }}</td>
-                        <td style="padding: 10px 8px;">{{ $user->email }}</td>
-                        <td style="padding: 10px 8px;">
+                    <tr>
+                        <td>{{ $user->name }}</td>
+                        <td>{{ $user->email }}</td>
+                        <td>
                             @if($user->hasRole('Admin'))
                                 <span style="color: #1a5c38;">Admin</span>
                             @else
                                 {{ $user->roles->pluck('name')->join(', ') ?: '—' }}
                             @endif
                         </td>
-                        <td style="padding: 10px 8px;">
+                        <td>
                             @if($user->hasRole('Admin'))
                                 All documents
                             @elseif($user->projectAccess->isEmpty() && $user->documentAccess->isEmpty())
@@ -73,14 +72,14 @@
                                 @endif
                             @endif
                         </td>
-                        <td style="padding: 10px 8px; text-align: right;">
+                        <td class="text-right">
                             <a href="{{ route('user-access.edit', $user) }}">Manage access</a>
                         </td>
                     </tr>
                 @endforeach
             </tbody>
         </table>
-        <div style="margin-top: 16px;">{{ $users->links() }}</div>
+        <div style="margin-top: 16px; padding: 0 16px 16px;">{{ $users->links() }}</div>
     </div>
 @endif
 

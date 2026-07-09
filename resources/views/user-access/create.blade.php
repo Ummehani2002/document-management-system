@@ -43,7 +43,6 @@
         'folderTree' => $folderTree,
         'selectedProjectIds' => $selectedProjectIds,
         'selectedFoldersByProject' => $selectedFoldersByProject,
-        'grantedDocuments' => collect(),
         'isEdit' => false,
     ])
 </form>

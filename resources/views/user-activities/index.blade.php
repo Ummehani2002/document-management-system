@@ -4,34 +4,6 @@
     <h2>User Activity Log</h2>
     <p style="color: #64748b; margin-top: -8px;">Track document uploads, replacements, re-attaches, and deletions.</p>
 
-    <style>
-        .activity-grid-table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 2200px;
-        }
-
-        .activity-grid-table th,
-        .activity-grid-table td {
-            border: 1px solid #cbd5e1;
-            padding: 10px;
-            text-align: left;
-            vertical-align: top;
-            font-size: 0.85rem;
-        }
-
-        .activity-grid-table thead th {
-            background: #212d3e;
-            color: #fff;
-            border-color: #2d3a52;
-            white-space: nowrap;
-        }
-
-        .activity-grid-table tbody tr:nth-child(even) td {
-            background: #f8fafc;
-        }
-    </style>
-
     <form method="GET" action="{{ route('user-activities.index') }}" class="card" style="margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
         <div style="min-width: 220px;">
             <label for="user_id" style="display: block; margin-bottom: 6px;">User</label>
@@ -61,11 +33,11 @@
         </div>
     </form>
 
-    <div class="card" style="padding: 0; overflow-x: auto;">
+    <div class="card dms-grid-wrap">
         @if($activities->isEmpty())
             <p style="margin: 0; padding: 16px;">No activity recorded yet.</p>
         @else
-            <table class="activity-grid-table">
+            <table class="dms-grid-table min-w-xl">
                 <thead>
                     <tr>
                         <th>File Type</th>

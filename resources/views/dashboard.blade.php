@@ -28,50 +28,52 @@
         @if($recentDocuments->isEmpty())
             <p style="margin: 0; padding: 16px;">No documents yet. <a href="{{ route('documents.upload') }}">Upload PDFs</a>.</p>
         @else
-            <table style="width:100%; border-collapse:collapse;">
-                <thead>
-                    <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0;">
-                        <th style="text-align:left; padding:10px 12px;">File</th>
-                        <th style="text-align:left; padding:10px 12px;">Entity</th>
-                        <th style="text-align:left; padding:10px 12px;">Project</th>
-                        <th style="text-align:left; padding:10px 12px;">Folder</th>
-                        <th style="text-align:right; padding:10px 12px;">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach($recentDocuments as $doc)
-                    <tr style="border-bottom:1px solid #e2e8f0;">
-                        <td style="padding:10px 12px; min-width:0;">
-                            <strong>{{ $doc->file_name }}</strong><br>
-                            <span style="font-size: 0.85rem; color: #64748b;">
-                                {{ format_model_datetime($doc, 'created_at') }}
-                            </span>
-                        </td>
-                        <td style="padding:10px 12px;">{{ $doc->entity?->name ?? '-' }}</td>
-                        <td style="padding:10px 12px;">{{ $doc->project?->project_number ?? '-' }}</td>
-                        <td style="padding:10px 12px;">{{ $doc->display_folder }}</td>
-                        <td style="padding:10px 12px; text-align:right; white-space:nowrap;">
-                            @if(!empty($doc->file_available))
-                                <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>
-                                <span style="color: #cbd5e1;"> | </span>
-                                <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this file?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" style="padding: 0; background: none; border: none; color: #b91c1c; text-decoration: underline; cursor: pointer;">Delete</button>
-                                </form>
-                            @else
-                                <span style="color:#b91c1c; font-size:0.85rem; margin-right:8px;">File missing</span>
-                                <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this record? File is already missing from storage.');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" style="padding: 0; background: none; border: none; color: #b91c1c; text-decoration: underline; cursor: pointer;">Delete record</button>
-                                </form>
-                            @endif
-                        </td>
-                    </tr>
-                @endforeach
-                </tbody>
-            </table>
+            <div class="dms-grid-wrap">
+                <table class="dms-grid-table min-w-lg">
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Entity</th>
+                            <th>Project</th>
+                            <th>Folder</th>
+                            <th class="text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach($recentDocuments as $doc)
+                        <tr>
+                            <td style="min-width:0;">
+                                <strong>{{ $doc->file_name }}</strong><br>
+                                <span style="font-size: 0.85rem; color: #64748b;">
+                                    {{ format_model_datetime($doc, 'created_at') }}
+                                </span>
+                            </td>
+                            <td>{{ $doc->entity?->name ?? '-' }}</td>
+                            <td>{{ $doc->project?->project_number ?? '-' }}</td>
+                            <td>{{ $doc->display_folder }}</td>
+                            <td class="text-right" style="white-space:nowrap;">
+                                @if(!empty($doc->file_available))
+                                    <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>
+                                    <span style="color: #cbd5e1;"> | </span>
+                                    <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this file?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" style="padding: 0; background: none; border: none; color: #b91c1c; text-decoration: underline; cursor: pointer;">Delete</button>
+                                    </form>
+                                @else
+                                    <span style="color:#b91c1c; font-size:0.85rem; margin-right:8px;">File missing</span>
+                                    <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this record? File is already missing from storage.');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" style="padding: 0; background: none; border: none; color: #b91c1c; text-decoration: underline; cursor: pointer;">Delete record</button>
+                                    </form>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
         @endif
     </div>
 @endsection

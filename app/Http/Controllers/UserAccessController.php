@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Document;
 use App\Models\Entity;
 use App\Models\User;
 use App\Services\DocumentAccessService;
@@ -58,8 +57,6 @@ class UserAccessController extends Controller
             'folders' => ['nullable', 'array'],
             'folders.*' => ['nullable', 'array'],
             'folders.*.*' => ['string', 'max:255'],
-            'document_ids' => ['nullable', 'array'],
-            'document_ids.*' => ['integer', 'exists:documents,id'],
         ]);
 
         $email = strtolower(trim($validated['email']));
@@ -80,17 +77,12 @@ class UserAccessController extends Controller
 
     public function edit(User $user)
     {
-        $user->load(['roles', 'entityAccess', 'folderAccess', 'projectAccess', 'documentAccess.document']);
+        $user->load(['roles', 'entityAccess', 'folderAccess', 'projectAccess']);
         $entities = $this->entitiesWithProjects();
         $folderTree = DocumentFilenameParser::sidebarFolderTree();
         $roles = Role::orderBy('name')->pluck('name');
         $selectedProjectIds = $this->access->selectedProjectIdsForUser($user);
         $selectedFoldersByProject = $this->access->selectedFolderKeysByProject($user);
-        $selectedDocumentIds = $this->access->selectedDocumentIdsForUser($user);
-        $grantedDocuments = Document::query()
-            ->whereIn('id', $selectedDocumentIds)
-            ->orderByDesc('created_at')
-            ->get(['id', 'file_name', 'document_type']);
 
         return view('user-access.edit', compact(
             'user',
@@ -98,9 +90,7 @@ class UserAccessController extends Controller
             'folderTree',
             'roles',
             'selectedProjectIds',
-            'selectedFoldersByProject',
-            'selectedDocumentIds',
-            'grantedDocuments'
+            'selectedFoldersByProject'
         ));
     }
 
@@ -115,8 +105,6 @@ class UserAccessController extends Controller
             'folders' => ['nullable', 'array'],
             'folders.*' => ['nullable', 'array'],
             'folders.*.*' => ['string', 'max:255'],
-            'document_ids' => ['nullable', 'array'],
-            'document_ids.*' => ['integer', 'exists:documents,id'],
         ]);
 
         $this->applyAccessFromRequest($user, $validated);
@@ -152,7 +140,6 @@ class UserAccessController extends Controller
             $validated['project_ids'] ?? [],
             $this->normalizeFoldersInput($validated['folders'] ?? [])
         );
-        $this->access->syncUserDocumentAccess($user, $validated['document_ids'] ?? []);
     }
 
     /**

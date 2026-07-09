@@ -30,8 +30,6 @@
         'folderTree' => $folderTree,
         'selectedProjectIds' => $selectedProjectIds,
         'selectedFoldersByProject' => $selectedFoldersByProject,
-        'selectedDocumentIds' => $selectedDocumentIds,
-        'grantedDocuments' => $grantedDocuments,
         'isEdit' => true,
     ])
 </form>

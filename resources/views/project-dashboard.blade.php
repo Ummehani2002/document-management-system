@@ -23,34 +23,32 @@
     </form>
 
     @if($searchQuery !== '' && $projects->isNotEmpty())
-        <div class="card" style="margin-bottom: 20px;">
-            <p style="margin: 0 0 12px; color: #334155;">Several projects match <strong>{{ $searchQuery }}</strong>. Pick one:</p>
-            <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; min-width: 520px;">
-                    <thead>
-                        <tr style="background: #212d3e; color: #fff;">
-                            <th style="text-align: left; padding: 10px 12px;">Project number</th>
-                            <th style="text-align: left; padding: 10px 12px;">Project name</th>
-                            <th style="text-align: left; padding: 10px 12px;">Entity</th>
-                            <th style="text-align: right; padding: 10px 12px;">PDFs</th>
-                            <th style="text-align: right; padding: 10px 12px;">Action</th>
+        <div class="card dms-grid-wrap" style="margin-bottom: 20px;">
+            <p style="margin: 0 0 12px; padding: 16px 16px 0; color: #334155;">Several projects match <strong>{{ $searchQuery }}</strong>. Pick one:</p>
+            <table class="dms-grid-table min-w-sm">
+                <thead>
+                    <tr>
+                        <th>Project number</th>
+                        <th>Project name</th>
+                        <th>Entity</th>
+                        <th class="text-right">PDFs</th>
+                        <th class="text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($projects as $p)
+                        <tr>
+                            <td>{{ $p->project_number }}</td>
+                            <td>{{ $p->project_name }}</td>
+                            <td>{{ $p->entity?->name ?? '—' }}</td>
+                            <td class="text-right">{{ (int) ($p->documents_count ?? 0) }}</td>
+                            <td class="text-right">
+                                <a href="{{ route('project-dashboard', ['project_id' => $p->id]) }}">View</a>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($projects as $p)
-                            <tr style="border-bottom: 1px solid #e2e8f0;">
-                                <td style="padding: 10px 12px;">{{ $p->project_number }}</td>
-                                <td style="padding: 10px 12px;">{{ $p->project_name }}</td>
-                                <td style="padding: 10px 12px;">{{ $p->entity?->name ?? '—' }}</td>
-                                <td style="padding: 10px 12px; text-align: right;">{{ (int) ($p->documents_count ?? 0) }}</td>
-                                <td style="padding: 10px 12px; text-align: right;">
-                                    <a href="{{ route('project-dashboard', ['project_id' => $p->id]) }}">View</a>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
     @elseif($searchQuery !== '' && !$project && $projects->isEmpty())
         <div class="card" style="border-color: #e2e8f0;">
@@ -76,13 +74,13 @@
                 <p style="margin: 0;">No PDFs uploaded for this project yet.</p>
             </div>
         @else
-            <div class="card" style="padding: 0; overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; min-width: 720px;">
+            <div class="card dms-grid-wrap">
+                <table class="dms-grid-table min-w-md">
                     <thead>
-                        <tr style="background: #212d3e; color: #fff;">
-                            <th style="text-align: left; padding: 10px 12px;">PDF</th>
-                            <th style="text-align: left; padding: 10px 12px;">Category / folder</th>
-                            <th style="text-align: right; padding: 10px 12px;">Actions</th>
+                        <tr>
+                            <th>PDF</th>
+                            <th>Category / folder</th>
+                            <th class="text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -102,14 +100,14 @@
                                     'document_type' => $docType,
                                 ], fn ($v) => $v !== null && $v !== ''));
                             @endphp
-                            <tr style="border-bottom: 1px solid #e2e8f0;">
-                                <td style="padding: 10px 12px;">
+                            <tr>
+                                <td>
                                     <span style="word-break: break-word;">{{ $doc->file_name }}</span>
                                 </td>
-                                <td style="padding: 10px 12px; color: #334155; font-size: 0.95rem;">
+                                <td style="color: #334155; font-size: 0.95rem;">
                                     {{ \App\Services\DocumentFilenameParser::folderDisplayLabel($doc->document_type, $doc->file_name, $doc->ocr_text) }}
                                 </td>
-                                <td style="padding: 10px 12px; text-align: right; white-space: nowrap;">
+                                <td class="text-right" style="white-space: nowrap;">
                                     <a href="{{ $folderSearchUrl }}">View</a>
                                     @if(!empty($doc->file_available))
                                         <span style="color: #cbd5e1;"> | </span>

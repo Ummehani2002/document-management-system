@@ -17,24 +17,32 @@
         <p>No disciplines yet. <a href="{{ route('disciplines.create') }}">Add a discipline</a> — it will appear in Upload and Search.</p>
     </div>
 @else
-    <div class="card">
-        <ul style="list-style: none; padding: 0; margin: 0;">
-            @foreach($disciplines as $discipline)
-                <li style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
-                    <span>{{ $discipline->name }}</span>
-                    <span>
-                        <a href="{{ route('disciplines.edit', $discipline) }}">Edit</a>
-                        &nbsp;·&nbsp;
-                        <form action="{{ route('disciplines.destroy', $discipline) }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete this discipline?');">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" style="background: none; border: none; padding: 0; color: #b91c1c; cursor: pointer; text-decoration: underline;">Delete</button>
-                        </form>
-                    </span>
-                </li>
-            @endforeach
-        </ul>
-        <div style="margin-top: 16px;">{{ $disciplines->links() }}</div>
+    <div class="card dms-grid-wrap">
+        <table class="dms-grid-table">
+            <thead>
+                <tr>
+                    <th>Discipline</th>
+                    <th class="text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($disciplines as $discipline)
+                    <tr>
+                        <td>{{ $discipline->name }}</td>
+                        <td class="text-right" style="white-space: nowrap;">
+                            <a href="{{ route('disciplines.edit', $discipline) }}">Edit</a>
+                            &nbsp;·&nbsp;
+                            <form action="{{ route('disciplines.destroy', $discipline) }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete this discipline?');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" style="background: none; border: none; padding: 0; color: #b91c1c; cursor: pointer; text-decoration: underline;">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+        <div style="margin-top: 16px; padding: 0 16px 16px;">{{ $disciplines->links() }}</div>
     </div>
 @endif
 

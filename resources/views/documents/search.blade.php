@@ -89,30 +89,6 @@
         background: #fff;
     }
 
-    .doc-grid-table {
-        width: 100%;
-        border-collapse: collapse;
-        min-width: 1100px;
-    }
-
-    .doc-grid-table th,
-    .doc-grid-table td {
-        border: 1px solid #cbd5e1;
-        padding: 10px;
-        text-align: left;
-        vertical-align: top;
-    }
-
-    .doc-grid-table thead th {
-        background: #212d3e;
-        color: #fff;
-        border-color: #2d3a52;
-    }
-
-    .doc-grid-table tbody tr:nth-child(even) td {
-        background: #f8fafc;
-    }
-
     .share-modal {
         position: fixed;
         inset: 0;
@@ -591,21 +567,21 @@
             </form>
 
             <section>
-                <div class="card" style="padding: 0; overflow-x: auto; margin-top: 0;">
-                    <table style="width: 100%; border-collapse: collapse; min-width: 1150px;">
+                <div class="card dms-grid-wrap" style="margin-top: 0;">
+                    <table class="dms-grid-table min-w-lg">
                         <thead>
-                            <tr style="border-bottom: 1px solid #e2e8f0; background: #212d3e; color: #fff;">
-                                <th style="text-align: left; padding: 10px;">Name</th>
-                                <th style="text-align: left; padding: 10px;">Reference No</th>
-                                <th style="text-align: left; padding: 10px;">Subject</th>
-                                <th style="text-align: left; padding: 10px;">Project Discipline</th>
-                                <th style="text-align: left; padding: 10px;">Project Number</th>
-                                <th style="text-align: left; padding: 10px;">Project Name</th>
-                                <th style="text-align: left; padding: 10px;">Project Client</th>
-                                <th style="text-align: left; padding: 10px;">Project Consultant</th>
-                                <th style="text-align: left; padding: 10px;">Modified</th>
-                                <th style="text-align: left; padding: 10px;">Modified By</th>
-                                <th style="text-align: center; padding: 10px; width: 48px;"></th>
+                            <tr>
+                                <th>Name</th>
+                                <th>Reference No</th>
+                                <th>Subject</th>
+                                <th>Project Discipline</th>
+                                <th>Project Number</th>
+                                <th>Project Name</th>
+                                <th>Project Client</th>
+                                <th>Project Consultant</th>
+                                <th>Modified</th>
+                                <th>Modified By</th>
+                                <th class="text-center" style="width: 48px;"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -615,8 +591,8 @@
                                     $referenceNo = $meta['reference_no'] ?? '—';
                                     $subject = $meta['subject'] ?? '—';
                                 @endphp
-                                <tr style="border-bottom: 1px solid #e2e8f0;">
-                                    <td style="padding: 10px;">
+                                <tr>
+                                    <td>
                                         @if(!empty($doc->file_available))
                                             <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank">{{ $doc->file_name }}</a>
                                         @else
@@ -624,16 +600,16 @@
                                             <div style="color:#b91c1c; font-size:0.8rem; margin-top:4px;">File unavailable in storage</div>
                                         @endif
                                     </td>
-                                    <td style="padding: 10px;">{{ $referenceNo }}</td>
-                                    <td style="padding: 10px;">{{ $subject }}</td>
-                                    <td style="padding: 10px;">{{ $doc->discipline ?: '—' }}</td>
-                                    <td style="padding: 10px;">{{ $doc->project?->project_number ?? '—' }}</td>
-                                    <td style="padding: 10px;">{{ $doc->project?->project_name ?? '—' }}</td>
-                                    <td style="padding: 10px;">{{ $doc->project?->client_name ?? '—' }}</td>
-                                    <td style="padding: 10px;">{{ $doc->project?->consultant ?? '—' }}</td>
-                                    <td style="padding: 10px;">{{ format_model_datetime($doc, 'updated_at') }}</td>
-                                    <td style="padding: 10px;">{{ $doc->modifiedBy?->username ?? '—' }}</td>
-                                    <td style="padding: 10px; text-align: center;">
+                                    <td>{{ $referenceNo }}</td>
+                                    <td>{{ $subject }}</td>
+                                    <td>{{ $doc->discipline ?: '—' }}</td>
+                                    <td>{{ $doc->project?->project_number ?? '—' }}</td>
+                                    <td>{{ $doc->project?->project_name ?? '—' }}</td>
+                                    <td>{{ $doc->project?->client_name ?? '—' }}</td>
+                                    <td>{{ $doc->project?->consultant ?? '—' }}</td>
+                                    <td>{{ format_model_datetime($doc, 'updated_at') }}</td>
+                                    <td>{{ $doc->modifiedBy?->username ?? '—' }}</td>
+                                    <td class="text-center">
                                         <div class="doc-actions-menu">
                                             <button
                                                 type="button"
@@ -737,8 +713,8 @@
             });
         </script>
     @else
-        <div class="card" style="padding: 0; overflow-x: auto; margin-top: 0;">
-            <table class="doc-grid-table">
+        <div class="card dms-grid-wrap" style="margin-top: 0;">
+            <table class="dms-grid-table min-w-lg">
                 <thead>
                     <tr>
                         <th>Name</th>

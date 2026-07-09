@@ -103,29 +103,6 @@
     @endif
 </div>
 
-<div class="card" style="margin-bottom: 20px;">
-    <h3 style="margin-top: 0;">Specific documents (optional)</h3>
-    <p style="color: #64748b;">
-        Grant access to individual PDFs/files — useful when a user should see only certain documents,
-        or selected files <em>in addition to</em> project access above.
-    </p>
-
-    @if($grantedDocuments->isNotEmpty())
-        <div>
-            <div style="font-weight: 500; margin-bottom: 8px;">Currently granted</div>
-            @foreach ($grantedDocuments as $doc)
-                <label style="display:flex; gap:8px; align-items:flex-start; margin-bottom:6px;">
-                    <input type="checkbox" name="document_ids[]" value="{{ $doc->id }}" checked>
-                    <span>{{ $doc->file_name }} <span style="color:#64748b;">({{ $doc->document_type ?: 'Other' }})</span></span>
-                </label>
-            @endforeach
-            <p style="color:#64748b; margin:8px 0 0;">Uncheck a file to remove its individual grant.</p>
-        </div>
-    @else
-        <p style="color:#64748b; margin:0;">No individual documents granted. Use project access above, or assign <strong>Admin</strong> for full access.</p>
-    @endif
-</div>
-
 <p style="margin-top: 20px;">
     <button type="submit" style="padding: 10px 24px; background: #212d3e; color: #fff; border: none; border-radius: 5px; cursor: pointer;">
         {{ ($isEdit ?? false) ? 'Save access' : 'Add user' }}
