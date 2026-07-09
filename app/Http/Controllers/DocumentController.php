@@ -565,8 +565,18 @@ class DocumentController extends Controller
                 }
             }
 
+            $latestIds = DocumentFileVersioning::pickLatestDocumentIds(
+                (clone $query)->get(['id', 'file_name', 'project_id'])
+            );
+            if ($latestIds !== []) {
+                $query->whereIn('id', $latestIds);
+            }
+
             $documents = $query->paginate(10)->withQueryString();
             $collection = $documents->getCollection();
+            $familyCounts = DocumentFileVersioning::familyCountsForProjects(
+                $collection->pluck('project_id')->all()
+            );
             $missingModifierIds = $collection
                 ->filter(fn (Document $document) => $document->modified_by_user_id === null)
                 ->pluck('id');
@@ -587,12 +597,15 @@ class DocumentController extends Controller
                     ->map(fn ($group) => $group->first()?->user);
             }
 
-            $collection->transform(function (Document $document) use ($activityUsers) {
+            $collection->transform(function (Document $document) use ($activityUsers, $familyCounts) {
                 $document->file_available = $this->resolveDocumentLocation((string) $document->file_path) !== null;
 
                 if ($document->modifiedBy === null && $activityUsers->has($document->id)) {
                     $document->setRelation('modifiedBy', $activityUsers->get($document->id));
                 }
+
+                $familyKey = ((int) $document->project_id).'|'.DocumentFileVersioning::logicalFamilyKey((string) $document->file_name);
+                $document->older_versions_count = max(0, ($familyCounts[$familyKey] ?? 1) - 1);
 
                 return $document;
             });
@@ -678,6 +691,47 @@ class DocumentController extends Controller
             'saved' => true,
             'new_document_id' => (int) ($payload['new_document_id'] ?? 0),
             'new_file_name' => (string) ($payload['new_file_name'] ?? ''),
+        ]);
+    }
+
+    public function versions(Request $request, int $id)
+    {
+        $document = Document::query()->find($id);
+
+        if ($document === null) {
+            abort(404, 'Document not found.');
+        }
+
+        $this->authorizeDocument($document);
+
+        $user = $request->user();
+        $olderVersions = DocumentFileVersioning::versionFamilyDocuments($document)
+            ->filter(fn (Document $row) => (int) $row->id !== (int) $document->id)
+            ->filter(fn (Document $row) => $this->access->canAccessDocument($user, $row))
+            ->sort(fn (Document $left, Document $right) => DocumentFileVersioning::compareFilenames(
+                (string) $right->file_name,
+                (string) $left->file_name
+            ))
+            ->values()
+            ->map(function (Document $row) {
+                $available = $this->resolveDocumentLocation((string) $row->file_path) !== null;
+
+                return [
+                    'id' => $row->id,
+                    'file_name' => $row->file_name,
+                    'updated_at' => format_model_datetime($row, 'updated_at'),
+                    'file_available' => $available,
+                    'view_url' => $available ? route('documents.view', ['id' => $row->id]) : null,
+                    'download_url' => $available ? route('documents.download', ['id' => $row->id]) : null,
+                ];
+            });
+
+        return response()->json([
+            'current' => [
+                'id' => $document->id,
+                'file_name' => $document->file_name,
+            ],
+            'older_versions' => $olderVersions,
         ]);
     }
 

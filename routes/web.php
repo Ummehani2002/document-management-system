@@ -51,6 +51,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/documents/{id}/view', [DocumentController::class, 'viewPdf'])->name('documents.view')->where('id', '[0-9]+');
     Route::get('/documents/{id}/preview-url', [DocumentController::class, 'previewUrl'])->name('documents.preview-url')->where('id', '[0-9]+');
     Route::get('/download/pdf/{id}/view', [DocumentController::class, 'viewPdf'])->where('id', '[0-9]+');
+    Route::get('/documents/{id}/versions', [DocumentController::class, 'versions'])->name('documents.versions')->where('id', '[0-9]+');
     Route::get('/documents/{id}/version-save-status', [DocumentController::class, 'versionSaveStatus'])->name('documents.version-save-status')->where('id', '[0-9]+');
     Route::get('/documents/{id}/edit', [DocumentController::class, 'edit'])->name('documents.edit')->where('id', '[0-9]+');
     Route::post('/documents/{id}/replace', [DocumentController::class, 'replace'])->name('documents.replace')->where('id', '[0-9]+');

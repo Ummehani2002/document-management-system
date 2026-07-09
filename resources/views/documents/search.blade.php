@@ -103,6 +103,65 @@
         display: flex;
     }
 
+    .versions-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .versions-modal.is-open {
+        display: flex;
+    }
+
+    .versions-modal-card {
+        position: relative;
+        width: 100%;
+        max-width: 720px;
+        max-height: 80vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        box-shadow: 0 24px 60px -24px rgba(15, 23, 42, 0.45);
+        padding: 24px 24px 20px;
+    }
+
+    .versions-modal-card h3 {
+        margin: 0 0 6px;
+        font-size: 1.15rem;
+        color: #212d3e;
+    }
+
+    .versions-modal-file {
+        margin: 0 0 16px;
+        color: #64748b;
+        font-size: 0.88rem;
+        word-break: break-word;
+    }
+
+    .versions-modal-body {
+        overflow-y: auto;
+        margin-bottom: 16px;
+    }
+
+    .versions-modal-empty {
+        color: #64748b;
+        margin: 0;
+        padding: 8px 0;
+    }
+
+    .versions-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
     .share-modal-backdrop {
         position: absolute;
         inset: 0;
@@ -618,6 +677,9 @@
                                                 aria-label="Document actions"
                                             >&#8942;</button>
                                             <div id="doc-actions-dropdown-{{ $doc->id }}" class="doc-actions-dropdown" style="display: none;" onclick="event.stopPropagation();">
+                                                @if(!empty($doc->older_versions_count))
+                                                    <button type="button" class="doc-older-versions-btn" data-versions-id="{{ $doc->id }}" data-versions-file="{{ $doc->file_name }}">Older versions ({{ $doc->older_versions_count }})</button>
+                                                @endif
                                                 @if(!empty($doc->file_available))
                                                     <button type="button" onclick="closeDocActionsMenu('{{ $doc->id }}'); toggleInlinePreview('{{ $doc->id }}')">View</button>
                                                     <a href="{{ route('documents.edit', ['id' => $doc->id, 'return_url' => request()->fullUrl()]) }}">Edit</a>
@@ -758,6 +820,9 @@
                                         aria-label="Document actions"
                                     >&#8942;</button>
                                     <div id="doc-actions-dropdown-{{ $doc->id }}" class="doc-actions-dropdown" style="display: none;" onclick="event.stopPropagation();">
+                                        @if(!empty($doc->older_versions_count))
+                                            <button type="button" class="doc-older-versions-btn" data-versions-id="{{ $doc->id }}" data-versions-file="{{ $doc->file_name }}">Older versions ({{ $doc->older_versions_count }})</button>
+                                        @endif
                                         @if(!empty($doc->file_available))
                                             <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>
                                             <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open in new tab</a>
@@ -873,6 +938,20 @@
                 <button type="submit" class="share-modal-send" id="share-modal-send-btn">Send email</button>
             </div>
         </form>
+    </div>
+</div>
+
+<div id="versions-modal" class="versions-modal share-modal" aria-hidden="true">
+    <div class="share-modal-backdrop" onclick="closeVersionsModal()"></div>
+    <div class="versions-modal-card" role="dialog" aria-labelledby="versions-modal-title" aria-modal="true">
+        <h3 id="versions-modal-title">Older versions</h3>
+        <p id="versions-modal-file" class="versions-modal-file"></p>
+        <div id="versions-modal-body" class="versions-modal-body">
+            <p class="versions-modal-empty">Loading versions…</p>
+        </div>
+        <div class="versions-modal-actions">
+            <button type="button" onclick="closeVersionsModal()">Close</button>
+        </div>
     </div>
 </div>
 
@@ -1300,7 +1379,97 @@
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape') {
             closeShareModal();
+            closeVersionsModal();
         }
+    });
+
+    var documentVersionsUrlTemplate = @json(url('/documents/__ID__/versions'));
+
+    function documentVersionsUrl(documentId) {
+        return documentVersionsUrlTemplate.replace('__ID__', String(documentId));
+    }
+
+    function closeVersionsModal() {
+        var modal = document.getElementById('versions-modal');
+        if (!modal) return;
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+
+    function renderOlderVersionsTable(versions) {
+        if (!versions.length) {
+            return '<p class="versions-modal-empty">No older versions found for this file.</p>';
+        }
+
+        var rows = versions.map(function (version) {
+            var actions = [];
+            if (version.view_url) {
+                actions.push('<a href="' + version.view_url + '" target="_blank" rel="noopener">View</a>');
+            }
+            if (version.download_url) {
+                actions.push('<a href="' + version.download_url + '">Download</a>');
+            }
+            if (!actions.length) {
+                actions.push('<span style="color:#b91c1c;">File missing</span>');
+            }
+
+            return '<tr>'
+                + '<td style="word-break:break-word;">' + version.file_name + '</td>'
+                + '<td style="white-space:nowrap;">' + (version.updated_at || '—') + '</td>'
+                + '<td class="text-right" style="white-space:nowrap;">' + actions.join(' · ') + '</td>'
+                + '</tr>';
+        }).join('');
+
+        return '<table class="dms-grid-table min-w-md">'
+            + '<thead><tr><th>File</th><th>Modified</th><th class="text-right">Actions</th></tr></thead>'
+            + '<tbody>' + rows + '</tbody>'
+            + '</table>';
+    }
+
+    function openVersionsModal(documentId, fileName) {
+        var modal = document.getElementById('versions-modal');
+        var fileEl = document.getElementById('versions-modal-file');
+        var bodyEl = document.getElementById('versions-modal-body');
+        if (!modal || !fileEl || !bodyEl) return;
+
+        fileEl.textContent = fileName || 'Document';
+        bodyEl.innerHTML = '<p class="versions-modal-empty">Loading versions…</p>';
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+
+        fetch(documentVersionsUrl(documentId), {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('Could not load older versions.');
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                bodyEl.innerHTML = renderOlderVersionsTable(Array.isArray(data.older_versions) ? data.older_versions : []);
+            })
+            .catch(function () {
+                bodyEl.innerHTML = '<p class="versions-modal-empty">Could not load older versions. Please try again.</p>';
+            });
+    }
+
+    document.querySelectorAll('.doc-older-versions-btn').forEach(function (button) {
+        button.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            var documentId = button.getAttribute('data-versions-id');
+            closeDocActionsMenu(documentId);
+            openVersionsModal(
+                documentId,
+                button.getAttribute('data-versions-file') || 'Document'
+            );
+        });
     });
 
     @if($shareErrorDocId)
