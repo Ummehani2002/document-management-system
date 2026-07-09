@@ -462,7 +462,7 @@
                 style="width: 100%; max-width: 220px; height: auto; object-fit: contain; object-position: center; display:block; transform: scale(1.18);"
             />
         </div>
-        <h3>Folders</h3>
+        <h3>Document types</h3>
         @php
             $sidebarFolders = collect(app(\App\Services\DocumentAccessService::class)->accessibleSidebarFolderTree(auth()->user()))
                 ->map(fn (array $items, string $name): array => ['name' => $name, 'items' => $items])
@@ -496,7 +496,7 @@
     <main class="main-content">
         <div id="folderBlocksMain" class="folder-blocks-main" hidden>
             <div class="folder-blocks-main-inner">
-                <h2 class="folder-blocks-main-heading" id="folderBlocksTitle">Subfolders</h2>
+                <h2 class="folder-blocks-main-heading" id="folderBlocksTitle">Document types</h2>
                 <div class="folder-blocks-main-grid" id="folderBlocksGrid"></div>
             </div>
         </div>
@@ -533,13 +533,13 @@
         function renderSubfolders(index) {
             var selectedFolder = folderData[index];
             var items = selectedFolder && selectedFolder.items ? selectedFolder.items : [];
-            folderBlocksTitle.textContent = selectedFolder ? selectedFolder.name : 'Subfolders';
+            folderBlocksTitle.textContent = selectedFolder ? selectedFolder.name : 'Document types';
             folderBlocksGrid.innerHTML = '';
 
             if (!items.length) {
                 var empty = document.createElement('div');
                 empty.className = 'folder-blocks-main-empty';
-                empty.textContent = 'No subfolders.';
+                empty.textContent = 'No document types.';
                 folderBlocksGrid.appendChild(empty);
                 return;
             }
