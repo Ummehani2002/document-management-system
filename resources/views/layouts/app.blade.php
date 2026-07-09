@@ -266,6 +266,18 @@
             background: rgba(196, 164, 124, 0.2);
         }
 
+        .sidebar-logo-wrap {
+            background: #ffffff;
+            border: 2px solid var(--gold);
+            border-radius: 10px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 8px;
+        }
+
         .folder-blocks-main {
             max-width: min(100%, 1480px);
             width: 100%;
@@ -455,7 +467,7 @@
 
 <div class="layout-row">
     <aside class="sidebar">
-        <div style="background:#ffffff; border-radius:10px; margin-bottom:14px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+        <div class="sidebar-logo-wrap">
             <img
                 src="{{ asset('images/tanseeq.png') }}"
                 alt="TANSEEQ INVESTMENT"

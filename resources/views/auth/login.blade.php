@@ -161,12 +161,17 @@
             display: flex;
             justify-content: center;
             margin-bottom: 26px;
+            padding: 14px 18px;
+            background: #fff;
+            border: 2px solid var(--gold);
+            border-radius: 12px;
         }
 
         .logo-wrap img {
             width: 168px;
             height: auto;
             object-fit: contain;
+            display: block;
         }
 
         .auth-card h1 {
@@ -233,35 +238,8 @@
         .ms-logo .s3 { background: #00a4ef; }
         .ms-logo .s4 { background: #ffb900; }
 
-        .divider {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin: 24px 0;
-            color: #94a3b8;
-            font-size: 0.78rem;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-        }
-        .divider::before, .divider::after {
-            content: "";
-            flex: 1;
-            height: 1px;
-            background: var(--border);
-        }
-
-        .secure-note {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            color: var(--text-muted);
-            font-size: 0.82rem;
-        }
-        .secure-note svg { flex: none; }
-
         .form-footer {
-            margin-top: 30px;
+            margin-top: 24px;
             text-align: center;
             color: #94a3b8;
             font-size: 0.78rem;
@@ -318,16 +296,6 @@
                 </span>
                 <span>Sign in with Microsoft</span>
             </a>
-
-            <div class="divider">Secure sign-in</div>
-
-            <div class="secure-note">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg>
-                <span>Protected by your organization's Microsoft account</span>
-            </div>
 
             <div class="form-footer">
                 &copy; {{ date('Y') }} Tanseeq Investment · Document Management System
