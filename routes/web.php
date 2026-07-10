@@ -7,6 +7,7 @@ use App\Http\Controllers\DocumentDirectUploadController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EntityController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\SummaryDashboardController;
 use App\Http\Controllers\ProjectDashboardController;
 use App\Http\Controllers\DisciplineController;
 use App\Http\Controllers\UserActivityController;
@@ -18,6 +19,8 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('/dashboard', DashboardController::class)->middleware(['auth'])->name('dashboard');
+Route::get('/summary-dashboard', [SummaryDashboardController::class, 'index'])->middleware(['auth'])->name('summary-dashboard');
+Route::get('/summary-dashboard/download', [SummaryDashboardController::class, 'download'])->middleware(['auth'])->name('summary-dashboard.download');
 Route::get('/project-dashboard', [ProjectDashboardController::class, 'index'])->middleware(['auth'])->name('project-dashboard');
 
 Route::get('/documents/{id}/office-source', [OnlyOfficeController::class, 'source'])->name('documents.office-source')->where('id', '[0-9]+');

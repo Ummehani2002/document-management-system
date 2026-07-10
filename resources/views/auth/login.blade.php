@@ -260,7 +260,7 @@
         <div class="auth-card">
             <img
                 class="login-logo"
-                src="{{ asset('images/tanseeq.png') }}?v=4"
+                src="{{ asset('images/tanseeq.png') }}?v=5"
                 alt="Tanseeq Investment"
             >
 

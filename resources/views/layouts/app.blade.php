@@ -456,6 +456,7 @@
     <div><strong>Document Management System</strong></div>
     <div>
         <a href="{{ route('dashboard') }}">Home</a>
+        <a href="{{ route('summary-dashboard') }}">Dashboard</a>
         <a href="{{ route('project-dashboard') }}">Project Dashboard</a>
         <a href="{{ route('entities.index') }}">Entities</a>
         <a href="{{ route('projects.index') }}">Project Master</a>
@@ -473,7 +474,7 @@
     <aside class="sidebar">
         <div class="sidebar-logo-wrap">
             <img
-                src="{{ asset('images/tanseeq.png') }}?v=4"
+                src="{{ asset('images/tanseeq.png') }}?v=5"
                 alt="TANSEEQ INVESTMENT"
             />
         </div>
