@@ -13,54 +13,12 @@
     </p>
 
     <div class="card" style="padding: 18px 20px; margin-bottom: 18px;">
-        <form method="GET" action="{{ route('summary-dashboard') }}" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+        <form id="dash-filter-form" method="GET" action="{{ route('summary-dashboard') }}" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
             <input type="hidden" name="tab" id="filter_tab" value="{{ $activeTab }}">
-            <div style="min-width: 220px;">
-                <label for="entity_id" style="margin-bottom:6px;">Entity</label>
-                <select id="entity_id" name="entity_id" style="margin:0;">
-                    <option value="">All entities</option>
-                    @foreach($entities as $entity)
-                        <option value="{{ $entity->id }}" {{ (int) $selectedEntityId === (int) $entity->id ? 'selected' : '' }}>
-                            {{ $entity->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div style="min-width: 280px;">
-                <label for="project_id" style="margin-bottom:6px;">Project</label>
-                <select id="project_id" name="project_id" style="margin:0;" {{ (int) $selectedEntityId <= 0 ? 'disabled' : '' }}>
-                    <option value="">All projects</option>
-                    @foreach($filterProjects as $project)
-                        <option value="{{ $project->id }}" {{ (int) $selectedProjectId === (int) $project->id ? 'selected' : '' }}>
-                            {{ trim($project->project_number.' — '.$project->project_name) }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div style="min-width: 240px;">
-                <label for="main_folder" style="margin-bottom:6px;">Category</label>
-                <select id="main_folder" name="main_folder" style="margin:0;">
-                    <option value="">All categories</option>
-                    @foreach(array_keys($folderTree) as $mainFolderName)
-                        <option value="{{ $mainFolderName }}" {{ $selectedMainFolder === $mainFolderName ? 'selected' : '' }}>
-                            {{ $mainFolderName }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div style="min-width: 240px;">
-                <label for="document_type" style="margin-bottom:6px;">Folder</label>
-                <select id="document_type" name="document_type" style="margin:0;" {{ $selectedMainFolder === '' ? 'disabled' : '' }}>
-                    <option value="">All folders</option>
-                    @if($selectedMainFolder !== '')
-                        @foreach($folderTree[$selectedMainFolder] ?? [] as $subfolder)
-                            <option value="{{ $subfolder }}" {{ $selectedDocumentType === $subfolder ? 'selected' : '' }}>
-                                {{ $subfolder }}
-                            </option>
-                        @endforeach
-                    @endif
-                </select>
-            </div>
+            <input type="hidden" name="entity_id" id="entity_id" value="{{ (int) $selectedEntityId > 0 ? (int) $selectedEntityId : '' }}">
+            <input type="hidden" name="project_id" id="project_id" value="{{ (int) $selectedProjectId > 0 ? (int) $selectedProjectId : '' }}">
+            <input type="hidden" name="main_folder" id="main_folder" value="{{ $selectedMainFolder }}">
+            <input type="hidden" name="document_type" id="document_type" value="{{ $selectedDocumentType }}">
             <div>
                 <label for="date_from" style="margin-bottom:6px;">From date</label>
                 <input type="date" id="date_from" name="date_from" value="{{ $dateFrom }}">
@@ -69,8 +27,8 @@
                 <label for="date_to" style="margin-bottom:6px;">To date</label>
                 <input type="date" id="date_to" name="date_to" value="{{ $dateTo }}">
             </div>
-            <button type="submit">Apply filters</button>
-            <a href="{{ route('summary-dashboard') }}" style="padding:10px 14px; color:#475569; text-decoration:none;">Reset</a>
+            <button type="submit">Apply dates</button>
+            <a href="{{ route('summary-dashboard', ['tab' => $activeTab]) }}" style="padding:10px 14px; color:#475569; text-decoration:none;">Reset</a>
         </form>
     </div>
 
@@ -92,7 +50,7 @@
                 <div>
                     <h3 style="margin:0;">Entity-wise report</h3>
                     <p style="margin:6px 0 0; color:#64748b; font-size:0.92rem;">
-                        {{ number_format($totalDocuments) }} document(s) across {{ number_format($byEntity->count()) }} entit{{ $byEntity->count() === 1 ? 'y' : 'ies' }}.
+                        {{ number_format($entityTabTotal) }} document(s) across {{ number_format($byEntity->count()) }} entit{{ $byEntity->count() === 1 ? 'y' : 'ies' }}.
                     </p>
                 </div>
                 @include('summary-dashboard._download-button', ['tab' => 'entity'])
@@ -104,11 +62,28 @@
         </div>
 
         <div class="dash-tab-panel {{ $activeTab === 'project' ? 'is-active' : '' }}" data-panel="project" role="tabpanel">
+            <div class="dash-panel-filters">
+                <div style="min-width: 220px;">
+                    <label for="project_entity_select" style="margin-bottom:6px;">Entity</label>
+                    <select id="project_entity_select" style="margin:0; min-width:220px;">
+                        <option value="">All entities</option>
+                        @foreach($entities as $entity)
+                            <option value="{{ $entity->id }}" {{ (int) $selectedEntityId === (int) $entity->id ? 'selected' : '' }}>
+                                {{ $entity->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <p style="margin:0; color:#64748b; font-size:0.88rem;">Choose an entity to narrow this chart, or leave as all entities.</p>
+            </div>
             <div class="dash-panel-head">
                 <div>
                     <h3 style="margin:0;">Project-wise report</h3>
                     <p style="margin:6px 0 0; color:#64748b; font-size:0.92rem;">
-                        {{ number_format($totalDocuments) }} document(s) across {{ number_format($byProject->count()) }} project(s).
+                        {{ number_format($projectTabTotal) }} document(s) across {{ number_format($byProject->count()) }} project(s).
+                        @if((int) $selectedEntityId > 0)
+                            <span>Filtered by {{ $entities->firstWhere('id', $selectedEntityId)?->name }}.</span>
+                        @endif
                     </p>
                 </div>
                 @include('summary-dashboard._download-button', ['tab' => 'project'])
@@ -120,11 +95,59 @@
         </div>
 
         <div class="dash-tab-panel {{ $activeTab === 'category' ? 'is-active' : '' }}" data-panel="category" role="tabpanel">
+            <div class="dash-panel-filters">
+                <div style="min-width: 220px;">
+                    <label for="category_entity_select" style="margin-bottom:6px;">Entity</label>
+                    <select id="category_entity_select" style="margin:0; min-width:220px;">
+                        <option value="">All entities</option>
+                        @foreach($entities as $entity)
+                            <option value="{{ $entity->id }}" {{ (int) $selectedEntityId === (int) $entity->id ? 'selected' : '' }}>
+                                {{ $entity->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div style="min-width: 280px;">
+                    <label for="category_project_select" style="margin-bottom:6px;">Project</label>
+                    <select id="category_project_select" style="margin:0; min-width:280px;" {{ (int) $selectedEntityId <= 0 ? 'disabled' : '' }}>
+                        <option value="">All projects</option>
+                        @foreach($filterProjects as $project)
+                            <option value="{{ $project->id }}" {{ (int) $selectedProjectId === (int) $project->id ? 'selected' : '' }}>
+                                {{ trim($project->project_number.' — '.$project->project_name) }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div style="min-width: 240px;">
+                    <label for="category_main_folder_select" style="margin-bottom:6px;">Category</label>
+                    <select id="category_main_folder_select" style="margin:0; min-width:240px;">
+                        <option value="">All categories</option>
+                        @foreach(array_keys($folderTree) as $mainFolderName)
+                            <option value="{{ $mainFolderName }}" {{ $selectedMainFolder === $mainFolderName ? 'selected' : '' }}>
+                                {{ $mainFolderName }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div style="min-width: 240px;">
+                    <label for="category_document_type_select" style="margin-bottom:6px;">Folder</label>
+                    <select id="category_document_type_select" style="margin:0; min-width:240px;" {{ $selectedMainFolder === '' ? 'disabled' : '' }}>
+                        <option value="">All folders</option>
+                        @if($selectedMainFolder !== '')
+                            @foreach($folderTree[$selectedMainFolder] ?? [] as $subfolder)
+                                <option value="{{ $subfolder }}" {{ $selectedDocumentType === $subfolder ? 'selected' : '' }}>
+                                    {{ $subfolder }}
+                                </option>
+                            @endforeach
+                        @endif
+                    </select>
+                </div>
+            </div>
             <div class="dash-panel-head">
                 <div>
                     <h3 style="margin:0;">Category-wise report</h3>
                     <p style="margin:6px 0 0; color:#64748b; font-size:0.92rem;">
-                        {{ number_format($totalDocuments) }} document(s) in {{ number_format($byCategory->count()) }} categor{{ $byCategory->count() === 1 ? 'y' : 'ies' }}.
+                        {{ number_format($categoryTabTotal) }} document(s) in {{ number_format($byCategory->count()) }} categor{{ $byCategory->count() === 1 ? 'y' : 'ies' }}.
                     </p>
                 </div>
                 @include('summary-dashboard._download-button', ['tab' => 'category'])
@@ -189,6 +212,16 @@
             align-items: flex-start;
             gap: 12px;
             margin-bottom: 16px;
+        }
+
+        .dash-panel-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e2e8f0;
         }
 
         .dash-download-btn {
@@ -370,7 +403,44 @@
             }
 
             document.querySelectorAll('.dash-tab').forEach((button) => {
-                button.addEventListener('click', () => switchTab(button.dataset.tab));
+                button.addEventListener('click', () => {
+                    const tab = button.dataset.tab;
+                    document.getElementById('filter_tab').value = tab;
+
+                    if (tab === 'entity') {
+                        document.getElementById('entity_id').value = '';
+                        document.getElementById('project_id').value = '';
+                        document.getElementById('main_folder').value = '';
+                        document.getElementById('document_type').value = '';
+                        document.getElementById('dash-filter-form').submit();
+                        return;
+                    }
+
+                    if (tab === 'project') {
+                        const projectEntitySelect = document.getElementById('project_entity_select');
+                        document.getElementById('entity_id').value = projectEntitySelect ? projectEntitySelect.value : '';
+                        document.getElementById('project_id').value = '';
+                        document.getElementById('main_folder').value = '';
+                        document.getElementById('document_type').value = '';
+                        document.getElementById('dash-filter-form').submit();
+                        return;
+                    }
+
+                    if (tab === 'category') {
+                        const categoryEntitySelect = document.getElementById('category_entity_select');
+                        const categoryProjectSelect = document.getElementById('category_project_select');
+                        const categoryMainFolderSelect = document.getElementById('category_main_folder_select');
+                        const categoryDocumentTypeSelect = document.getElementById('category_document_type_select');
+                        document.getElementById('entity_id').value = categoryEntitySelect ? categoryEntitySelect.value : '';
+                        document.getElementById('project_id').value = categoryProjectSelect ? categoryProjectSelect.value : '';
+                        document.getElementById('main_folder').value = categoryMainFolderSelect ? categoryMainFolderSelect.value : '';
+                        document.getElementById('document_type').value = categoryDocumentTypeSelect ? categoryDocumentTypeSelect.value : '';
+                        document.getElementById('dash-filter-form').submit();
+                        return;
+                    }
+
+                    switchTab(tab);
+                });
             });
 
             switchTab(activeTab);
@@ -380,96 +450,135 @@
         document.addEventListener('DOMContentLoaded', function () {
             var projectsByEntity = @json($projectsByEntity);
             var folderTree = @json($folderTree);
-            var entitySelect = document.getElementById('entity_id');
-            var projectSelect = document.getElementById('project_id');
-            var mainFolderSelect = document.getElementById('main_folder');
-            var documentTypeSelect = document.getElementById('document_type');
-            var selectedProjectId = @json((int) $selectedProjectId);
-            var selectedDocumentType = @json($selectedDocumentType);
+            var filterForm = document.getElementById('dash-filter-form');
+            var entityInput = document.getElementById('entity_id');
+            var projectInput = document.getElementById('project_id');
+            var mainFolderInput = document.getElementById('main_folder');
+            var documentTypeInput = document.getElementById('document_type');
+            var tabInput = document.getElementById('filter_tab');
 
-            function renderProjects() {
-                if (!projectSelect || !entitySelect) return;
+            var projectEntitySelect = document.getElementById('project_entity_select');
+            var categoryEntitySelect = document.getElementById('category_entity_select');
+            var categoryProjectSelect = document.getElementById('category_project_select');
+            var categoryMainFolderSelect = document.getElementById('category_main_folder_select');
+            var categoryDocumentTypeSelect = document.getElementById('category_document_type_select');
 
-                var entityId = entitySelect.value;
+            function submitTabFilters(tab) {
+                tabInput.value = tab;
+                filterForm.submit();
+            }
+
+            function syncHiddenFromCategoryFilters() {
+                entityInput.value = categoryEntitySelect ? categoryEntitySelect.value : '';
+                projectInput.value = categoryProjectSelect ? categoryProjectSelect.value : '';
+                mainFolderInput.value = categoryMainFolderSelect ? categoryMainFolderSelect.value : '';
+                documentTypeInput.value = categoryDocumentTypeSelect ? categoryDocumentTypeSelect.value : '';
+            }
+
+            function renderCategoryProjects() {
+                if (!categoryProjectSelect || !categoryEntitySelect) return;
+
+                var entityId = categoryEntitySelect.value;
                 var projects = projectsByEntity[entityId] || [];
-                projectSelect.innerHTML = '';
+                var currentProjectId = projectInput.value;
+                categoryProjectSelect.innerHTML = '';
 
                 var placeholder = document.createElement('option');
                 placeholder.value = '';
                 placeholder.textContent = 'All projects';
-                projectSelect.appendChild(placeholder);
+                categoryProjectSelect.appendChild(placeholder);
 
                 if (!entityId) {
-                    projectSelect.disabled = true;
-                    projectSelect.value = '';
+                    categoryProjectSelect.disabled = true;
                     return;
                 }
 
-                projectSelect.disabled = false;
+                categoryProjectSelect.disabled = false;
                 projects.forEach(function (project) {
                     var option = document.createElement('option');
                     option.value = String(project.id);
                     option.textContent = project.label;
-                    if (Number(project.id) === Number(selectedProjectId)) {
+                    if (String(project.id) === String(currentProjectId)) {
                         option.selected = true;
                     }
-                    projectSelect.appendChild(option);
+                    categoryProjectSelect.appendChild(option);
                 });
-
-                if (selectedProjectId) {
-                    projectSelect.value = String(selectedProjectId);
-                }
             }
 
-            function renderFolders() {
-                if (!documentTypeSelect || !mainFolderSelect) return;
+            function renderCategoryFolders() {
+                if (!categoryDocumentTypeSelect || !categoryMainFolderSelect) return;
 
-                var mainFolder = mainFolderSelect.value;
-                documentTypeSelect.innerHTML = '';
+                var mainFolder = categoryMainFolderSelect.value;
+                var currentType = documentTypeInput.value;
+                categoryDocumentTypeSelect.innerHTML = '';
 
                 var placeholder = document.createElement('option');
                 placeholder.value = '';
                 placeholder.textContent = 'All folders';
-                documentTypeSelect.appendChild(placeholder);
+                categoryDocumentTypeSelect.appendChild(placeholder);
 
                 if (!mainFolder) {
-                    documentTypeSelect.disabled = true;
-                    documentTypeSelect.value = '';
+                    categoryDocumentTypeSelect.disabled = true;
                     return;
                 }
 
-                documentTypeSelect.disabled = false;
+                categoryDocumentTypeSelect.disabled = false;
                 (folderTree[mainFolder] || []).forEach(function (subfolder) {
                     var option = document.createElement('option');
                     option.value = subfolder;
                     option.textContent = subfolder;
-                    if (subfolder === selectedDocumentType) {
+                    if (subfolder === currentType) {
                         option.selected = true;
                     }
-                    documentTypeSelect.appendChild(option);
-                });
-
-                if (selectedDocumentType) {
-                    documentTypeSelect.value = selectedDocumentType;
-                }
-            }
-
-            if (entitySelect) {
-                entitySelect.addEventListener('change', function () {
-                    selectedProjectId = 0;
-                    renderProjects();
+                    categoryDocumentTypeSelect.appendChild(option);
                 });
             }
 
-            if (mainFolderSelect) {
-                mainFolderSelect.addEventListener('change', function () {
-                    selectedDocumentType = '';
-                    renderFolders();
+            if (projectEntitySelect) {
+                projectEntitySelect.addEventListener('change', function () {
+                    entityInput.value = projectEntitySelect.value;
+                    projectInput.value = '';
+                    mainFolderInput.value = '';
+                    documentTypeInput.value = '';
+                    submitTabFilters('project');
                 });
             }
 
-            renderProjects();
-            renderFolders();
+            if (categoryEntitySelect) {
+                categoryEntitySelect.addEventListener('change', function () {
+                    projectInput.value = '';
+                    documentTypeInput.value = '';
+                    renderCategoryProjects();
+                    syncHiddenFromCategoryFilters();
+                    submitTabFilters('category');
+                });
+            }
+
+            if (categoryProjectSelect) {
+                categoryProjectSelect.addEventListener('change', function () {
+                    syncHiddenFromCategoryFilters();
+                    submitTabFilters('category');
+                });
+            }
+
+            if (categoryMainFolderSelect) {
+                categoryMainFolderSelect.addEventListener('change', function () {
+                    documentTypeInput.value = '';
+                    renderCategoryFolders();
+                    syncHiddenFromCategoryFilters();
+                    submitTabFilters('category');
+                });
+            }
+
+            if (categoryDocumentTypeSelect) {
+                categoryDocumentTypeSelect.addEventListener('change', function () {
+                    syncHiddenFromCategoryFilters();
+                    submitTabFilters('category');
+                });
+            }
+
+            renderCategoryProjects();
+            renderCategoryFolders();
         });
     </script>
 @endsection

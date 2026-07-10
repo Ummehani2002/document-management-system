@@ -49,7 +49,12 @@ class SummaryDashboardController extends Controller
             $this->writeCsvRow($handle, ['Folder filter', $report['selectedDocumentType'] !== '' ? $report['selectedDocumentType'] : 'All folders']);
             $this->writeCsvRow($handle, ['Date from', $report['dateFrom'] ?? 'All dates']);
             $this->writeCsvRow($handle, ['Date to', $report['dateTo'] ?? 'All dates']);
-            $this->writeCsvRow($handle, ['Total documents', $report['totalDocuments']]);
+            $tabTotal = match ($tab) {
+                'project' => $report['projectTabTotal'],
+                'category' => $report['categoryTabTotal'],
+                default => $report['entityTabTotal'],
+            };
+            $this->writeCsvRow($handle, ['Total documents', $tabTotal]);
             $this->writeCsvRow($handle, []);
 
             if ($tab === 'entity') {
@@ -141,73 +146,31 @@ class SummaryDashboardController extends Controller
             $projectId = 0;
         }
 
-        $baseQuery = $this->scopedDocuments($request);
+        $scopedQuery = $this->scopedDocuments($request);
+        $this->applyDateFilter($scopedQuery, $dateFrom, $dateTo);
+
+        $entityQuery = clone $scopedQuery;
+        $byEntity = $this->aggregateByEntity($entityQuery);
+        $entityTabTotal = (clone $entityQuery)->count();
+
+        $projectQuery = clone $scopedQuery;
         if ($entityId > 0) {
-            $baseQuery->where('documents.entity_id', $entityId);
+            $projectQuery->where('documents.entity_id', $entityId);
+        }
+        $byProject = $this->aggregateByProject($projectQuery, $forExport);
+        $projectTabTotal = (clone $projectQuery)->count();
+
+        $categoryQuery = clone $scopedQuery;
+        if ($entityId > 0) {
+            $categoryQuery->where('documents.entity_id', $entityId);
         }
         if ($projectId > 0) {
-            $baseQuery->where('documents.project_id', $projectId);
+            $categoryQuery->where('documents.project_id', $projectId);
         }
-        $this->applyFolderFilter($baseQuery, $folderTree, $mainFolder, $documentType);
-        $this->applyDateFilter($baseQuery, $dateFrom, $dateTo);
-
-        $totalDocuments = (clone $baseQuery)->count();
-        $entityNames = Entity::query()->pluck('name', 'id');
-
-        $byEntity = (clone $baseQuery)
-            ->selectRaw('documents.entity_id, count(*) as total')
-            ->groupBy('documents.entity_id')
-            ->orderByDesc('total')
-            ->get()
-            ->map(fn ($row) => (object) [
-                'label' => $entityNames[$row->entity_id] ?? 'Unknown',
-                'total' => (int) $row->total,
-            ]);
-
-        $byProjectQuery = (clone $baseQuery)
-            ->selectRaw('documents.project_id, count(*) as total')
-            ->groupBy('documents.project_id')
-            ->orderByDesc('total');
-
-        if (! $forExport) {
-            $byProjectQuery->limit(25);
-        }
-
-        $byProject = $byProjectQuery->get();
-        $projectLabels = Project::query()
-            ->whereIn('id', $byProject->pluck('project_id'))
-            ->get(['id', 'project_number', 'project_name'])
-            ->keyBy('id');
-
-        $byProject = $byProject->map(function ($row) use ($projectLabels) {
-            $project = $projectLabels->get($row->project_id);
-
-            return [
-                'label' => $project
-                    ? trim($project->project_number.' — '.$project->project_name)
-                    : 'Unknown project',
-                'total' => (int) $row->total,
-            ];
-        });
-
-        $byCategoryQuery = (clone $baseQuery)
-            ->selectRaw("coalesce(nullif(trim(document_type), ''), 'Uncategorized') as label, count(*) as total")
-            ->groupBy('label')
-            ->orderByDesc('total');
-
-        if (! $forExport) {
-            $byCategoryQuery->limit(20);
-        }
-
-        $byCategory = $byCategoryQuery->get();
-
-        $byMainFolder = (clone $baseQuery)
-            ->select('document_type')
-            ->get()
-            ->groupBy(fn (Document $document) => DocumentFilenameParser::mainFolderForDocumentType($document->document_type) ?? 'Other')
-            ->map(fn ($rows, $label) => ['label' => $label, 'total' => $rows->count()])
-            ->sortByDesc('total')
-            ->values();
+        $this->applyFolderFilter($categoryQuery, $folderTree, $mainFolder, $documentType);
+        $byCategory = $this->aggregateByCategory($categoryQuery, $forExport);
+        $byMainFolder = $this->aggregateByMainFolder($categoryQuery);
+        $categoryTabTotal = (clone $categoryQuery)->count();
 
         $projectsByEntity = $entities->mapWithKeys(function ($entity) use ($entities, $request) {
             return [
@@ -221,7 +184,9 @@ class SummaryDashboardController extends Controller
         });
 
         return [
-            'totalDocuments' => $totalDocuments,
+            'entityTabTotal' => $entityTabTotal,
+            'projectTabTotal' => $projectTabTotal,
+            'categoryTabTotal' => $categoryTabTotal,
             'byEntity' => $byEntity,
             'byProject' => $byProject,
             'byCategory' => $byCategory,
@@ -285,6 +250,87 @@ class SummaryDashboardController extends Controller
         }
 
         return $projects;
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, object{label: string, total: int}>
+     */
+    private function aggregateByEntity(Builder $query)
+    {
+        $entityNames = Entity::query()->pluck('name', 'id');
+
+        return (clone $query)
+            ->selectRaw('documents.entity_id, count(*) as total')
+            ->groupBy('documents.entity_id')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($row) => (object) [
+                'label' => $entityNames[$row->entity_id] ?? 'Unknown',
+                'total' => (int) $row->total,
+            ]);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, array{label: string, total: int}>
+     */
+    private function aggregateByProject(Builder $query, bool $forExport)
+    {
+        $byProjectQuery = (clone $query)
+            ->selectRaw('documents.project_id, count(*) as total')
+            ->groupBy('documents.project_id')
+            ->orderByDesc('total');
+
+        if (! $forExport) {
+            $byProjectQuery->limit(25);
+        }
+
+        $byProject = $byProjectQuery->get();
+        $projectLabels = Project::query()
+            ->whereIn('id', $byProject->pluck('project_id'))
+            ->get(['id', 'project_number', 'project_name'])
+            ->keyBy('id');
+
+        return $byProject->map(function ($row) use ($projectLabels) {
+            $project = $projectLabels->get($row->project_id);
+
+            return [
+                'label' => $project
+                    ? trim($project->project_number.' — '.$project->project_name)
+                    : 'Unknown project',
+                'total' => (int) $row->total,
+            ];
+        });
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, object{label: string, total: int}>
+     */
+    private function aggregateByCategory(Builder $query, bool $forExport)
+    {
+        $byCategoryQuery = (clone $query)
+            ->selectRaw("coalesce(nullif(trim(document_type), ''), 'Uncategorized') as label, count(*) as total")
+            ->groupBy('label')
+            ->orderByDesc('total');
+
+        if (! $forExport) {
+            $byCategoryQuery->limit(20);
+        }
+
+        return $byCategoryQuery->get();
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, array{label: string, total: int}>
+     */
+    private function aggregateByMainFolder(Builder $query)
+    {
+        return (clone $query)
+            ->select('document_type')
+            ->get()
+            ->groupBy(fn (Document $document) => DocumentFilenameParser::mainFolderForDocumentType($document->document_type) ?? 'Other')
+            ->map(fn ($rows, $label) => ['label' => $label, 'total' => $rows->count()])
+            ->sortByDesc('total')
+            ->values();
     }
 
     /**
