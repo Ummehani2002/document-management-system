@@ -42,12 +42,10 @@
         </div>
 
         <div id="access-projects-panel" style="margin-bottom: 16px;">
-            <div style="font-weight: 500; margin-bottom: 8px;">Projects</div>
-            <label id="access-select-all-projects-wrap" style="display:none; align-items:center; gap:8px; margin-bottom:10px; cursor:pointer;">
-                <input type="checkbox" id="access-select-all-projects">
-                <span><strong>Select all projects</strong> in this entity</span>
-            </label>
-            <div id="access-projects-list" style="display: grid; gap: 8px;"></div>
+            <label for="access-project-select" style="display:block; margin-bottom:6px;">Projects</label>
+            <select id="access-project-select" style="min-width: 280px; padding: 8px;">
+                <option value="">— Select project —</option>
+            </select>
             <p id="access-projects-empty" style="color:#64748b; margin:8px 0 0; display:none;">No projects for this entity yet.</p>
         </div>
 
@@ -109,13 +107,11 @@
         var initialFoldersByProject = @json($selectedFoldersByProject);
 
         var entitySelect = document.getElementById('access-entity-select');
-        var projectsList = document.getElementById('access-projects-list');
+        var projectSelect = document.getElementById('access-project-select');
         var projectsEmpty = document.getElementById('access-projects-empty');
         var foldersPanel = document.getElementById('access-folders-panel');
         var summaryBody = document.getElementById('access-grants-summary-body');
         var hiddenInputs = document.getElementById('access-hidden-inputs');
-        var selectAllProjectsWrap = document.getElementById('access-select-all-projects-wrap');
-        var selectAllProjects = document.getElementById('access-select-all-projects');
         var folderChecks = Array.from(document.querySelectorAll('.access-folder-check'));
         var mainFolderChecks = Array.from(document.querySelectorAll('.access-main-folder-check'));
 
@@ -235,80 +231,63 @@
             });
         }
 
-        function updateSelectAllProjectsState() {
-            if (!selectAllProjects || !selectAllProjectsWrap) return;
-
-            var projects = projectsForCurrentEntity();
-            if (!projects.length) {
-                selectAllProjectsWrap.style.display = 'none';
-                return;
-            }
-
-            selectAllProjectsWrap.style.display = 'flex';
-            var projectIds = projects.map(function (project) { return String(project.id); });
-            var selectedCount = projectIds.filter(function (projectId) {
-                return selectedProjects.has(projectId);
-            }).length;
-
-            selectAllProjects.checked = selectedCount === projectIds.length;
-            selectAllProjects.indeterminate = selectedCount > 0 && selectedCount < projectIds.length;
-        }
-
         function renderProjects() {
-            if (!projectsList) return;
+            if (!projectSelect) return;
 
             var projects = projectsForCurrentEntity();
-            projectsList.innerHTML = '';
+            var selectedInEntity = selectedProjectsInCurrentEntity();
+            projectSelect.innerHTML = '';
+
+            var placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = '— Select project —';
+            projectSelect.appendChild(placeholder);
 
             if (!projects.length) {
                 projectsEmpty.style.display = 'block';
+                projectSelect.style.display = 'none';
                 foldersPanel.style.display = 'none';
-                updateSelectAllProjectsState();
                 return;
             }
 
             projectsEmpty.style.display = 'none';
-            updateSelectAllProjectsState();
+            projectSelect.style.display = '';
 
             projects.forEach(function (project) {
                 var projectId = String(project.id);
-                var label = document.createElement('label');
-                label.style.display = 'flex';
-                label.style.alignItems = 'center';
-                label.style.gap = '8px';
-                label.style.cursor = 'pointer';
-
-                var checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.className = 'access-project-check';
-                checkbox.value = projectId;
-                checkbox.checked = selectedProjects.has(projectId);
-
-                checkbox.addEventListener('change', function () {
-                    if (checkbox.checked) {
-                        selectedProjects.add(projectId);
-                        if (!foldersByProject[projectId]) {
-                            foldersByProject[projectId] = new Set();
-                        }
-                    } else {
-                        selectedProjects.delete(projectId);
-                        delete foldersByProject[projectId];
-                    }
-                    renderFolders();
-                    updateSelectAllProjectsState();
-                    syncHiddenInputs();
-                    renderSummary();
-                });
-
-                var text = document.createElement('span');
-                text.textContent = project.label;
-
-                label.appendChild(checkbox);
-                label.appendChild(text);
-                projectsList.appendChild(label);
+                var option = document.createElement('option');
+                option.value = projectId;
+                option.textContent = project.label;
+                if (selectedInEntity.includes(projectId)) {
+                    option.selected = true;
+                }
+                projectSelect.appendChild(option);
             });
 
+            if (selectedInEntity.length === 1) {
+                projectSelect.value = selectedInEntity[0];
+            } else if (selectedInEntity.length > 1) {
+                projectSelect.value = selectedInEntity[0];
+            } else {
+                projectSelect.value = '';
+            }
+
             renderFolders();
+        }
+
+        function setProjectSelectionForCurrentEntity(projectId) {
+            projectsForCurrentEntity().forEach(function (project) {
+                var id = String(project.id);
+                selectedProjects.delete(id);
+                delete foldersByProject[id];
+            });
+
+            if (projectId) {
+                selectedProjects.add(projectId);
+                if (!foldersByProject[projectId]) {
+                    foldersByProject[projectId] = new Set();
+                }
+            }
         }
 
         function renderFolders() {
@@ -327,25 +306,18 @@
             updateMainFolderCheckStates();
         }
 
-        if (selectAllProjects) {
-            selectAllProjects.addEventListener('change', function () {
-                var projects = projectsForCurrentEntity();
-                projects.forEach(function (project) {
-                    var projectId = String(project.id);
-                    if (selectAllProjects.checked) {
-                        selectedProjects.add(projectId);
-                        if (!foldersByProject[projectId]) {
-                            foldersByProject[projectId] = new Set();
-                        }
-                    } else {
-                        selectedProjects.delete(projectId);
-                        delete foldersByProject[projectId];
-                    }
-                });
-
-                renderProjects();
+        if (projectSelect) {
+            projectSelect.addEventListener('change', function () {
+                setProjectSelectionForCurrentEntity(projectSelect.value);
+                renderFolders();
                 syncHiddenInputs();
                 renderSummary();
+            });
+        }
+
+        if (entitySelect) {
+            entitySelect.addEventListener('change', function () {
+                renderProjects();
             });
         }
 
@@ -366,12 +338,6 @@
                 applyFolderSelectionToProjects();
             });
         });
-
-        if (entitySelect) {
-            entitySelect.addEventListener('change', function () {
-                renderProjects();
-            });
-        }
 
         renderProjects();
         syncHiddenInputs();

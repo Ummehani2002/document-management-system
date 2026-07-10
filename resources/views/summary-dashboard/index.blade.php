@@ -26,6 +26,41 @@
                     @endforeach
                 </select>
             </div>
+            <div style="min-width: 280px;">
+                <label for="project_id" style="margin-bottom:6px;">Project</label>
+                <select id="project_id" name="project_id" style="margin:0;" {{ (int) $selectedEntityId <= 0 ? 'disabled' : '' }}>
+                    <option value="">All projects</option>
+                    @foreach($filterProjects as $project)
+                        <option value="{{ $project->id }}" {{ (int) $selectedProjectId === (int) $project->id ? 'selected' : '' }}>
+                            {{ trim($project->project_number.' — '.$project->project_name) }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div style="min-width: 240px;">
+                <label for="main_folder" style="margin-bottom:6px;">Category</label>
+                <select id="main_folder" name="main_folder" style="margin:0;">
+                    <option value="">All categories</option>
+                    @foreach(array_keys($folderTree) as $mainFolderName)
+                        <option value="{{ $mainFolderName }}" {{ $selectedMainFolder === $mainFolderName ? 'selected' : '' }}>
+                            {{ $mainFolderName }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div style="min-width: 240px;">
+                <label for="document_type" style="margin-bottom:6px;">Folder</label>
+                <select id="document_type" name="document_type" style="margin:0;" {{ $selectedMainFolder === '' ? 'disabled' : '' }}>
+                    <option value="">All folders</option>
+                    @if($selectedMainFolder !== '')
+                        @foreach($folderTree[$selectedMainFolder] ?? [] as $subfolder)
+                            <option value="{{ $subfolder }}" {{ $selectedDocumentType === $subfolder ? 'selected' : '' }}>
+                                {{ $subfolder }}
+                            </option>
+                        @endforeach
+                    @endif
+                </select>
+            </div>
             <div>
                 <label for="date_from" style="margin-bottom:6px;">From date</label>
                 <input type="date" id="date_from" name="date_from" value="{{ $dateFrom }}">
@@ -191,6 +226,19 @@
             const categoryData = @json($categoryRows->values());
             const mainFolderData = @json($byMainFolder->values());
 
+            function chartCount(ctx) {
+                const parsed = ctx.parsed;
+                if (parsed != null && typeof parsed === 'object') {
+                    if (ctx.chart.options.indexAxis === 'y') {
+                        return parsed.x ?? ctx.raw;
+                    }
+
+                    return parsed.y ?? parsed.x ?? ctx.raw;
+                }
+
+                return parsed ?? ctx.raw;
+            }
+
             const commonOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -199,8 +247,7 @@
                     tooltip: {
                         callbacks: {
                             label: (ctx) => {
-                                const value = ctx.parsed.y ?? ctx.parsed ?? ctx.raw;
-                                return ` ${Number(value).toLocaleString()} document(s)`;
+                                return ` ${Number(chartCount(ctx)).toLocaleString()} document(s)`;
                             },
                         },
                     },
@@ -328,5 +375,101 @@
 
             switchTab(activeTab);
         })();
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var projectsByEntity = @json($projectsByEntity);
+            var folderTree = @json($folderTree);
+            var entitySelect = document.getElementById('entity_id');
+            var projectSelect = document.getElementById('project_id');
+            var mainFolderSelect = document.getElementById('main_folder');
+            var documentTypeSelect = document.getElementById('document_type');
+            var selectedProjectId = @json((int) $selectedProjectId);
+            var selectedDocumentType = @json($selectedDocumentType);
+
+            function renderProjects() {
+                if (!projectSelect || !entitySelect) return;
+
+                var entityId = entitySelect.value;
+                var projects = projectsByEntity[entityId] || [];
+                projectSelect.innerHTML = '';
+
+                var placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = 'All projects';
+                projectSelect.appendChild(placeholder);
+
+                if (!entityId) {
+                    projectSelect.disabled = true;
+                    projectSelect.value = '';
+                    return;
+                }
+
+                projectSelect.disabled = false;
+                projects.forEach(function (project) {
+                    var option = document.createElement('option');
+                    option.value = String(project.id);
+                    option.textContent = project.label;
+                    if (Number(project.id) === Number(selectedProjectId)) {
+                        option.selected = true;
+                    }
+                    projectSelect.appendChild(option);
+                });
+
+                if (selectedProjectId) {
+                    projectSelect.value = String(selectedProjectId);
+                }
+            }
+
+            function renderFolders() {
+                if (!documentTypeSelect || !mainFolderSelect) return;
+
+                var mainFolder = mainFolderSelect.value;
+                documentTypeSelect.innerHTML = '';
+
+                var placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = 'All folders';
+                documentTypeSelect.appendChild(placeholder);
+
+                if (!mainFolder) {
+                    documentTypeSelect.disabled = true;
+                    documentTypeSelect.value = '';
+                    return;
+                }
+
+                documentTypeSelect.disabled = false;
+                (folderTree[mainFolder] || []).forEach(function (subfolder) {
+                    var option = document.createElement('option');
+                    option.value = subfolder;
+                    option.textContent = subfolder;
+                    if (subfolder === selectedDocumentType) {
+                        option.selected = true;
+                    }
+                    documentTypeSelect.appendChild(option);
+                });
+
+                if (selectedDocumentType) {
+                    documentTypeSelect.value = selectedDocumentType;
+                }
+            }
+
+            if (entitySelect) {
+                entitySelect.addEventListener('change', function () {
+                    selectedProjectId = 0;
+                    renderProjects();
+                });
+            }
+
+            if (mainFolderSelect) {
+                mainFolderSelect.addEventListener('change', function () {
+                    selectedDocumentType = '';
+                    renderFolders();
+                });
+            }
+
+            renderProjects();
+            renderFolders();
+        });
     </script>
 @endsection

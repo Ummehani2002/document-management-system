@@ -1,5 +1,5 @@
 @php
-    $downloadQuery = request()->only(['entity_id', 'date_from', 'date_to']);
+    $downloadQuery = request()->only(['entity_id', 'project_id', 'main_folder', 'document_type', 'date_from', 'date_to']);
 @endphp
 <a
     href="{{ route('summary-dashboard.download', array_merge($downloadQuery, ['tab' => $tab])) }}"

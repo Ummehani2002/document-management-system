@@ -44,6 +44,9 @@ class SummaryDashboardController extends Controller
             $this->writeCsvRow($handle, ['Report type', ucfirst($tab).' wise']);
             $this->writeCsvRow($handle, ['Generated at', now()->timezone(config('app.timezone', 'Asia/Dubai'))->format('Y-m-d H:i')]);
             $this->writeCsvRow($handle, ['Entity filter', $this->entityFilterLabel($report)]);
+            $this->writeCsvRow($handle, ['Project filter', $this->projectFilterLabel($report)]);
+            $this->writeCsvRow($handle, ['Category filter', $report['selectedMainFolder'] !== '' ? $report['selectedMainFolder'] : 'All categories']);
+            $this->writeCsvRow($handle, ['Folder filter', $report['selectedDocumentType'] !== '' ? $report['selectedDocumentType'] : 'All folders']);
             $this->writeCsvRow($handle, ['Date from', $report['dateFrom'] ?? 'All dates']);
             $this->writeCsvRow($handle, ['Date to', $report['dateTo'] ?? 'All dates']);
             $this->writeCsvRow($handle, ['Total documents', $report['totalDocuments']]);
@@ -88,9 +91,25 @@ class SummaryDashboardController extends Controller
     private function buildReport(Request $request, bool $forExport = false): array
     {
         $entityId = (int) $request->query('entity_id', 0);
+        $projectId = (int) $request->query('project_id', 0);
+        $mainFolder = trim((string) $request->query('main_folder', ''));
+        $documentType = trim((string) $request->query('document_type', ''));
         $activeTab = (string) $request->query('tab', 'entity');
         if (! in_array($activeTab, ['entity', 'project', 'category'], true)) {
             $activeTab = 'entity';
+        }
+
+        $folderTree = DocumentFilenameParser::sidebarFolderTree();
+        if ($mainFolder !== '' && ! array_key_exists($mainFolder, $folderTree)) {
+            $mainFolder = '';
+        }
+        if ($documentType !== '') {
+            $validTypes = $mainFolder !== ''
+                ? ($folderTree[$mainFolder] ?? [])
+                : array_merge(...array_values($folderTree));
+            if (! in_array($documentType, $validTypes, true)) {
+                $documentType = '';
+            }
         }
 
         $dateFrom = $this->parseDate($request->query('date_from'));
@@ -100,10 +119,36 @@ class SummaryDashboardController extends Controller
             [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
         }
 
+        $entities = $this->accessibleEntitiesWithProjects($request);
+        if ($entityId > 0 && ! $entities->contains('id', $entityId)) {
+            $entityId = 0;
+            $projectId = 0;
+        }
+
+        if ($projectId > 0) {
+            $project = Project::query()->find($projectId);
+            if ($project === null) {
+                $projectId = 0;
+            } elseif ($entityId > 0 && (int) $project->entity_id !== $entityId) {
+                $projectId = 0;
+            } elseif ($entityId === 0) {
+                $entityId = (int) $project->entity_id;
+            }
+        }
+
+        $filterProjects = $this->projectsForEntity($entities, $entityId, $request->user());
+        if ($projectId > 0 && ! $filterProjects->contains('id', $projectId)) {
+            $projectId = 0;
+        }
+
         $baseQuery = $this->scopedDocuments($request);
         if ($entityId > 0) {
             $baseQuery->where('documents.entity_id', $entityId);
         }
+        if ($projectId > 0) {
+            $baseQuery->where('documents.project_id', $projectId);
+        }
+        $this->applyFolderFilter($baseQuery, $folderTree, $mainFolder, $documentType);
         $this->applyDateFilter($baseQuery, $dateFrom, $dateTo);
 
         $totalDocuments = (clone $baseQuery)->count();
@@ -164,7 +209,16 @@ class SummaryDashboardController extends Controller
             ->sortByDesc('total')
             ->values();
 
-        $entities = Entity::query()->orderBy('name')->get(['id', 'name']);
+        $projectsByEntity = $entities->mapWithKeys(function ($entity) use ($entities, $request) {
+            return [
+                $entity->id => $this->projectsForEntity($entities, (int) $entity->id, $request->user())
+                    ->map(fn (Project $project) => [
+                        'id' => $project->id,
+                        'label' => trim($project->project_number.' — '.$project->project_name),
+                    ])
+                    ->values(),
+            ];
+        });
 
         return [
             'totalDocuments' => $totalDocuments,
@@ -173,11 +227,83 @@ class SummaryDashboardController extends Controller
             'byCategory' => $byCategory,
             'byMainFolder' => $byMainFolder,
             'entities' => $entities,
+            'filterProjects' => $filterProjects,
+            'projectsByEntity' => $projectsByEntity,
+            'folderTree' => $folderTree,
             'selectedEntityId' => $entityId,
+            'selectedProjectId' => $projectId,
+            'selectedMainFolder' => $mainFolder,
+            'selectedDocumentType' => $documentType,
             'activeTab' => $activeTab,
             'dateFrom' => $dateFrom?->toDateString(),
             'dateTo' => $dateTo?->toDateString(),
         ];
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Entity>
+     */
+    private function accessibleEntitiesWithProjects(Request $request)
+    {
+        $user = $request->user();
+        $query = Entity::query()
+            ->with(['projects' => fn ($builder) => $builder->orderBy('project_number')])
+            ->orderBy('name');
+
+        if (! $this->access->isAdmin($user)) {
+            $entityIds = $this->access->accessibleEntityIds($user);
+            if ($entityIds !== []) {
+                $query->whereIn('id', $entityIds);
+            }
+        }
+
+        return $query->get(['id', 'name']);
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Collection<int, Entity>  $entities
+     * @return \Illuminate\Support\Collection<int, Project>
+     */
+    private function projectsForEntity($entities, int $entityId, ?\App\Models\User $user)
+    {
+        if ($entityId <= 0) {
+            return collect();
+        }
+
+        $entity = $entities->firstWhere('id', $entityId);
+        if ($entity === null) {
+            return collect();
+        }
+
+        $projects = $entity->projects;
+        if ($user !== null && ! $this->access->isAdmin($user)) {
+            $restrictedEntityIds = $this->access->entitiesWithProjectRestrictions($user);
+            if (in_array($entityId, $restrictedEntityIds, true)) {
+                $allowedProjectIds = $this->access->allowedProjectIdsForEntity($user, $entityId);
+                $projects = $projects->whereIn('id', $allowedProjectIds)->values();
+            }
+        }
+
+        return $projects;
+    }
+
+    /**
+     * @param  array<string, list<string>>  $folderTree
+     */
+    private function applyFolderFilter(Builder $query, array $folderTree, string $mainFolder, string $documentType): void
+    {
+        if ($documentType !== '') {
+            DocumentFilenameParser::applyFolderTypeFilter($query, [$documentType]);
+
+            return;
+        }
+
+        if ($mainFolder !== '') {
+            $types = $folderTree[$mainFolder] ?? [];
+            if ($types !== []) {
+                DocumentFilenameParser::applyFolderTypeFilter($query, $types);
+            }
+        }
     }
 
     /**
@@ -202,6 +328,28 @@ class SummaryDashboardController extends Controller
         $entity = $report['entities']->firstWhere('id', $entityId);
 
         return $entity?->name ?? 'Entity #'.$entityId;
+    }
+
+    /**
+     * @param  array<string, mixed>  $report
+     */
+    private function projectFilterLabel(array $report): string
+    {
+        $projectId = (int) ($report['selectedProjectId'] ?? 0);
+        if ($projectId <= 0) {
+            return 'All projects';
+        }
+
+        $project = ($report['filterProjects'] ?? collect())->firstWhere('id', $projectId);
+        if ($project !== null) {
+            return trim($project->project_number.' — '.$project->project_name);
+        }
+
+        $project = Project::query()->find($projectId);
+
+        return $project
+            ? trim($project->project_number.' — '.$project->project_name)
+            : 'Project #'.$projectId;
     }
 
     private function scopedDocuments(Request $request): Builder

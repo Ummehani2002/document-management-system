@@ -117,6 +117,52 @@ class SummaryDashboardTest extends TestCase
             ->assertSee('1 document(s)');
     }
 
+    public function test_summary_dashboard_filters_by_entity_project_and_folder(): void
+    {
+        $entity = Entity::create(['name' => 'Alpha']);
+        $projectA = Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => 'A-001',
+            'project_name' => 'Alpha One',
+        ]);
+        $projectB = Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => 'A-002',
+            'project_name' => 'Alpha Two',
+        ]);
+
+        Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $projectA->id,
+            'document_type' => 'Invoice',
+            'file_name' => 'invoice-a.pdf',
+            'file_path' => 'documents/invoice-a.pdf',
+        ]);
+        Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $projectB->id,
+            'document_type' => 'Shop Drawing',
+            'file_name' => 'drawing-b.pdf',
+            'file_path' => 'documents/drawing-b.pdf',
+        ]);
+
+        $admin = User::factory()->create();
+        $admin->assignRole('Admin');
+
+        $this->actingAs($admin)
+            ->get(route('summary-dashboard', [
+                'entity_id' => $entity->id,
+                'project_id' => $projectA->id,
+                'main_folder' => 'Financial Documents',
+                'document_type' => 'Invoice',
+                'tab' => 'category',
+            ]))
+            ->assertOk()
+            ->assertSee('Category-wise report')
+            ->assertSee('1 document(s)')
+            ->assertSee('Invoice');
+    }
+
     public function test_summary_dashboard_download_returns_csv_for_active_tab(): void
     {
         $entity = Entity::create(['name' => 'Alpha']);
