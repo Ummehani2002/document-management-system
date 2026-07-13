@@ -140,6 +140,56 @@ class DocumentOlderVersionsTest extends TestCase
         $response->assertSee('Older versions (1)', false);
     }
 
+    public function test_ab_0003_style_filenames_share_version_family(): void
+    {
+        $base = 'AB-0003-R00_Staircase ST-PO-01-Plan and Section Details_A. Approved (1).pdf';
+        $versionOne = 'AB-0003-R00_Staircase ST-PO-01-Plan and Section Details_A. Approved (1) - Version 1.pdf';
+        $versionTwo = 'AB-0003-R00_Staircase ST-PO-01-Plan and Section Details_A. Approved (1) - Version 2.pdf';
+        $editVersionTwo = 'AB-0003-R00_Staircase ST-PO-01-Plan and Section Details_A. Approved (1) V2.pdf';
+
+        $baseKey = DocumentFileVersioning::logicalFamilyKey($base);
+        $this->assertSame($baseKey, DocumentFileVersioning::logicalFamilyKey($versionOne));
+        $this->assertSame($baseKey, DocumentFileVersioning::logicalFamilyKey($versionTwo));
+        $this->assertSame($baseKey, DocumentFileVersioning::logicalFamilyKey($editVersionTwo));
+        $this->assertTrue(DocumentFileVersioning::isNewerFilename($versionOne, $base));
+        $this->assertTrue(DocumentFileVersioning::isNewerFilename($versionTwo, $versionOne));
+    }
+
+    public function test_versions_endpoint_groups_dash_version_suffix_files(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('Admin');
+
+        $entity = Entity::create(['name' => 'Acme']);
+        $project = Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => 'MH-0026',
+            'project_name' => 'Test Project',
+        ]);
+
+        $older = Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'document_type' => 'Shop Drawing',
+            'file_name' => 'AB-0003-R00_Staircase ST-PO-01-Plan and Section Details_A. Approved (1).pdf',
+            'file_path' => 'documents/acme/mh-0026/shop-drawing/old.pdf',
+        ]);
+
+        $latest = Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'document_type' => 'Shop Drawing',
+            'file_name' => 'AB-0003-R00_Staircase ST-PO-01-Plan and Section Details_A. Approved (1) - Version 1.pdf',
+            'file_path' => 'documents/acme/mh-0026/shop-drawing/new.pdf',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('documents.versions', ['id' => $latest->id]))
+            ->assertOk()
+            ->assertJsonCount(1, 'older_versions')
+            ->assertJsonPath('older_versions.0.id', $older->id);
+    }
+
     public function test_pick_latest_document_ids_prefers_higher_revision(): void
     {
         $entity = Entity::create(['name' => 'Acme']);

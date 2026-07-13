@@ -46,6 +46,7 @@ class DocumentFileVersioning
         $normalized = preg_replace('/\bR(?:EV(?:ISION)?)?\s*[-.:]?\s*\d+\b/u', '', $normalized) ?? $normalized;
         $normalized = preg_replace('/\bV(?:ERSION)?\s*[-.:]?\s*\d+\b/u', '', $normalized) ?? $normalized;
         $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+        $normalized = preg_replace('/\s*-\s*$/u', '', $normalized) ?? $normalized;
 
         return trim($normalized);
     }
@@ -102,7 +103,8 @@ class DocumentFileVersioning
 
     public static function stripEditVersionSuffix(string $baseName): string
     {
-        $stripped = preg_replace('/\s+V\d+$/i', '', $baseName) ?? $baseName;
+        $stripped = preg_replace('/\s*-\s*Version\s+\d+$/iu', '', $baseName) ?? $baseName;
+        $stripped = preg_replace('/\s+V\d+$/i', '', $stripped) ?? $stripped;
 
         return trim($stripped);
     }
