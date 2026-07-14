@@ -168,6 +168,7 @@ class SummaryDashboardController extends Controller
             $categoryQuery->where('documents.project_id', $projectId);
         }
         $this->applyFolderFilter($categoryQuery, $folderTree, $mainFolder, $documentType);
+        $this->excludeUnclassifiedDocuments($categoryQuery);
         $byCategory = $this->aggregateByCategory($categoryQuery, $forExport);
         $byMainFolder = $this->aggregateByMainFolder($categoryQuery);
         $categoryTabTotal = (clone $categoryQuery)->count();
@@ -308,8 +309,8 @@ class SummaryDashboardController extends Controller
     private function aggregateByCategory(Builder $query, bool $forExport)
     {
         $byCategoryQuery = (clone $query)
-            ->selectRaw("coalesce(nullif(trim(document_type), ''), 'Uncategorized') as label, count(*) as total")
-            ->groupBy('label')
+            ->selectRaw('document_type as label, count(*) as total')
+            ->groupBy('document_type')
             ->orderByDesc('total');
 
         if (! $forExport) {
@@ -327,10 +328,18 @@ class SummaryDashboardController extends Controller
         return (clone $query)
             ->select('document_type')
             ->get()
-            ->groupBy(fn (Document $document) => DocumentFilenameParser::mainFolderForDocumentType($document->document_type) ?? 'Other')
+            ->groupBy(fn (Document $document) => DocumentFilenameParser::mainFolderForDocumentType($document->document_type))
+            ->filter(fn ($rows, $label) => is_string($label) && $label !== '' && strcasecmp($label, 'Other') !== 0)
             ->map(fn ($rows, $label) => ['label' => $label, 'total' => $rows->count()])
             ->sortByDesc('total')
             ->values();
+    }
+
+    private function excludeUnclassifiedDocuments(Builder $query): void
+    {
+        $query->whereNotNull('documents.document_type')
+            ->where('documents.document_type', '!=', '')
+            ->whereRaw("LOWER(TRIM(documents.document_type)) != 'other'");
     }
 
     /**

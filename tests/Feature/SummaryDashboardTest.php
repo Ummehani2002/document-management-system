@@ -191,4 +191,39 @@ class SummaryDashboardTest extends TestCase
         $this->assertStringContainsString('Alpha', $response->streamedContent());
         $this->assertStringContainsString('Entity', $response->streamedContent());
     }
+
+    public function test_category_tab_hides_other_documents(): void
+    {
+        $entity = Entity::create(['name' => 'Alpha']);
+        $project = Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => 'A-001',
+            'project_name' => 'Alpha Project',
+        ]);
+
+        Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'document_type' => 'Invoice',
+            'file_name' => 'invoice.pdf',
+            'file_path' => 'documents/invoice.pdf',
+        ]);
+        Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'document_type' => 'Other',
+            'file_name' => 'misc.pdf',
+            'file_path' => 'documents/misc.pdf',
+        ]);
+
+        $admin = User::factory()->create();
+        $admin->assignRole('Admin');
+
+        $this->actingAs($admin)
+            ->get(route('summary-dashboard', ['tab' => 'category']))
+            ->assertOk()
+            ->assertSee('Invoice')
+            ->assertSee('1 document(s)')
+            ->assertDontSee('"label":"Other"', false);
+    }
 }
