@@ -10,6 +10,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SummaryDashboardController;
 use App\Http\Controllers\ProjectDashboardController;
 use App\Http\Controllers\DisciplineController;
+use App\Http\Controllers\FolderController;
 use App\Http\Controllers\UserActivityController;
 use App\Http\Controllers\UserAccessController;
 use App\Http\Controllers\OnlyOfficeController;
@@ -44,6 +45,18 @@ Route::middleware('auth')->group(function () {
         Route::post('/user-access', [UserAccessController::class, 'store'])->name('user-access.store');
         Route::get('/user-access/{user}/edit', [UserAccessController::class, 'edit'])->name('user-access.edit');
         Route::put('/user-access/{user}', [UserAccessController::class, 'update'])->name('user-access.update');
+
+        Route::get('/folders', [FolderController::class, 'index'])->name('folders.index');
+        Route::get('/folders/create', [FolderController::class, 'create'])->name('folders.create');
+        Route::post('/folders', [FolderController::class, 'store'])->name('folders.store');
+        Route::get('/folders/{folder}/edit', [FolderController::class, 'edit'])->name('folders.edit');
+        Route::put('/folders/{folder}', [FolderController::class, 'update'])->name('folders.update');
+        Route::delete('/folders/{folder}', [FolderController::class, 'destroy'])->name('folders.destroy');
+        Route::get('/folders/{folder}/subfolders/create', [FolderController::class, 'createSubfolder'])->name('folders.subfolders.create');
+        Route::post('/folders/{folder}/subfolders', [FolderController::class, 'storeSubfolder'])->name('folders.subfolders.store');
+        Route::get('/folders/subfolders/{subfolder}/edit', [FolderController::class, 'editSubfolder'])->name('folders.subfolders.edit');
+        Route::put('/folders/subfolders/{subfolder}', [FolderController::class, 'updateSubfolder'])->name('folders.subfolders.update');
+        Route::delete('/folders/subfolders/{subfolder}', [FolderController::class, 'destroySubfolder'])->name('folders.subfolders.destroy');
     });
 
     // Document routes:

@@ -179,10 +179,14 @@ class SummaryDashboardController extends Controller
                     ->map(fn (Project $project) => [
                         'id' => $project->id,
                         'label' => trim($project->project_number.' — '.$project->project_name),
+                        'project_manager' => (string) ($project->project_manager ?? ''),
+                        'document_controller' => (string) ($project->document_controller ?? ''),
                     ])
                     ->values(),
             ];
         });
+
+        $selectedProject = $filterProjects->firstWhere('id', $projectId);
 
         return [
             'entityTabTotal' => $entityTabTotal,
@@ -198,6 +202,8 @@ class SummaryDashboardController extends Controller
             'folderTree' => $folderTree,
             'selectedEntityId' => $entityId,
             'selectedProjectId' => $projectId,
+            'selectedProjectManager' => (string) ($selectedProject?->project_manager ?? ''),
+            'selectedDocumentController' => (string) ($selectedProject?->document_controller ?? ''),
             'selectedMainFolder' => $mainFolder,
             'selectedDocumentType' => $documentType,
             'activeTab' => $activeTab,

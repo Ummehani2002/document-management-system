@@ -461,6 +461,9 @@
         <a href="{{ route('entities.index') }}">Entities</a>
         <a href="{{ route('projects.index') }}">Project Master</a>
         <a href="{{ route('disciplines.index') }}">Disciplines</a>
+        @role('Admin')
+            <a href="{{ route('folders.index') }}">Folders</a>
+        @endrole
         <a href="{{ route('documents.upload') }}">Upload</a>
         <a href="{{ route('documents.search') }}">Search</a>
         <a href="{{ route('user-activities.index') }}">Activity Log</a>
@@ -474,7 +477,7 @@
     <aside class="sidebar">
         <div class="sidebar-logo-wrap">
             <img
-                src="{{ asset('images/tanseeq.png') }}?v=5"
+                src="{{ asset('images/tanseeq-white.png') }}?v=2"
                 alt="TANSEEQ INVESTMENT"
             />
         </div>

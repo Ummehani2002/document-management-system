@@ -30,7 +30,7 @@ class SummaryDashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Dashboard')
             ->assertSee('Entity-wise')
-            ->assertSee('Download report (CSV)');
+            ->assertSee('Download report (PDF)');
     }
 
     public function test_summary_dashboard_respects_document_access_scope(): void
@@ -225,5 +225,39 @@ class SummaryDashboardTest extends TestCase
             ->assertSee('Invoice')
             ->assertSee('1 document(s)')
             ->assertDontSee('"label":"Other"', false);
+    }
+
+    public function test_category_tab_shows_readonly_project_contacts(): void
+    {
+        $entity = Entity::create(['name' => 'Alpha']);
+        $project = Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => 'A-001',
+            'project_name' => 'Alpha Project',
+            'project_manager' => 'Sara Manager',
+            'document_controller' => 'Omar DC',
+        ]);
+
+        Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'document_type' => 'Invoice',
+            'file_name' => 'invoice.pdf',
+            'file_path' => 'documents/invoice.pdf',
+        ]);
+
+        $admin = User::factory()->create();
+        $admin->assignRole('Admin');
+
+        $this->actingAs($admin)
+            ->get(route('summary-dashboard', [
+                'tab' => 'category',
+                'entity_id' => $entity->id,
+                'project_id' => $project->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Project Manager')
+            ->assertSee('Sara Manager')
+            ->assertSee('Omar DC');
     }
 }

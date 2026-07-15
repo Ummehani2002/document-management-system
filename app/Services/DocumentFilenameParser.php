@@ -1579,6 +1579,16 @@ class DocumentFilenameParser
      */
     public static function sidebarFolderTree(): array
     {
+        return DocumentFolderCatalog::tree();
+    }
+
+    /**
+     * Built-in fallback tree used when the folder master tables are empty.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function hardcodedSidebarFolderTree(): array
+    {
         return [
             'Financial Documents' => [
                 'Bank Gurantees',

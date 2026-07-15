@@ -5,6 +5,15 @@
         $activeTab = in_array($activeTab ?? 'entity', ['entity', 'project', 'category'], true) ? $activeTab : 'entity';
         $entityRows = $byEntity->map(fn ($row) => ['label' => $row->label, 'total' => $row->total]);
         $categoryRows = $byCategory->map(fn ($row) => ['label' => $row->label, 'total' => $row->total]);
+        $pdfEntityLabel = (int) $selectedEntityId > 0
+            ? ($entities->firstWhere('id', $selectedEntityId)?->name ?? ('Entity #'.$selectedEntityId))
+            : 'All entities';
+        $selectedProjectRow = (int) $selectedProjectId > 0
+            ? $filterProjects->firstWhere('id', $selectedProjectId)
+            : null;
+        $pdfProjectLabel = $selectedProjectRow
+            ? trim($selectedProjectRow->project_number.' — '.$selectedProjectRow->project_name)
+            : ((int) $selectedProjectId > 0 ? 'Project #'.$selectedProjectId : 'All projects');
     @endphp
 
     <h2>Dashboard</h2>
@@ -53,12 +62,23 @@
                         {{ number_format($entityTabTotal) }} document(s) across {{ number_format($byEntity->count()) }} entit{{ $byEntity->count() === 1 ? 'y' : 'ies' }}.
                     </p>
                 </div>
-                @include('summary-dashboard._download-button', ['tab' => 'entity'])
             </div>
-            <div class="dash-chart-wrap" style="height:320px;">
-                <canvas id="entityChart"></canvas>
-            </div>
-            @include('summary-dashboard._breakdown-table', ['title' => 'Entity breakdown', 'rows' => $entityRows])
+            <section class="dash-section">
+                <h4 class="dash-section-title">Breakdown</h4>
+                @include('summary-dashboard._breakdown-table', [
+                    'title' => 'Entity breakdown',
+                    'rows' => $entityRows,
+                    'total' => $entityTabTotal,
+                    'totalLabel' => 'Total documents',
+                    'downloadTab' => 'entity',
+                ])
+            </section>
+            <section class="dash-section">
+                <h4 class="dash-section-title">Charts</h4>
+                <div class="dash-chart-wrap" style="height:320px;">
+                    <canvas id="entityChart"></canvas>
+                </div>
+            </section>
         </div>
 
         <div class="dash-tab-panel {{ $activeTab === 'project' ? 'is-active' : '' }}" data-panel="project" role="tabpanel">
@@ -86,12 +106,23 @@
                         @endif
                     </p>
                 </div>
-                @include('summary-dashboard._download-button', ['tab' => 'project'])
             </div>
-            <div class="dash-chart-wrap" style="height:{{ max(280, min(640, $byProject->count() * 28)) }}px;">
-                <canvas id="projectChart"></canvas>
-            </div>
-            @include('summary-dashboard._breakdown-table', ['title' => 'Project breakdown', 'rows' => $byProject])
+            <section class="dash-section">
+                <h4 class="dash-section-title">Breakdown</h4>
+                @include('summary-dashboard._breakdown-table', [
+                    'title' => 'Project breakdown',
+                    'rows' => $byProject,
+                    'total' => $projectTabTotal,
+                    'totalLabel' => 'Total documents (project count)',
+                    'downloadTab' => 'project',
+                ])
+            </section>
+            <section class="dash-section">
+                <h4 class="dash-section-title">Charts</h4>
+                <div class="dash-chart-wrap" style="height:{{ max(280, min(640, $byProject->count() * 28)) }}px;">
+                    <canvas id="projectChart"></canvas>
+                </div>
+            </section>
         </div>
 
         <div class="dash-tab-panel {{ $activeTab === 'category' ? 'is-active' : '' }}" data-panel="category" role="tabpanel">
@@ -117,6 +148,30 @@
                             </option>
                         @endforeach
                     </select>
+                </div>
+                <div id="category-project-contacts" style="display:{{ (int) $selectedProjectId > 0 ? 'flex' : 'none' }}; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+                    <div style="min-width: 220px;">
+                        <label for="category_project_manager" style="margin-bottom:6px;">Project Manager</label>
+                        <input
+                            type="text"
+                            id="category_project_manager"
+                            value="{{ $selectedProjectManager !== '' ? $selectedProjectManager : '—' }}"
+                            readonly
+                            tabindex="-1"
+                            style="margin:0; min-width:220px; background:#f8fafc; color:#475569; cursor:default;"
+                        >
+                    </div>
+                    <div style="min-width: 220px;">
+                        <label for="category_document_controller" style="margin-bottom:6px;">DC</label>
+                        <input
+                            type="text"
+                            id="category_document_controller"
+                            value="{{ $selectedDocumentController !== '' ? $selectedDocumentController : '—' }}"
+                            readonly
+                            tabindex="-1"
+                            style="margin:0; min-width:220px; background:#f8fafc; color:#475569; cursor:default;"
+                        >
+                    </div>
                 </div>
                 <div style="min-width: 240px;">
                     <label for="category_main_folder_select" style="margin-bottom:6px;">Category</label>
@@ -149,18 +204,34 @@
                     <p style="margin:6px 0 0; color:#64748b; font-size:0.92rem;">
                         {{ number_format($categoryTabTotal) }} document(s) in {{ number_format($byCategory->count()) }} categor{{ $byCategory->count() === 1 ? 'y' : 'ies' }}.
                     </p>
-                </div>
-                @include('summary-dashboard._download-button', ['tab' => 'category'])
-            </div>
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:18px;">
-                <div class="dash-chart-wrap" style="height:360px;">
-                    <canvas id="categoryChart"></canvas>
-                </div>
-                <div class="dash-chart-wrap" style="height:360px;">
-                    <canvas id="mainFolderChart"></canvas>
+                    @if((int) $selectedProjectId > 0)
+                        <p style="margin:8px 0 0; color:#212d3e; font-size:1rem; font-weight:600;">
+                            Project document count: {{ number_format($categoryTabTotal) }}
+                        </p>
+                    @endif
                 </div>
             </div>
-            @include('summary-dashboard._breakdown-table', ['title' => 'Category breakdown', 'rows' => $categoryRows])
+            <section class="dash-section">
+                <h4 class="dash-section-title">Breakdown</h4>
+                @include('summary-dashboard._breakdown-table', [
+                    'title' => 'Category breakdown',
+                    'rows' => $categoryRows,
+                    'total' => $categoryTabTotal,
+                    'totalLabel' => (int) $selectedProjectId > 0 ? 'Total documents (project count)' : 'Total documents',
+                    'downloadTab' => 'category',
+                ])
+            </section>
+            <section class="dash-section">
+                <h4 class="dash-section-title">Charts</h4>
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:18px;">
+                    <div class="dash-chart-wrap" style="height:360px;">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                    <div class="dash-chart-wrap" style="height:360px;">
+                        <canvas id="mainFolderChart"></canvas>
+                    </div>
+                </div>
+            </section>
         </div>
     </div>
 
@@ -234,11 +305,36 @@
             text-decoration: none;
             font-size: 0.9rem;
             white-space: nowrap;
+            border: none;
+            cursor: pointer;
+            font: inherit;
         }
 
         .dash-download-btn:hover {
             background: #2d3a52;
             color: #fff;
+        }
+
+        .dash-download-btn-light {
+            background: #fff;
+            color: #212d3e;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+        }
+
+        .dash-download-btn-light:hover {
+            background: #f8fafc;
+            color: #212d3e;
+        }
+
+        .dash-section {
+            margin-top: 18px;
+        }
+
+        .dash-section-title {
+            margin: 0 0 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #212d3e;
         }
 
         .dash-chart-wrap {
@@ -247,6 +343,8 @@
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
     <script>
         (function () {
             const palette = ['#212d3e', '#c4a47c', '#2d3a52', '#a88962', '#475569', '#64748b', '#94a3b8', '#1e293b', '#d4b896', '#334155'];
@@ -258,6 +356,21 @@
             const projectData = @json($byProject->values());
             const categoryData = @json($categoryRows->values());
             const mainFolderData = @json($byMainFolder->values());
+
+            const reportMeta = {
+                entityLabel: @json($pdfEntityLabel),
+                projectLabel: @json($pdfProjectLabel),
+                projectManager: @json($selectedProjectManager ?? ''),
+                documentController: @json($selectedDocumentController ?? ''),
+                mainFolder: @json($selectedMainFolder !== '' ? $selectedMainFolder : 'All categories'),
+                documentType: @json($selectedDocumentType !== '' ? $selectedDocumentType : 'All folders'),
+                dateFrom: @json($dateFrom ?: 'All dates'),
+                dateTo: @json($dateTo ?: 'All dates'),
+                selectedProjectId: @json((int) $selectedProjectId),
+                entityTabTotal: @json((int) $entityTabTotal),
+                projectTabTotal: @json((int) $projectTabTotal),
+                categoryTabTotal: @json((int) $categoryTabTotal),
+            };
 
             function chartCount(ctx) {
                 const parsed = ctx.parsed;
@@ -402,6 +515,176 @@
                 initTabCharts(tab);
             }
 
+            function tabTitle(tab) {
+                if (tab === 'project') return 'Project-wise';
+                if (tab === 'category') return 'Category-wise';
+                return 'Entity-wise';
+            }
+
+            function tableRowsForTab(tab) {
+                if (tab === 'project') return projectData;
+                if (tab === 'category') return categoryData;
+                return entityData;
+            }
+
+            function totalForTab(tab) {
+                if (tab === 'project') return reportMeta.projectTabTotal;
+                if (tab === 'category') return reportMeta.categoryTabTotal;
+                return reportMeta.entityTabTotal;
+            }
+
+            function totalLabelForTab(tab) {
+                if (tab === 'category' && reportMeta.selectedProjectId > 0) {
+                    return 'Total documents (project count)';
+                }
+                if (tab === 'project') {
+                    return 'Total documents (project count)';
+                }
+                return 'Total documents';
+            }
+
+            function addChartImage(doc, chart, y, maxWidth, maxHeight) {
+                if (!chart) {
+                    return y;
+                }
+
+                const img = chart.toBase64Image('image/png', 1);
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const margin = 14;
+                const availableWidth = Math.min(maxWidth, pageWidth - margin * 2);
+                const canvas = chart.canvas;
+                const ratio = canvas.height / canvas.width;
+                let width = availableWidth;
+                let height = width * ratio;
+                if (height > maxHeight) {
+                    height = maxHeight;
+                    width = height / ratio;
+                }
+
+                if (y + height > doc.internal.pageSize.getHeight() - 14) {
+                    doc.addPage();
+                    y = 16;
+                }
+
+                doc.addImage(img, 'PNG', margin, y, width, height);
+                return y + height + 8;
+            }
+
+            function downloadPdf(tab) {
+                const jsPdfNs = window.jspdf;
+                if (!jsPdfNs || !jsPdfNs.jsPDF) {
+                    alert('PDF library failed to load. Please refresh and try again.');
+                    return;
+                }
+
+                switchTab(tab);
+                initTabCharts(tab);
+
+                window.setTimeout(function () {
+                    const doc = new jsPdfNs.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                    const margin = 14;
+                    let y = 16;
+
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(16);
+                    doc.setTextColor(33, 45, 62);
+                    doc.text('Tanseeq DMS — Dashboard report', margin, y);
+                    y += 8;
+
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(11);
+                    doc.text('Report type: ' + tabTitle(tab), margin, y);
+                    y += 6;
+                    doc.setFontSize(10);
+                    doc.setTextColor(71, 85, 105);
+                    doc.text('Generated at: ' + new Date().toLocaleString(), margin, y);
+                    y += 8;
+
+                    doc.setTextColor(33, 45, 62);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Filters', margin, y);
+                    y += 5;
+                    doc.setFont('helvetica', 'normal');
+                    const filters = [
+                        'Entity: ' + reportMeta.entityLabel,
+                        'Project: ' + reportMeta.projectLabel,
+                        'Category: ' + reportMeta.mainFolder,
+                        'Folder: ' + reportMeta.documentType,
+                        'Date from: ' + reportMeta.dateFrom,
+                        'Date to: ' + reportMeta.dateTo,
+                    ];
+                    if (tab === 'category' && reportMeta.selectedProjectId > 0) {
+                        filters.splice(2, 0,
+                            'Project Manager: ' + (reportMeta.projectManager || '—'),
+                            'DC: ' + (reportMeta.documentController || '—')
+                        );
+                    }
+                    filters.forEach(function (line) {
+                        doc.text(line, margin, y);
+                        y += 5;
+                    });
+
+                    if (tab === 'category' && reportMeta.selectedProjectId > 0) {
+                        y += 2;
+                        doc.setFont('helvetica', 'bold');
+                        doc.setFontSize(12);
+                        doc.setTextColor(33, 45, 62);
+                        doc.text('Project document count: ' + Number(reportMeta.categoryTabTotal).toLocaleString(), margin, y);
+                        y += 8;
+                        doc.setFontSize(10);
+                    } else {
+                        y += 3;
+                    }
+
+                    const rows = tableRowsForTab(tab).map(function (row) {
+                        return [row.label, Number(row.total).toLocaleString()];
+                    });
+                    const total = Number(totalForTab(tab)).toLocaleString();
+
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(33, 45, 62);
+                    doc.text('Breakdown', margin, y);
+                    y += 3;
+
+                    doc.autoTable({
+                        startY: y,
+                        head: [['Name', 'Documents']],
+                        body: rows,
+                        foot: [[totalLabelForTab(tab), total]],
+                        theme: 'striped',
+                        styles: { fontSize: 9, cellPadding: 2 },
+                        headStyles: { fillColor: [33, 45, 62], textColor: 255 },
+                        footStyles: { fillColor: [248, 250, 252], textColor: [33, 45, 62], fontStyle: 'bold' },
+                        columnStyles: { 1: { halign: 'right' } },
+                        margin: { left: margin, right: margin },
+                    });
+
+                    y = (doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : y) + 10;
+
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(11);
+                    doc.setTextColor(33, 45, 62);
+                    if (y > doc.internal.pageSize.getHeight() - 40) {
+                        doc.addPage();
+                        y = 16;
+                    }
+                    doc.text('Charts', margin, y);
+                    y += 6;
+
+                    if (tab === 'entity') {
+                        y = addChartImage(doc, charts.entity, y, 180, 120);
+                    } else if (tab === 'project') {
+                        y = addChartImage(doc, charts.project, y, 180, 140);
+                    } else {
+                        y = addChartImage(doc, charts.category, y, 180, 100);
+                        y = addChartImage(doc, charts.mainFolder, y, 120, 100);
+                    }
+
+                    const today = new Date().toISOString().slice(0, 10);
+                    doc.save('dashboard-' + tab + '-report-' + today + '.pdf');
+                }, 120);
+            }
+
             document.querySelectorAll('.dash-tab').forEach((button) => {
                 button.addEventListener('click', () => {
                     const tab = button.dataset.tab;
@@ -443,6 +726,12 @@
                 });
             });
 
+            document.querySelectorAll('[data-pdf-tab]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    downloadPdf(button.getAttribute('data-pdf-tab') || activeTab);
+                });
+            });
+
             switchTab(activeTab);
         })();
     </script>
@@ -462,6 +751,9 @@
             var categoryProjectSelect = document.getElementById('category_project_select');
             var categoryMainFolderSelect = document.getElementById('category_main_folder_select');
             var categoryDocumentTypeSelect = document.getElementById('category_document_type_select');
+            var categoryContactsWrap = document.getElementById('category-project-contacts');
+            var categoryProjectManager = document.getElementById('category_project_manager');
+            var categoryDocumentController = document.getElementById('category_document_controller');
 
             function submitTabFilters(tab) {
                 tabInput.value = tab;
@@ -473,6 +765,32 @@
                 projectInput.value = categoryProjectSelect ? categoryProjectSelect.value : '';
                 mainFolderInput.value = categoryMainFolderSelect ? categoryMainFolderSelect.value : '';
                 documentTypeInput.value = categoryDocumentTypeSelect ? categoryDocumentTypeSelect.value : '';
+            }
+
+            function updateCategoryProjectContacts() {
+                if (!categoryContactsWrap || !categoryProjectSelect) return;
+
+                var entityId = categoryEntitySelect ? categoryEntitySelect.value : '';
+                var projectId = categoryProjectSelect.value;
+                var projects = projectsByEntity[entityId] || [];
+                var project = projects.find(function (row) {
+                    return String(row.id) === String(projectId);
+                });
+
+                if (!projectId || !project) {
+                    categoryContactsWrap.style.display = 'none';
+                    if (categoryProjectManager) categoryProjectManager.value = '—';
+                    if (categoryDocumentController) categoryDocumentController.value = '—';
+                    return;
+                }
+
+                categoryContactsWrap.style.display = 'flex';
+                if (categoryProjectManager) {
+                    categoryProjectManager.value = project.project_manager || '—';
+                }
+                if (categoryDocumentController) {
+                    categoryDocumentController.value = project.document_controller || '—';
+                }
             }
 
             function renderCategoryProjects() {
@@ -490,6 +808,7 @@
 
                 if (!entityId) {
                     categoryProjectSelect.disabled = true;
+                    updateCategoryProjectContacts();
                     return;
                 }
 
@@ -503,6 +822,8 @@
                     }
                     categoryProjectSelect.appendChild(option);
                 });
+
+                updateCategoryProjectContacts();
             }
 
             function renderCategoryFolders() {
@@ -556,6 +877,7 @@
 
             if (categoryProjectSelect) {
                 categoryProjectSelect.addEventListener('change', function () {
+                    updateCategoryProjectContacts();
                     syncHiddenFromCategoryFilters();
                     submitTabFilters('category');
                 });

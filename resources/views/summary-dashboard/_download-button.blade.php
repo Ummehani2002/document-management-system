@@ -1,9 +1,10 @@
 @php
-    $downloadQuery = request()->only(['entity_id', 'project_id', 'main_folder', 'document_type', 'date_from', 'date_to']);
+    $buttonClass = trim('dash-download-btn '.($buttonClass ?? ''));
 @endphp
-<a
-    href="{{ route('summary-dashboard.download', array_merge($downloadQuery, ['tab' => $tab])) }}"
-    class="dash-download-btn"
+<button
+    type="button"
+    class="{{ $buttonClass }}"
+    data-pdf-tab="{{ $tab }}"
 >
-    Download report (CSV)
-</a>
+    Download report (PDF)
+</button>
