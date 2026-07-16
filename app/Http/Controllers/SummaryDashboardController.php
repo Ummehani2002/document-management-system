@@ -40,7 +40,7 @@ class SummaryDashboardController extends Controller
 
             fwrite($handle, "\xEF\xBB\xBF");
 
-            $this->writeCsvRow($handle, ['Tanseeq DMS — Dashboard report']);
+            $this->writeCsvRow($handle, ['Tanseeq DMS Report']);
             $this->writeCsvRow($handle, ['Report type', ucfirst($tab).' wise']);
             $this->writeCsvRow($handle, ['Generated at', now()->timezone(config('app.timezone', 'Asia/Dubai'))->format('Y-m-d H:i')]);
             $this->writeCsvRow($handle, ['Entity filter', $this->entityFilterLabel($report)]);

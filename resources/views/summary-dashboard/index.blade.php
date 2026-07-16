@@ -588,7 +588,7 @@
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(16);
                     doc.setTextColor(33, 45, 62);
-                    doc.text('Tanseeq DMS — Dashboard report', margin, y);
+                    doc.text('Tanseeq DMS Report', margin, y);
                     y += 8;
 
                     doc.setFont('helvetica', 'normal');
