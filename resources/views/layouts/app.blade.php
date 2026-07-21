@@ -246,7 +246,40 @@
         }
 
         .sidebar-logout-form {
+            margin-top: 12px;
+        }
+
+        .sidebar-profile {
             margin-top: 18px;
+            padding: 12px 14px;
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.35);
+        }
+
+        .sidebar-profile-label {
+            display: block;
+            font-size: 10px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--sidebar-muted);
+            margin-bottom: 6px;
+        }
+
+        .sidebar-profile-name {
+            display: block;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 2px;
+            word-break: break-word;
+        }
+
+        .sidebar-profile-email {
+            display: block;
+            color: var(--sidebar-muted);
+            font-size: 12px;
+            word-break: break-all;
         }
 
         .sidebar-logout-btn {
@@ -506,6 +539,13 @@
                     </li>
                 @endforeach
             </ul>
+        </div>
+        <div class="sidebar-profile">
+            <span class="sidebar-profile-label">Signed in as</span>
+            @if(auth()->user()->name)
+                <span class="sidebar-profile-name">{{ auth()->user()->name }}</span>
+            @endif
+            <span class="sidebar-profile-email">{{ auth()->user()->email }}</span>
         </div>
         <form method="POST" action="{{ route('logout') }}" class="sidebar-logout-form">
             @csrf
