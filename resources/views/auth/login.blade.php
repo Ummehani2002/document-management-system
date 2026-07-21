@@ -222,6 +222,70 @@
         .ms-logo .s3 { background: #00a4ef; }
         .ms-logo .s4 { background: #ffb900; }
 
+        .login-divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 22px 0 18px;
+            color: #94a3b8;
+            font-size: 0.8rem;
+        }
+        .login-divider::before,
+        .login-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .local-login label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .local-login input[type="text"],
+        .local-login input[type="password"] {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-size: 0.95rem;
+            margin-bottom: 14px;
+            background: #fff;
+            color: var(--text);
+        }
+        .local-login input:focus {
+            outline: none;
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px rgba(196, 164, 124, 0.25);
+        }
+        .local-login .remember-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .local-login .remember-row input { margin: 0; }
+        .local-login button[type="submit"] {
+            width: 100%;
+            padding: 13px;
+            background: #fff;
+            color: var(--navy);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: border-color 0.15s ease, background 0.15s ease;
+        }
+        .local-login button[type="submit"]:hover {
+            background: #f8fafc;
+            border-color: var(--gold);
+        }
+
         .form-footer {
             margin-top: 24px;
             text-align: center;
@@ -281,6 +345,38 @@
                 </span>
                 <span>Sign in with Microsoft</span>
             </a>
+
+            <div class="login-divider">or username / password</div>
+
+            <form method="POST" action="{{ route('login') }}" class="local-login">
+                @csrf
+                <label for="username">Username</label>
+                <input
+                    id="username"
+                    type="text"
+                    name="username"
+                    value="{{ old('username') }}"
+                    required
+                    autofocus
+                    autocomplete="username"
+                >
+
+                <label for="password">Password</label>
+                <input
+                    id="password"
+                    type="password"
+                    name="password"
+                    required
+                    autocomplete="current-password"
+                >
+
+                <label class="remember-row">
+                    <input type="checkbox" name="remember">
+                    Remember me
+                </label>
+
+                <button type="submit">Sign in</button>
+            </form>
 
             <div class="form-footer">
                 &copy; {{ date('Y') }} Tanseeq Investment · Document Management System
