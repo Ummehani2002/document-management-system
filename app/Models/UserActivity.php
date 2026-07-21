@@ -17,10 +17,10 @@ class UserActivity extends Model
 
     /** @var array<string, string> */
     public const ACTION_LABELS = [
-        self::ACTION_UPLOADED => 'Document uploaded',
-        self::ACTION_REPLACED => 'Document replaced',
-        self::ACTION_DELETED => 'Document deleted',
-        self::ACTION_REATTACHED => 'Document re-attached',
+        self::ACTION_UPLOADED => 'Uploaded',
+        self::ACTION_REPLACED => 'Edited',
+        self::ACTION_DELETED => 'Deleted',
+        self::ACTION_REATTACHED => 'Re-attached',
     ];
 
     protected $fillable = [

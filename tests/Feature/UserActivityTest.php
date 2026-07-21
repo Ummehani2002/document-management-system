@@ -49,3 +49,36 @@ test('activity log page is available to authenticated users', function () {
         ->assertOk()
         ->assertSee('User Activity Log');
 });
+
+test('activity log shows uploaded edited and deleted actions', function () {
+    $user = User::factory()->create(['name' => 'Activity Tester']);
+    $this->actingAs($user);
+
+    $entity = Entity::create(['name' => 'Test Entity']);
+    $project = Project::create([
+        'entity_id' => $entity->id,
+        'project_number' => 'PSE20260002',
+        'project_name' => 'Activity Project',
+    ]);
+
+    $document = Document::create([
+        'entity_id' => $entity->id,
+        'project_id' => $project->id,
+        'document_type' => 'Other',
+        'file_name' => 'tracked.pdf',
+        'file_path' => 'documents/test/tracked.pdf',
+    ]);
+
+    UserActivityLogger::uploaded($document);
+    UserActivityLogger::replaced($document);
+    UserActivityLogger::deleted($document);
+
+    $this->actingAs($user)
+        ->get(route('user-activities.index'))
+        ->assertOk()
+        ->assertSee('Uploaded')
+        ->assertSee('Edited')
+        ->assertSee('Deleted')
+        ->assertSee('Activity Tester')
+        ->assertSee('tracked.pdf');
+});
