@@ -34,7 +34,7 @@ return [
 
     'lifetime' => (int) env('SESSION_LIFETIME', 120),
 
-    'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', true),
+    'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -156,7 +156,7 @@ return [
     |
     */
 
-    'domain' => env('SESSION_DOMAIN'),
+    'domain' => ($domain = env('SESSION_DOMAIN')) === 'null' || $domain === '' ? null : $domain,
 
     /*
     |--------------------------------------------------------------------------
@@ -169,7 +169,10 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => filter_var(
+        env('SESSION_SECURE_COOKIE', str_starts_with((string) env('APP_URL', ''), 'https://')),
+        FILTER_VALIDATE_BOOL
+    ),
 
     /*
     |--------------------------------------------------------------------------
