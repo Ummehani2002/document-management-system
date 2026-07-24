@@ -345,7 +345,7 @@ class DocumentController extends Controller
                     UserActivityLogger::reattached($document, ['upload_mode' => $uploadMode]);
 
             try {
-                $this->dispatchProcessOcr($document->id);
+                $this->dispatchProcessOcr($document->id, $uploadMode === 'manual');
             } catch (\Throwable $e) {
                 \Log::warning('ProcessOCR on re-attach failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
             }
@@ -393,7 +393,7 @@ class DocumentController extends Controller
             UserActivityLogger::uploaded($document, ['upload_mode' => $uploadMode]);
             // Queue OCR so upload response returns immediately.
             try {
-                $this->dispatchProcessOcr($document->id);
+                $this->dispatchProcessOcr($document->id, $uploadMode === 'manual');
             } catch (\Throwable $e) {
                 \Log::warning('ProcessOCR on upload failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
             }
@@ -1114,17 +1114,18 @@ class DocumentController extends Controller
      * Run first-pass OCR in-process when the queue is "sync" or DMS_OCR_SYNC_ON_UPLOAD=true,
      * so local installs without queue:work still get ocr_text and reclassification.
      * Otherwise queue after the HTTP response.
+     * Manual uploads set $preserveFolder so OCR text is stored but the chosen folder is kept.
      */
-    protected function dispatchProcessOcr(int $documentId): void
+    protected function dispatchProcessOcr(int $documentId, bool $preserveFolder = false): void
     {
         $inline = config('queue.default') === 'sync'
             || filter_var(env('DMS_OCR_SYNC_ON_UPLOAD', false), FILTER_VALIDATE_BOOL);
         if ($inline) {
-            (new ProcessOCR($documentId))->handle();
+            (new ProcessOCR($documentId, $preserveFolder))->handle();
 
             return;
         }
-        ProcessOCR::dispatch($documentId)->afterResponse();
+        ProcessOCR::dispatch($documentId, $preserveFolder)->afterResponse();
     }
 
     /**

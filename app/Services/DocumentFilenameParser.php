@@ -978,6 +978,17 @@ class DocumentFilenameParser
             $confidence = max($confidence, 0.80);
         }
 
+        // Fallback for Folder Master names that have no hard-coded OCR/filename rules:
+        // if still unclassified, match subfolder names from the DB tree against filename/OCR.
+        if ($category === 'Other') {
+            $catalogMatch = self::matchCatalogSubfolderName($filename, $ocr !== '' ? $ocr : null);
+            if ($catalogMatch !== null) {
+                $category = $catalogMatch['category'];
+                $source = 'catalog_name';
+                $confidence = $catalogMatch['confidence'];
+            }
+        }
+
         $meta = self::extractReferenceAndSubject($ocrText, $filename);
 
         return [
@@ -987,6 +998,71 @@ class DocumentFilenameParser
             'reference_no' => $meta['reference_no'] ?? '—',
             'subject' => $meta['subject'] ?? '—',
         ];
+    }
+
+    /**
+     * Match filename/OCR text to a Folder Master subfolder name (longest match wins).
+     *
+     * @return array{category: string, confidence: float}|null
+     */
+    protected static function matchCatalogSubfolderName(string $filename, ?string $ocrText): ?array
+    {
+        $haystack = strtoupper(trim(
+            pathinfo($filename, PATHINFO_FILENAME)."\n".trim((string) $ocrText)
+        ));
+        if ($haystack === '') {
+            return null;
+        }
+        $haystack = preg_replace('/\s+/u', ' ', $haystack) ?? $haystack;
+
+        $candidates = [];
+        foreach (self::sidebarFolderTree() as $subfolders) {
+            foreach ($subfolders as $sub) {
+                $sub = trim((string) $sub);
+                if ($sub === '' || strcasecmp($sub, 'Other') === 0) {
+                    continue;
+                }
+                $candidates[$sub] = true;
+            }
+        }
+
+        if ($candidates === []) {
+            return null;
+        }
+
+        $names = array_keys($candidates);
+        usort($names, static fn (string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+
+        foreach ($names as $name) {
+            $needle = strtoupper(preg_replace('/\s+/u', ' ', $name) ?? $name);
+            if ($needle === '') {
+                continue;
+            }
+
+            $matched = false;
+            // Short single-word names (e.g. "Test") require a word boundary so
+            // "test8.pdf" or "latest" do not false-match; multi-word names use contains.
+            $useWordBoundary = mb_strlen($needle) <= 8 && ! str_contains($needle, ' ');
+            if ($useWordBoundary || mb_strlen($needle) < 4) {
+                $pattern = '/(?:^|[^A-Z0-9])'.preg_quote($needle, '/').'(?:[^A-Z0-9]|$)/u';
+                $matched = (bool) preg_match($pattern, $haystack);
+            } else {
+                $matched = str_contains($haystack, $needle);
+            }
+
+            if (! $matched) {
+                continue;
+            }
+
+            $confidence = mb_strlen($needle) >= 12 ? 0.82 : 0.76;
+
+            return [
+                'category' => $name,
+                'confidence' => $confidence,
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -1556,7 +1632,11 @@ class DocumentFilenameParser
 
         return $query->where(function ($outer) use ($documentTypeFilters) {
             $outer->where(function ($inner) use ($documentTypeFilters) {
-                $inner->whereIn('document_type', $documentTypeFilters);
+                $inner->where(function ($typeQuery) use ($documentTypeFilters) {
+                    foreach ($documentTypeFilters as $type) {
+                        $typeQuery->orWhereRaw('LOWER(document_type) = LOWER(?)', [$type]);
+                    }
+                });
                 foreach ($documentTypeFilters as $type) {
                     foreach (self::folderSearchFilenameLikePatterns($type) as $pattern) {
                         $inner->orWhere('file_name', 'like', $pattern);

@@ -674,7 +674,10 @@ class DocumentDirectUploadController extends Controller
                     'upload_mode' => (string) ($payload['upload_mode'] ?? 'auto'),
                 ]);
                 try {
-                    $this->dispatchProcessOcr($document->id);
+                    $this->dispatchProcessOcr(
+                        $document->id,
+                        (string) ($payload['upload_mode'] ?? 'auto') === 'manual'
+                    );
                 } catch (\Throwable $e) {
                     Log::warning('ProcessOCR on direct re-attach failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
                 }
@@ -716,7 +719,10 @@ class DocumentDirectUploadController extends Controller
             'upload_mode' => (string) ($payload['upload_mode'] ?? 'auto'),
         ]);
         try {
-            $this->dispatchProcessOcr($document->id);
+            $this->dispatchProcessOcr(
+                $document->id,
+                (string) ($payload['upload_mode'] ?? 'auto') === 'manual'
+            );
         } catch (\Throwable $e) {
             Log::warning('ProcessOCR on direct upload failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
         }
@@ -776,15 +782,15 @@ class DocumentDirectUploadController extends Controller
         return hash_final($context);
     }
 
-    protected function dispatchProcessOcr(int $documentId): void
+    protected function dispatchProcessOcr(int $documentId, bool $preserveFolder = false): void
     {
         $sync = config('queue.default') === 'sync';
         $envSync = filter_var(env('DMS_OCR_SYNC_ON_UPLOAD', false), FILTER_VALIDATE_BOOLEAN);
         if ($sync || $envSync) {
-            (new ProcessOCR($documentId))->handle();
+            (new ProcessOCR($documentId, $preserveFolder))->handle();
 
             return;
         }
-        ProcessOCR::dispatch($documentId)->afterResponse();
+        ProcessOCR::dispatch($documentId, $preserveFolder)->afterResponse();
     }
 }

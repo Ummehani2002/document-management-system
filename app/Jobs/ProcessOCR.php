@@ -17,17 +17,20 @@ class ProcessOCR implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /**
-     * Create a new job instance.
-     */
     public $documentId;
 
-    public function __construct($documentId)
+    /**
+     * When true (manual upload), keep the chosen folder — only extract searchable OCR text.
+     */
+    public bool $preserveFolder;
+
+    public function __construct($documentId, bool $preserveFolder = false)
     {
         $this->documentId = $documentId;
+        $this->preserveFolder = $preserveFolder;
     }
 
-    /** Extract searchable text and auto-classify folder. */
+    /** Extract searchable text and optionally auto-classify folder. */
     public function handle(): void
     {
         $document = Document::find($this->documentId);
@@ -39,6 +42,7 @@ class ProcessOCR implements ShouldQueue
         $disk = config('filesystems.default');
         if (! Storage::disk($disk)->exists($document->file_path)) {
             \Log::warning('ProcessOCR: file not found', ['path' => $document->file_path]);
+
             return;
         }
 
@@ -53,7 +57,7 @@ class ProcessOCR implements ShouldQueue
                 if ($ext === '') {
                     $ext = 'tmp';
                 }
-                $tempPath = tempnam(sys_get_temp_dir(), 'dms_ocr_') . '.' . $ext;
+                $tempPath = tempnam(sys_get_temp_dir(), 'dms_ocr_').'.'.$ext;
                 file_put_contents($tempPath, Storage::disk($disk)->get($document->file_path));
 
                 $text = '';
@@ -71,9 +75,18 @@ class ProcessOCR implements ShouldQueue
                 ]);
             }
 
+            if ($this->preserveFolder) {
+                \Log::info('ProcessOCR skipped folder reclassification (manual upload folder locked)', [
+                    'document_id' => $document->id,
+                    'document_type' => $document->document_type,
+                ]);
+
+                return;
+            }
+
             app(DocumentReclassificationService::class)->refineAfterOcr($document);
         } catch (\Throwable $e) {
-            \Log::error('ProcessOCR pipeline failed: ' . $e->getMessage(), ['document_id' => $document->id]);
+            \Log::error('ProcessOCR pipeline failed: '.$e->getMessage(), ['document_id' => $document->id]);
         } finally {
             if ($tempPath && file_exists($tempPath)) {
                 @unlink($tempPath);
