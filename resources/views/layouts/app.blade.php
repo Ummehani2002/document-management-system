@@ -603,6 +603,33 @@
                 return;
             }
 
+            // "All in this category" — e.g. all Financial Documents subfolders
+            var allBlock = document.createElement('div');
+            allBlock.className = 'folder-block-card';
+            var allLink = document.createElement('a');
+            var allHref = '{{ route('documents.search') }}?from_sidebar=1&main_folder=' + encodeURIComponent(selectedFolder.name);
+            if (currentEntityId) {
+                allHref += '&entity_id=' + encodeURIComponent(currentEntityId);
+            }
+            if (currentProjectId) {
+                allHref += '&project_id=' + encodeURIComponent(currentProjectId);
+            }
+            allLink.href = allHref;
+            if (currentMainFolder === selectedFolder.name && !currentSubfolder) {
+                allLink.classList.add('is-active');
+            }
+            var allIcon = document.createElement('span');
+            allIcon.className = 'folder-block-icon';
+            allIcon.setAttribute('aria-hidden', 'true');
+            allIcon.textContent = '📁';
+            var allTitle = document.createElement('span');
+            allTitle.className = 'folder-block-title';
+            allTitle.textContent = 'All ' + selectedFolder.name;
+            allLink.appendChild(allIcon);
+            allLink.appendChild(allTitle);
+            allBlock.appendChild(allLink);
+            folderBlocksGrid.appendChild(allBlock);
+
             items.forEach(function (item) {
                 var block = document.createElement('div');
                 block.className = 'folder-block-card';

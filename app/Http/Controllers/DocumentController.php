@@ -459,23 +459,36 @@ class DocumentController extends Controller
         $entityId = $request->entity_id ? (int) $request->entity_id : null;
         $discipline = trim($request->discipline ?? '');
         $documentType = trim($request->document_type ?? '');
+        $mainFolder = trim((string) $request->input('main_folder', ''));
         $fromSidebar = (bool) $request->boolean('from_sidebar');
-        $needsProjectSelection = $fromSidebar && $documentType !== '' && !$projectId;
+        $folderTree = DocumentFilenameParser::sidebarFolderTree();
+        $needsProjectSelection = $fromSidebar
+            && ($documentType !== '' || $mainFolder !== '')
+            && (! $projectId || ! $entityId);
         $hasSearchFilters = $keyword !== ''
             || $projectId
             || $entityId
             || $discipline !== ''
-            || $documentType !== '';
+            || $documentType !== ''
+            || $mainFolder !== '';
+        // Keep aliases tight so browsing one folder does not pull unrelated types.
         $documentTypeAliases = [
             'Method Statement' => ['Method Statement', 'Method Submittal'],
-            'Shop Drawing' => ['Shop Drawing', 'Drawing'],
-            'Incoming Or Outgoing Letter' => ['Incoming Or Outgoing Letter', 'Correspondence'],
-            'Monthly Report' => ['Monthly Report', 'Report'],
+            'Shop Drawing' => ['Shop Drawing'],
+            'Incoming Or Outgoing Letter' => ['Incoming Or Outgoing Letter'],
+            'Monthly Report' => ['Monthly Report'],
             'Permit and NOC' => ['Permit and NOC', 'Permit', 'NOC'],
         ];
-        $documentTypeFilters = $documentType !== ''
-            ? ($documentTypeAliases[$documentType] ?? [$documentType])
-            : [];
+        $documentTypeFilters = [];
+        if ($documentType !== '') {
+            $documentTypeFilters = $documentTypeAliases[$documentType] ?? [$documentType];
+        } elseif ($mainFolder !== '') {
+            // Browse whole main category (e.g. all Financial Documents subfolders).
+            $documentTypeFilters = array_values($folderTree[$mainFolder] ?? []);
+            if ($documentTypeFilters === []) {
+                $documentTypeFilters = ['__no_matching_subfolder__'];
+            }
+        }
 
         // Project options come from Project Master. Always load every project so the
         // entity/project dropdowns can filter client-side when the user switches entity
@@ -504,11 +517,15 @@ class DocumentController extends Controller
                 abort(403, 'You do not have access to this entity.');
             }
             if ($documentType !== '' && $entityId) {
-                $mainFolder = (string) $request->input('main_folder', '');
                 if ($mainFolder === '') {
                     $mainFolder = DocumentFilenameParser::mainFolderForDocumentType($documentType) ?? '';
                 }
                 if (! $this->access->canAccessFolder($user, $entityId, $mainFolder, $documentType)) {
+                    abort(403, 'You do not have access to this folder.');
+                }
+            }
+            if ($documentType === '' && $mainFolder !== '' && $entityId) {
+                if (! $this->access->canAccessFolder($user, $entityId, $mainFolder, null)) {
                     abort(403, 'You do not have access to this folder.');
                 }
             }

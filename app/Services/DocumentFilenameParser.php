@@ -1015,33 +1015,35 @@ class DocumentFilenameParser
         }
         $haystack = preg_replace('/\s+/u', ' ', $haystack) ?? $haystack;
 
-        $candidates = [];
-        foreach (self::sidebarFolderTree() as $subfolders) {
-            foreach ($subfolders as $sub) {
-                $sub = trim((string) $sub);
-                if ($sub === '' || strcasecmp($sub, 'Other') === 0) {
+        /** @var list<array{category: string, needle: string}> $pairs */
+        $pairs = [];
+        foreach (DocumentFolderCatalog::autoClassifyTargets() as $target) {
+            $category = trim((string) ($target['category'] ?? ''));
+            if ($category === '' || strcasecmp($category, 'Other') === 0) {
+                continue;
+            }
+            foreach ($target['needles'] ?? [] as $needleRaw) {
+                $needle = strtoupper(preg_replace('/\s+/u', ' ', trim((string) $needleRaw)) ?? '');
+                if ($needle === '') {
                     continue;
                 }
-                $candidates[$sub] = true;
+                $pairs[] = [
+                    'category' => $category,
+                    'needle' => $needle,
+                ];
             }
         }
 
-        if ($candidates === []) {
+        if ($pairs === []) {
             return null;
         }
 
-        $names = array_keys($candidates);
-        usort($names, static fn (string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+        usort($pairs, static fn (array $a, array $b): int => mb_strlen($b['needle']) <=> mb_strlen($a['needle']));
 
-        foreach ($names as $name) {
-            $needle = strtoupper(preg_replace('/\s+/u', ' ', $name) ?? $name);
-            if ($needle === '') {
-                continue;
-            }
-
+        foreach ($pairs as $pair) {
+            $needle = $pair['needle'];
             $matched = false;
-            // Short single-word names (e.g. "Test") require a word boundary so
-            // "test8.pdf" or "latest" do not false-match; multi-word names use contains.
+            // Short single-word needles need a word boundary (avoid "test" matching "latest").
             $useWordBoundary = mb_strlen($needle) <= 8 && ! str_contains($needle, ' ');
             if ($useWordBoundary || mb_strlen($needle) < 4) {
                 $pattern = '/(?:^|[^A-Z0-9])'.preg_quote($needle, '/').'(?:[^A-Z0-9]|$)/u';
@@ -1054,10 +1056,10 @@ class DocumentFilenameParser
                 continue;
             }
 
-            $confidence = mb_strlen($needle) >= 12 ? 0.82 : 0.76;
+            $confidence = mb_strlen($needle) >= 12 ? 0.84 : 0.78;
 
             return [
-                'category' => $name,
+                'category' => $pair['category'],
                 'confidence' => $confidence,
             ];
         }

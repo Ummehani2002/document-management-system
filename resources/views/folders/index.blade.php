@@ -55,6 +55,7 @@
                         <thead>
                             <tr>
                                 <th>Subfolder</th>
+                                <th>Auto keywords</th>
                                 <th class="text-right">Sort</th>
                                 <th class="text-right">Actions</th>
                             </tr>
@@ -63,6 +64,7 @@
                             @foreach($folder->subfolders as $sub)
                                 <tr>
                                     <td>{{ $sub->name }}</td>
+                                    <td style="color:#64748b; font-size:0.9rem;">{{ $sub->auto_keywords ?: $sub->name }}</td>
                                     <td class="text-right">{{ $sub->sort_order }}</td>
                                     <td class="text-right" style="white-space:nowrap;">
                                         <a href="{{ route('folders.subfolders.edit', $sub) }}">Edit</a>

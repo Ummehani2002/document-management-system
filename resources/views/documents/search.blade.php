@@ -382,7 +382,9 @@
     <form method="GET" action="{{ route('documents.search') }}" class="search-form">
         <input type="hidden" name="from_sidebar" value="1">
         <input type="hidden" name="main_folder" value="{{ request('main_folder') }}">
-        <input type="hidden" name="document_type" value="{{ request('document_type') }}">
+        @if(request('document_type'))
+            <input type="hidden" name="document_type" value="{{ request('document_type') }}">
+        @endif
         <div class="card" style="max-width: 520px;">
             <label for="entity_id" style="display: block; margin-bottom: 4px; font-weight: 500;">Entity </label>
             <select name="entity_id" id="entity_id" required style="width: 100%; padding: 8px 12px; margin-bottom: 12px;">
@@ -405,6 +407,13 @@
                     </option>
                 @endforeach
             </select>
+            <p style="margin: 10px 0 0; color: #64748b; font-size: 0.86rem;">
+                @if(request('document_type'))
+                    Document Type: <strong>{{ request('document_type') }}</strong>
+                @elseif(request('main_folder'))
+                    Category: <strong>{{ request('main_folder') }}</strong> (all subfolders)
+                @endif
+            </p>
             <button type="submit" style="margin-top: 12px;">View Files</button>
         </div>
     </form>
@@ -455,11 +464,17 @@
         });
     </script>
 @else
-    @if(!empty($fromSidebar) && request('project_id') && request('document_type'))
+    @if(!empty($fromSidebar) && request('project_id') && (request('document_type') || request('main_folder')))
     @else
         <form method="GET" action="{{ route('documents.search') }}" class="search-form">
             @if(!empty($fromSidebar))
                 <input type="hidden" name="from_sidebar" value="1">
+                @if(request('main_folder'))
+                    <input type="hidden" name="main_folder" value="{{ request('main_folder') }}">
+                @endif
+                @if(request('document_type'))
+                    <input type="hidden" name="document_type" value="{{ request('document_type') }}">
+                @endif
             @endif
             <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px;">
                 <div style="flex: 1 1 180px; min-width: 160px;">
@@ -570,7 +585,7 @@
 @endif
 
 @if(isset($documents) && $documents !== null)
-    @if(!empty($fromSidebar) && request('project_id') && request('document_type'))
+    @if(!empty($fromSidebar) && request('project_id') && (request('document_type') || request('main_folder')))
         @php
             $folderTree = \App\Services\DocumentFilenameParser::sidebarFolderTree();
             $activeType = request('document_type');
@@ -584,18 +599,23 @@
                 }
             }
             $selectedProject = $projects->firstWhere('id', (int) request('project_id'));
+            $scopeLabel = $activeType
+                ? 'Document Type: '.$activeType
+                : ('Category: '.$mainFolder.' (all subfolders)');
         @endphp
 
         <div>
             <form method="GET" action="{{ route('documents.search') }}" class="card" style="margin-top: 0; margin-bottom: 12px; max-width: 720px;">
                 <input type="hidden" name="from_sidebar" value="1">
                 <input type="hidden" name="main_folder" value="{{ $mainFolder }}">
-                <input type="hidden" name="document_type" value="{{ $activeType }}">
+                @if($activeType)
+                    <input type="hidden" name="document_type" value="{{ $activeType }}">
+                @endif
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: end;">
                     <div>
                         <label for="entity_id_switch" style="display: block; margin-bottom: 4px; font-weight: 500;">Entity</label>
-                        <select name="entity_id" id="entity_id_switch" style="width: 100%; padding: 8px 12px;">
-                            <option value="">All entities</option>
+                        <select name="entity_id" id="entity_id_switch" required style="width: 100%; padding: 8px 12px;">
+                            <option value="">Select entity</option>
                             @foreach($entities ?? [] as $e)
                                 <option value="{{ $e->id }}" {{ (int) request('entity_id') === $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
                             @endforeach
@@ -621,7 +641,7 @@
                     </div>
                 </div>
                 <p style="margin: 10px 0 0; color: #64748b; font-size: 0.86rem;">
-                    Document Type: <strong>{{ $activeType }}</strong>
+                    <strong>{{ $scopeLabel }}</strong>
                 </p>
             </form>
 

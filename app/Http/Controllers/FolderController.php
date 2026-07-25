@@ -104,11 +104,17 @@ class FolderController extends Controller
                 'max:255',
                 'unique:document_subfolders,name,NULL,id,main_folder_id,'.$folder->id,
             ],
+            'auto_keywords' => ['nullable', 'string', 'max:2000'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
+        $name = trim($validated['name']);
         $folder->subfolders()->create([
-            'name' => trim($validated['name']),
+            'name' => $name,
+            'auto_keywords' => DocumentSubfolder::normalizeAutoKeywordsInput(
+                $validated['auto_keywords'] ?? null,
+                $name
+            ),
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
         ]);
 
@@ -136,12 +142,17 @@ class FolderController extends Controller
                 'max:255',
                 'unique:document_subfolders,name,'.$subfolder->id.',id,main_folder_id,'.(int) $request->input('main_folder_id'),
             ],
+            'auto_keywords' => ['nullable', 'string', 'max:2000'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $newName = trim($validated['name']);
         $newMainId = (int) $validated['main_folder_id'];
         $sortOrder = (int) ($validated['sort_order'] ?? $subfolder->sort_order);
+        $keywords = DocumentSubfolder::normalizeAutoKeywordsInput(
+            $validated['auto_keywords'] ?? null,
+            $newName
+        );
 
         if ($subfolder->name !== $newName) {
             DocumentFolderCatalog::renameSubfolder($subfolder, $newName);
@@ -151,6 +162,7 @@ class FolderController extends Controller
         $subfolder->update([
             'main_folder_id' => $newMainId,
             'sort_order' => $sortOrder,
+            'auto_keywords' => $keywords,
         ]);
         DocumentFolderCatalog::clearCache();
 
