@@ -18,14 +18,14 @@ class SecurityTestLoginTest extends TestCase
         $this->seed(RoleSeeder::class);
     }
 
-    public function test_login_page_shows_username_password_form(): void
+    public function test_login_page_shows_microsoft_sign_in(): void
     {
         $this->get(route('login'))
             ->assertOk()
             ->assertSee('Sign in with Microsoft')
-            ->assertSee('or username / password')
-            ->assertSee('name="username"', false)
-            ->assertSee('name="password"', false);
+            ->assertDontSee('Welcome back')
+            ->assertDontSee('or username / password')
+            ->assertDontSee('name="username"', false);
     }
 
     public function test_user_can_login_with_username_and_password(): void
