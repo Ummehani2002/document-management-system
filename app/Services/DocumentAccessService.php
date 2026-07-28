@@ -392,6 +392,104 @@ class DocumentAccessService
     }
 
     /**
+     * Entity / project IDs that have at least one accessible document matching the folder type filters.
+     *
+     * @param  list<string>  $documentTypeFilters
+     * @return array{entity_ids: list<int>, project_ids: list<int>}
+     */
+    public function entityAndProjectIdsWithDocuments(
+        ?User $user,
+        array $documentTypeFilters,
+        ?int $entityId = null,
+        ?int $projectId = null
+    ): array {
+        if ($user === null || $documentTypeFilters === []) {
+            return ['entity_ids' => [], 'project_ids' => []];
+        }
+
+        $query = Document::query()->select(['entity_id', 'project_id']);
+        $this->scopeAccessible($query, $user);
+        DocumentFilenameParser::applyFolderTypeFilter($query, $documentTypeFilters);
+
+        if ($entityId) {
+            $query->where('entity_id', $entityId);
+        }
+        if ($projectId) {
+            $query->where('project_id', $projectId);
+        }
+
+        $rows = $query->distinct()->get();
+
+        return [
+            'entity_ids' => $rows->pluck('entity_id')->map(fn ($id) => (int) $id)->unique()->values()->all(),
+            'project_ids' => $rows->pluck('project_id')->map(fn ($id) => (int) $id)->unique()->values()->all(),
+        ];
+    }
+
+    /**
+     * Restrict a folder tree to subfolders that have accessible documents for the given entity/project.
+     *
+     * @param  array<string, list<string>>  $tree
+     * @return array<string, list<string>>
+     */
+    public function filterFolderTreeByDocumentPresence(
+        ?User $user,
+        array $tree,
+        ?int $entityId = null,
+        ?int $projectId = null
+    ): array {
+        if ($user === null || ($entityId === null && $projectId === null) || $tree === []) {
+            return $tree;
+        }
+
+        $allTypes = [];
+        foreach ($tree as $subfolders) {
+            $allTypes = array_merge($allTypes, $subfolders);
+        }
+        $allTypes = array_values(array_unique($allTypes));
+        if ($allTypes === []) {
+            return [];
+        }
+
+        $query = Document::query()->select(['document_type']);
+        $this->scopeAccessible($query, $user);
+        if ($entityId) {
+            $query->where('entity_id', $entityId);
+        }
+        if ($projectId) {
+            $query->where('project_id', $projectId);
+        }
+        DocumentFilenameParser::applyFolderTypeFilter($query, $allTypes);
+
+        $presentLower = $query
+            ->whereNotNull('document_type')
+            ->where('document_type', '!=', '')
+            ->distinct()
+            ->pluck('document_type')
+            ->map(fn ($type) => mb_strtolower(trim((string) $type)))
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($presentLower === []) {
+            return [];
+        }
+
+        $filtered = [];
+        foreach ($tree as $mainFolder => $subfolders) {
+            $visible = array_values(array_filter(
+                $subfolders,
+                fn (string $type): bool => in_array(mb_strtolower($type), $presentLower, true)
+            ));
+            if ($visible !== []) {
+                $filtered[$mainFolder] = $visible;
+            }
+        }
+
+        return $filtered;
+    }
+
+    /**
      * @return array<string, list<string>>
      */
     public function accessibleFolderTreeForEntity(?User $user, int $entityId): array

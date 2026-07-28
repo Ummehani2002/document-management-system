@@ -502,6 +502,40 @@ class DocumentController extends Controller
             $entities->whereIn('id', $entityIds);
             $projects->whereIn('entity_id', $entityIds);
         }
+
+        // Sidebar browse: only show entities/projects that have documents in the selected folder.
+        $presenceEntityIds = null;
+        $presenceProjectIds = null;
+        if ($fromSidebar && $documentTypeFilters !== []) {
+            $presence = $this->access->entityAndProjectIdsWithDocuments(
+                $user,
+                $documentTypeFilters
+            );
+            $presenceEntityIds = $presence['entity_ids'];
+            $presenceProjectIds = $presence['project_ids'];
+
+            // Keep the current selection visible so the user can switch away from empty results.
+            if ($entityId) {
+                $presenceEntityIds[] = $entityId;
+            }
+            if ($projectId) {
+                $presenceProjectIds[] = $projectId;
+            }
+            $presenceEntityIds = array_values(array_unique($presenceEntityIds));
+            $presenceProjectIds = array_values(array_unique($presenceProjectIds));
+
+            if ($presenceEntityIds !== []) {
+                $entities->whereIn('id', $presenceEntityIds);
+            } else {
+                $entities->whereRaw('1 = 0');
+            }
+            if ($presenceProjectIds !== []) {
+                $projects->whereIn('id', $presenceProjectIds);
+            } else {
+                $projects->whereRaw('1 = 0');
+            }
+        }
+
         $projects = $projects->get(['id', 'entity_id', 'project_number', 'project_name']);
         $entities = $entities->get(['id', 'name']);
         $fromMaster = Discipline::orderBy('name')->pluck('name');
@@ -510,6 +544,23 @@ class DocumentController extends Controller
         $disciplines = $fromMaster->merge($fromDocuments)->unique()->sort()->values();
         $documentTypes = Document::whereNotNull('document_type')->where('document_type', '!=', '')
             ->distinct()->orderBy('document_type')->pluck('document_type');
+
+        // When browsing a main folder, limit the doc-type dropdown to that category's subfolders
+        // that actually have documents for the selected entity/project (if any).
+        if ($fromSidebar && $mainFolder !== '' && isset($folderTree[$mainFolder])) {
+            $categoryTypes = $folderTree[$mainFolder];
+            if ($entityId || $projectId) {
+                $presenceTree = $this->access->filterFolderTreeByDocumentPresence(
+                    $user,
+                    [$mainFolder => $categoryTypes],
+                    $entityId,
+                    $projectId
+                );
+                $documentTypes = collect($presenceTree[$mainFolder] ?? []);
+            } else {
+                $documentTypes = collect($categoryTypes);
+            }
+        }
 
         $documents = null;
         if (!$needsProjectSelection && $hasSearchFilters) {

@@ -386,6 +386,12 @@
             <input type="hidden" name="document_type" value="{{ request('document_type') }}">
         @endif
         <div class="card" style="max-width: 520px;">
+            @if(($entities ?? collect())->isEmpty())
+                <p style="margin: 0; color: #64748b;">
+                    No entities or projects have documents in
+                    <strong>{{ request('document_type') ?: request('main_folder') }}</strong>.
+                </p>
+            @else
             <label for="entity_id" style="display: block; margin-bottom: 4px; font-weight: 500;">Entity </label>
             <select name="entity_id" id="entity_id" required style="width: 100%; padding: 8px 12px; margin-bottom: 12px;">
                 <option value="">Select entity</option>
@@ -415,9 +421,11 @@
                 @endif
             </p>
             <button type="submit" style="margin-top: 12px;">View Files</button>
+            @endif
         </div>
     </form>
 
+    @if(!($entities ?? collect())->isEmpty())
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             var entitySelect = document.getElementById('entity_id');
@@ -463,6 +471,7 @@
             filterProjects();
         });
     </script>
+    @endif
 @else
     @if(!empty($fromSidebar) && request('project_id') && (request('document_type') || request('main_folder')))
     @else

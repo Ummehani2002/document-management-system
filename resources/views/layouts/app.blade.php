@@ -516,7 +516,31 @@
         </div>
         <h3>Document types</h3>
         @php
-            $sidebarFolders = collect(app(\App\Services\DocumentAccessService::class)->accessibleSidebarFolderTree(auth()->user()))
+            $accessService = app(\App\Services\DocumentAccessService::class);
+            $sidebarTree = $accessService->accessibleSidebarFolderTree(auth()->user());
+            $requestEntityId = request()->filled('entity_id') ? (int) request('entity_id') : null;
+            $requestProjectId = request()->filled('project_id') ? (int) request('project_id') : null;
+            $requestMainFolder = trim((string) request('main_folder', ''));
+            $requestDocumentType = trim((string) request('document_type', ''));
+
+            if ($requestMainFolder === '' && $requestDocumentType !== '') {
+                $requestMainFolder = \App\Services\DocumentFilenameParser::mainFolderForDocumentType($requestDocumentType) ?? '';
+            }
+
+            // While browsing a category (e.g. Financial Documents), only show that folder.
+            if ($requestMainFolder !== '' && isset($sidebarTree[$requestMainFolder])) {
+                $sidebarTree = [$requestMainFolder => $sidebarTree[$requestMainFolder]];
+            }
+
+            if ($requestEntityId || $requestProjectId) {
+                $sidebarTree = $accessService->filterFolderTreeByDocumentPresence(
+                    auth()->user(),
+                    $sidebarTree,
+                    $requestEntityId,
+                    $requestProjectId
+                );
+            }
+            $sidebarFolders = collect($sidebarTree)
                 ->map(fn (array $items, string $name): array => ['name' => $name, 'items' => $items])
                 ->values()
                 ->all();
