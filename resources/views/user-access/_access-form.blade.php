@@ -42,10 +42,20 @@
         </div>
 
         <div id="access-projects-panel" style="margin-bottom: 16px;">
-            <label for="access-project-select" style="display:block; margin-bottom:6px;">Projects</label>
-            <select id="access-project-select" style="min-width: 280px; padding: 8px;">
-                <option value="">— Select project —</option>
-            </select>
+            <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                <label style="margin:0;">Projects</label>
+                <div style="display:flex; gap:8px;">
+                    <button type="button" id="access-projects-select-all" style="padding:4px 10px; font-size:0.85rem;">Select all</button>
+                    <button type="button" id="access-projects-clear" style="padding:4px 10px; font-size:0.85rem;">Clear</button>
+                </div>
+            </div>
+            <p style="color:#64748b; margin:0 0 8px; font-size:0.9rem;">
+                Select one or more projects. Switch entity above to grant access across entities.
+            </p>
+            <div
+                id="access-project-list"
+                style="max-height: 220px; overflow:auto; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px; background:#fff;"
+            ></div>
             <p id="access-projects-empty" style="color:#64748b; margin:8px 0 0; display:none;">No projects for this entity yet.</p>
         </div>
 
@@ -107,8 +117,10 @@
         var initialFoldersByProject = @json($selectedFoldersByProject);
 
         var entitySelect = document.getElementById('access-entity-select');
-        var projectSelect = document.getElementById('access-project-select');
+        var projectList = document.getElementById('access-project-list');
         var projectsEmpty = document.getElementById('access-projects-empty');
+        var selectAllBtn = document.getElementById('access-projects-select-all');
+        var clearBtn = document.getElementById('access-projects-clear');
         var foldersPanel = document.getElementById('access-folders-panel');
         var summaryBody = document.getElementById('access-grants-summary-body');
         var hiddenInputs = document.getElementById('access-hidden-inputs');
@@ -231,63 +243,64 @@
             });
         }
 
+        function setProjectChecked(projectId, checked) {
+            if (checked) {
+                selectedProjects.add(projectId);
+                if (!foldersByProject[projectId]) {
+                    foldersByProject[projectId] = new Set();
+                }
+            } else {
+                selectedProjects.delete(projectId);
+                delete foldersByProject[projectId];
+            }
+        }
+
         function renderProjects() {
-            if (!projectSelect) return;
+            if (!projectList) return;
 
             var projects = projectsForCurrentEntity();
-            var selectedInEntity = selectedProjectsInCurrentEntity();
-            projectSelect.innerHTML = '';
-
-            var placeholder = document.createElement('option');
-            placeholder.value = '';
-            placeholder.textContent = '— Select project —';
-            projectSelect.appendChild(placeholder);
+            projectList.innerHTML = '';
 
             if (!projects.length) {
                 projectsEmpty.style.display = 'block';
-                projectSelect.style.display = 'none';
+                projectList.style.display = 'none';
                 foldersPanel.style.display = 'none';
                 return;
             }
 
             projectsEmpty.style.display = 'none';
-            projectSelect.style.display = '';
+            projectList.style.display = 'block';
 
             projects.forEach(function (project) {
                 var projectId = String(project.id);
-                var option = document.createElement('option');
-                option.value = projectId;
-                option.textContent = project.label;
-                if (selectedInEntity.includes(projectId)) {
-                    option.selected = true;
-                }
-                projectSelect.appendChild(option);
-            });
+                var label = document.createElement('label');
+                label.style.display = 'flex';
+                label.style.alignItems = 'flex-start';
+                label.style.gap = '8px';
+                label.style.margin = '0 0 8px';
+                label.style.cursor = 'pointer';
 
-            if (selectedInEntity.length === 1) {
-                projectSelect.value = selectedInEntity[0];
-            } else if (selectedInEntity.length > 1) {
-                projectSelect.value = selectedInEntity[0];
-            } else {
-                projectSelect.value = '';
-            }
+                var checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'access-project-check';
+                checkbox.value = projectId;
+                checkbox.checked = selectedProjects.has(projectId);
+                checkbox.addEventListener('change', function () {
+                    setProjectChecked(projectId, checkbox.checked);
+                    renderFolders();
+                    syncHiddenInputs();
+                    renderSummary();
+                });
+
+                var text = document.createElement('span');
+                text.textContent = project.label;
+
+                label.appendChild(checkbox);
+                label.appendChild(text);
+                projectList.appendChild(label);
+            });
 
             renderFolders();
-        }
-
-        function setProjectSelectionForCurrentEntity(projectId) {
-            projectsForCurrentEntity().forEach(function (project) {
-                var id = String(project.id);
-                selectedProjects.delete(id);
-                delete foldersByProject[id];
-            });
-
-            if (projectId) {
-                selectedProjects.add(projectId);
-                if (!foldersByProject[projectId]) {
-                    foldersByProject[projectId] = new Set();
-                }
-            }
         }
 
         function renderFolders() {
@@ -306,10 +319,23 @@
             updateMainFolderCheckStates();
         }
 
-        if (projectSelect) {
-            projectSelect.addEventListener('change', function () {
-                setProjectSelectionForCurrentEntity(projectSelect.value);
-                renderFolders();
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', function () {
+                projectsForCurrentEntity().forEach(function (project) {
+                    setProjectChecked(String(project.id), true);
+                });
+                renderProjects();
+                syncHiddenInputs();
+                renderSummary();
+            });
+        }
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function () {
+                projectsForCurrentEntity().forEach(function (project) {
+                    setProjectChecked(String(project.id), false);
+                });
+                renderProjects();
                 syncHiddenInputs();
                 renderSummary();
             });
