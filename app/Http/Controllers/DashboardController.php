@@ -5,35 +5,87 @@ namespace App\Http\Controllers;
 use App\Models\Document;
 use App\Models\Entity;
 use App\Models\Project;
+use App\Services\DocumentAccessService;
 use App\Services\DocumentLocationResolver;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
+    public function __construct(
+        protected DocumentAccessService $access
+    ) {}
+
     public function __invoke(Request $request): View
     {
+        $user = $request->user();
         $entityId = (int) $request->query('entity_id', 0);
-        $totalDocuments = Document::count();
-        $totalProjects = Project::count();
-        $totalEntities = Entity::count();
-        $entities = Entity::query()->orderBy('name')->get(['id', 'name']);
 
-        $documentsPerProject = Project::withCount('documents')
+        $entitiesQuery = Entity::query()->orderBy('name');
+        if (! $this->access->isAdmin($user)) {
+            $accessibleEntityIds = $this->access->accessibleEntityIds($user);
+            if ($accessibleEntityIds === []) {
+                $entitiesQuery->whereRaw('1 = 0');
+            } else {
+                $entitiesQuery->whereIn('id', $accessibleEntityIds);
+            }
+
+            if ($entityId > 0 && ! $this->access->canAccessEntity($user, $entityId)) {
+                abort(403, 'You do not have access to this entity.');
+            }
+        }
+        $entities = $entitiesQuery->get(['id', 'name']);
+
+        $totalDocumentsQuery = Document::query();
+        $this->access->scopeAccessible($totalDocumentsQuery, $user);
+        $totalDocuments = $totalDocumentsQuery->count();
+
+        $projectsQuery = Project::query();
+        if (! $this->access->isAdmin($user)) {
+            $accessibleEntityIds = $this->access->accessibleEntityIds($user);
+            $selectedProjectIds = $this->access->selectedProjectIdsForUser($user);
+            if ($selectedProjectIds !== []) {
+                $projectsQuery->whereIn('id', $selectedProjectIds);
+            } elseif ($accessibleEntityIds !== []) {
+                $projectsQuery->whereIn('entity_id', $accessibleEntityIds);
+            } else {
+                $projectsQuery->whereRaw('1 = 0');
+            }
+        }
+        $totalProjects = $projectsQuery->count();
+        $totalEntities = $entities->count();
+
+        $documentsPerProjectQuery = Project::withCount(['documents' => function ($query) use ($user): void {
+            $this->access->scopeAccessible($query, $user);
+        }]);
+        if (! $this->access->isAdmin($user)) {
+            $accessibleEntityIds = $this->access->accessibleEntityIds($user);
+            $selectedProjectIds = $this->access->selectedProjectIdsForUser($user);
+            if ($selectedProjectIds !== []) {
+                $documentsPerProjectQuery->whereIn('id', $selectedProjectIds);
+            } elseif ($accessibleEntityIds !== []) {
+                $documentsPerProjectQuery->whereIn('entity_id', $accessibleEntityIds);
+            } else {
+                $documentsPerProjectQuery->whereRaw('1 = 0');
+            }
+        }
+        $documentsPerProject = $documentsPerProjectQuery
             ->orderByDesc('documents_count')
             ->limit(10)
             ->get();
 
-        $documentsByType = Document::query()
+        $documentsByTypeQuery = Document::query()
             ->selectRaw('document_type, count(*) as total')
             ->whereNotNull('document_type')
             ->where('document_type', '!=', '')
             ->groupBy('document_type')
             ->orderByDesc('total')
-            ->limit(10)
-            ->get();
+            ->limit(10);
+        $this->access->scopeAccessible($documentsByTypeQuery, $user);
+        $documentsByType = $documentsByTypeQuery->get();
 
         $recentDocumentsQuery = Document::with(['project', 'entity']);
+        $this->access->scopeAccessible($recentDocumentsQuery, $user);
         if ($entityId > 0) {
             $recentDocumentsQuery->where('entity_id', $entityId);
         }
