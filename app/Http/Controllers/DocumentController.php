@@ -10,6 +10,7 @@ use App\Models\UserActivity;
 use App\Jobs\ProcessOCR;
 use App\Jobs\SendSharedDocumentEmail;
 use App\Services\DocumentAccessService;
+use App\Services\DocumentDeletionService;
 use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileReplacer;
 use App\Services\DocumentFileVersioning;
@@ -1005,7 +1006,7 @@ class DocumentController extends Controller
         );
     }
 
-    public function destroy(int $id)
+    public function destroy(int $id, DocumentDeletionService $deletions)
     {
         $document = Document::find($id);
 
@@ -1015,18 +1016,7 @@ class DocumentController extends Controller
 
         $this->authorizeDocument($document);
 
-        $path = (string) $document->file_path;
-        $location = $this->resolveDocumentLocation($path);
-        if ($location !== null) {
-            if ($location['source'] === 'disk') {
-                Storage::disk($location['disk'])->delete($location['path']);
-            } else {
-                @unlink($location['path']);
-            }
-        }
-
-        UserActivityLogger::deleted($document);
-        $document->delete();
+        $deletions->delete($document);
 
         return back()->with('success', 'File successfully deleted');
     }

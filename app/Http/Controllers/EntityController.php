@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Entity;
+use App\Services\DocumentAccessService;
+use App\Services\DocumentDeletionService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class EntityController extends Controller
 {
@@ -37,9 +40,19 @@ class EntityController extends Controller
         return redirect()->route('entities.index')->with('success', 'Entity updated.');
     }
 
-    public function destroy(Entity $entity)
+    public function destroy(Entity $entity, DocumentDeletionService $deletions, DocumentAccessService $access)
     {
+        abort_unless($access->isAdmin(Auth::user()), 403);
+
+        $deletedDocs = $deletions->deleteForEntity($entity->id, [
+            'deleted_via' => 'entity',
+        ]);
         $entity->delete();
-        return redirect()->route('entities.index')->with('success', 'Entity deleted.');
+
+        $message = $deletedDocs > 0
+            ? "Entity deleted ({$deletedDocs} document(s) removed)."
+            : 'Entity deleted.';
+
+        return redirect()->route('entities.index')->with('success', $message);
     }
 }

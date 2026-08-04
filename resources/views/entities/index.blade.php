@@ -34,12 +34,14 @@
                             <a href="{{ route('projects.index', ['entity_id' => $entity->id]) }}">Projects</a>
                             &nbsp;·&nbsp;
                             <a href="{{ route('entities.edit', $entity) }}">Edit</a>
-                            &nbsp;·&nbsp;
-                            <form action="{{ route('entities.destroy', $entity) }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete this entity and all its projects?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" style="background: none; border: none; padding: 0; color: #b91c1c; cursor: pointer; text-decoration: underline;">Delete</button>
-                            </form>
+                            @role('Admin')
+                                &nbsp;·&nbsp;
+                                <form action="{{ route('entities.destroy', $entity) }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete this entity and all its projects?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" style="background: none; border: none; padding: 0; color: #b91c1c; cursor: pointer; text-decoration: underline;">Delete</button>
+                                </form>
+                            @endrole
                         </td>
                     </tr>
                 @endforeach

@@ -34,8 +34,14 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Project Management (Entity + Project)
-    Route::resource('entities', EntityController::class);
-    Route::resource('projects', ProjectController::class);
+    Route::resource('entities', EntityController::class)->except(['destroy']);
+    Route::resource('projects', ProjectController::class)->except(['destroy']);
+    Route::delete('/entities/{entity}', [EntityController::class, 'destroy'])
+        ->middleware('role:Admin')
+        ->name('entities.destroy');
+    Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])
+        ->middleware('role:Admin')
+        ->name('projects.destroy');
     Route::resource('disciplines', DisciplineController::class)->except(['show']);
     Route::get('/user-activities', [UserActivityController::class, 'index'])->name('user-activities.index');
 

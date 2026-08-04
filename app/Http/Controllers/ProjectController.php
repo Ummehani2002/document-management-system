@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Entity;
 use App\Models\Project;
+use App\Services\DocumentAccessService;
+use App\Services\DocumentDeletionService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ProjectController extends Controller
 {
@@ -73,9 +76,19 @@ class ProjectController extends Controller
         return redirect()->route('projects.index')->with('success', 'Project updated.');
     }
 
-    public function destroy(Project $project)
+    public function destroy(Project $project, DocumentDeletionService $deletions, DocumentAccessService $access)
     {
+        abort_unless($access->isAdmin(Auth::user()), 403);
+
+        $deletedDocs = $deletions->deleteForProject($project->id, [
+            'deleted_via' => 'project',
+        ]);
         $project->delete();
-        return redirect()->route('projects.index')->with('success', 'Project deleted.');
+
+        $message = $deletedDocs > 0
+            ? "Project deleted ({$deletedDocs} document(s) removed)."
+            : 'Project deleted.';
+
+        return redirect()->route('projects.index')->with('success', $message);
     }
 }
