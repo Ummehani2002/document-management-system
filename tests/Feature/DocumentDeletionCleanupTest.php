@@ -110,7 +110,7 @@ test('admin entity delete removes nested documents with activity log', function 
     expect($activity->properties['file_name'])->toBe('entity-doc.pdf');
 });
 
-test('document delete snapshots metadata before storage is removed', function () {
+test('document delete moves file to trash and keeps storage for restore', function () {
     $admin = User::factory()->create(['username' => 'deleter']);
     $admin->assignRole('Admin');
     $this->actingAs($admin);
@@ -121,10 +121,12 @@ test('document delete snapshots metadata before storage is removed', function ()
         ->assertRedirect();
 
     expect(Document::query()->whereKey($document->id)->exists())->toBeFalse();
-    expect(Storage::disk(config('filesystems.default'))->exists('documents/test/solo.pdf'))->toBeFalse();
+    expect(Document::withTrashed()->whereKey($document->id)->exists())->toBeTrue();
+    expect(Storage::disk(config('filesystems.default'))->exists('documents/test/solo.pdf'))->toBeTrue();
 
     $activity = UserActivity::query()->where('action', UserActivity::ACTION_DELETED)->first();
     expect($activity)->not->toBeNull();
+    expect($activity->document_id)->toBe($document->id);
     expect($activity->properties['project_number'])->toBe('PSE20269999');
     expect($activity->properties['created_by'])->toBe('deleter');
     expect($activity->properties['file_size'] ?? null)->not->toBeNull();
@@ -134,5 +136,38 @@ test('document delete snapshots metadata before storage is removed', function ()
         ->assertSee('PSE20269999')
         ->assertSee('Cascade Project')
         ->assertSee('Cascade Client')
-        ->assertSee('solo.pdf');
+        ->assertSee('solo.pdf')
+        ->assertSee('Restore');
+
+    $this->post(route('documents.restore', ['id' => $document->id]))
+        ->assertRedirect();
+
+    expect(Document::query()->whereKey($document->id)->exists())->toBeTrue();
+    expect(UserActivity::query()->where('action', UserActivity::ACTION_RESTORED)->exists())->toBeTrue();
+});
+
+test('trash page can restore and permanently delete', function () {
+    $admin = User::factory()->create(['username' => 'trashadmin']);
+    $admin->assignRole('Admin');
+    $this->actingAs($admin);
+
+    ['document' => $document] = makeProjectWithDocument($admin, 'trash-me.pdf');
+
+    $this->delete(route('documents.destroy', ['id' => $document->id]))->assertRedirect();
+
+    $this->get(route('documents.trash'))
+        ->assertOk()
+        ->assertSee('trash-me.pdf')
+        ->assertSee('Restore');
+
+    $this->post(route('documents.trash.restore', ['id' => $document->id]))
+        ->assertRedirect();
+    expect(Document::query()->whereKey($document->id)->exists())->toBeTrue();
+
+    $this->delete(route('documents.destroy', ['id' => $document->id]))->assertRedirect();
+    $this->delete(route('documents.trash.force-destroy', ['id' => $document->id]))
+        ->assertRedirect();
+
+    expect(Document::withTrashed()->whereKey($document->id)->exists())->toBeFalse();
+    expect(Storage::disk(config('filesystems.default'))->exists('documents/test/trash-me.pdf'))->toBeFalse();
 });

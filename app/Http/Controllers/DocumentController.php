@@ -1018,7 +1018,21 @@ class DocumentController extends Controller
 
         $deletions->delete($document);
 
-        return back()->with('success', 'File successfully deleted');
+        return back()->with('success', 'File moved to Trash. You can restore it from Trash or the Activity Log.');
+    }
+
+    public function restore(int $id, DocumentDeletionService $deletions)
+    {
+        $document = Document::onlyTrashed()->find($id);
+
+        if (! $document) {
+            return back()->withErrors(['restore' => 'Deleted file not found.']);
+        }
+
+        $this->authorizeDocument($document);
+        $deletions->restore($document);
+
+        return back()->with('success', 'File restored successfully.');
     }
 
     protected function shareErrorResponse(Request $request, int $id, string $message, ?Document $document = null)

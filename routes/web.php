@@ -14,6 +14,7 @@ use App\Http\Controllers\FolderController;
 use App\Http\Controllers\UserActivityController;
 use App\Http\Controllers\UserAccessController;
 use App\Http\Controllers\OnlyOfficeController;
+use App\Http\Controllers\DocumentTrashController;
 
 Route::get('/', function () {
     return auth()->check() ? redirect()->route('dashboard') : redirect()->route('login');
@@ -68,6 +69,10 @@ Route::middleware('auth')->group(function () {
     // Document routes:
     // - Keep /documents/... as canonical (named) routes used by Blade links.
     // - Keep legacy /download/pdf/... URLs as fallback for older links/bookmarks.
+    Route::get('/documents/trash', [DocumentTrashController::class, 'index'])->name('documents.trash');
+    Route::post('/documents/trash/{id}/restore', [DocumentTrashController::class, 'restore'])->name('documents.trash.restore')->where('id', '[0-9]+');
+    Route::delete('/documents/trash/{id}', [DocumentTrashController::class, 'forceDestroy'])->name('documents.trash.force-destroy')->where('id', '[0-9]+');
+    Route::post('/documents/{id}/restore', [DocumentController::class, 'restore'])->name('documents.restore')->where('id', '[0-9]+');
     Route::get('/documents/{id}/download', [DocumentController::class, 'download'])->name('documents.download')->where('id', '[0-9]+');
     Route::get('/download/pdf/{id}', [DocumentController::class, 'download'])->where('id', '[0-9]+');
     Route::get('/documents/{id}/view', [DocumentController::class, 'viewPdf'])->name('documents.view')->where('id', '[0-9]+');

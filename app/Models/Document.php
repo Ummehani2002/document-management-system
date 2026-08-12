@@ -5,10 +5,12 @@ namespace App\Models;
 use App\Services\DocumentFilenameParser;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
 class Document extends Model
 {
+    use SoftDeletes;
     /**
      * Persist timestamps in UTC; display via LocalDateTime / app timezone.
      */

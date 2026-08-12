@@ -59,6 +59,7 @@
                         <th>File Size</th>
                         <th>Item Child Count</th>
                         <th>Folder Child Count</th>
+                        <th class="text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -84,6 +85,16 @@
                             <td>{{ $row['file_size'] ?? '—' }}</td>
                             <td>{{ $row['item_child_count'] ?? '0' }}</td>
                             <td>{{ $row['folder_child_count'] ?? '0' }}</td>
+                            <td class="text-right" style="white-space: nowrap;">
+                                @if(!empty($row['can_restore']) && !empty($row['document_id']))
+                                    <form action="{{ route('documents.restore', ['id' => $row['document_id']]) }}" method="POST" style="display:inline;">
+                                        @csrf
+                                        <button type="submit" style="background: none; border: none; padding: 0; color: #0f766e; cursor: pointer; text-decoration: underline;">Restore</button>
+                                    </form>
+                                @else
+                                    —
+                                @endif
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>

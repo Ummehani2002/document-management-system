@@ -28,6 +28,11 @@ class UserActivityLogger
         self::log(UserActivity::ACTION_DELETED, $document, $extra);
     }
 
+    public static function restored(Document $document, array $extra = []): void
+    {
+        self::log(UserActivity::ACTION_RESTORED, $document, $extra);
+    }
+
     public static function log(string $action, ?Document $document = null, array $extra = []): void
     {
         $properties = $document !== null

@@ -9,15 +9,51 @@ use Illuminate\Support\Facades\Storage;
 class DocumentDeletionService
 {
     /**
-     * Log activity (while metadata/file still exist), remove storage, then hard-delete the row.
+     * Soft-delete a document: keep the file and DB row so it can be restored.
      *
      * @param  array<string, mixed>  $extra
      */
     public function delete(Document $document, array $extra = []): void
     {
         UserActivityLogger::deleted($document, $extra);
-        $this->deleteStoredFile($document);
         $document->delete();
+    }
+
+    /**
+     * Permanently remove storage + DB row (cannot be restored).
+     *
+     * @param  array<string, mixed>  $extra
+     */
+    public function forceDelete(Document $document, array $extra = []): void
+    {
+        if (! $document->trashed()) {
+            UserActivityLogger::deleted($document, array_merge($extra, [
+                'permanent' => true,
+            ]));
+        } else {
+            UserActivityLogger::deleted($document, array_merge($extra, [
+                'permanent' => true,
+                'from_trash' => true,
+            ]));
+        }
+
+        $this->deleteStoredFile($document);
+        $document->forceDelete();
+    }
+
+    /**
+     * Restore a soft-deleted document.
+     *
+     * @param  array<string, mixed>  $extra
+     */
+    public function restore(Document $document, array $extra = []): void
+    {
+        if (! $document->trashed()) {
+            return;
+        }
+
+        $document->restore();
+        UserActivityLogger::restored($document, $extra);
     }
 
     /**
@@ -37,28 +73,28 @@ class DocumentDeletionService
     }
 
     /**
-     * Delete every document belonging to a project (storage + activity + DB).
+     * Permanently delete every document belonging to a project (project itself is being removed).
      *
      * @param  array<string, mixed>  $extra
      */
     public function deleteForProject(int $projectId, array $extra = []): int
     {
-        return $this->deleteQuery(
-            Document::query()->where('project_id', $projectId),
-            $extra
+        return $this->forceDeleteQuery(
+            Document::withTrashed()->where('project_id', $projectId),
+            array_merge($extra, ['deleted_via' => $extra['deleted_via'] ?? 'project'])
         );
     }
 
     /**
-     * Delete every document belonging to an entity (storage + activity + DB).
+     * Permanently delete every document belonging to an entity (entity itself is being removed).
      *
      * @param  array<string, mixed>  $extra
      */
     public function deleteForEntity(int $entityId, array $extra = []): int
     {
-        return $this->deleteQuery(
-            Document::query()->where('entity_id', $entityId),
-            $extra
+        return $this->forceDeleteQuery(
+            Document::withTrashed()->where('entity_id', $entityId),
+            array_merge($extra, ['deleted_via' => $extra['deleted_via'] ?? 'entity'])
         );
     }
 
@@ -66,12 +102,15 @@ class DocumentDeletionService
      * @param  \Illuminate\Database\Eloquent\Builder<Document>  $query
      * @param  array<string, mixed>  $extra
      */
-    protected function deleteQuery($query, array $extra = []): int
+    protected function forceDeleteQuery($query, array $extra = []): int
     {
         $count = 0;
 
         $query->orderBy('id')->chunkById(100, function (Collection $documents) use (&$count, $extra) {
-            $count += $this->deleteMany($documents, $extra);
+            foreach ($documents as $document) {
+                $this->forceDelete($document, $extra);
+                $count++;
+            }
         });
 
         return $count;

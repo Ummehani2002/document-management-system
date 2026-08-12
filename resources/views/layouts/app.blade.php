@@ -500,6 +500,7 @@
         <a href="{{ route('documents.upload') }}">Upload</a>
         <a href="{{ route('documents.search') }}">Search</a>
         <a href="{{ route('user-activities.index') }}">Activity Log</a>
+        <a href="{{ route('documents.trash') }}">Trash</a>
         @role('Admin')
             <a href="{{ route('user-access.index') }}">User Access</a>
         @endrole

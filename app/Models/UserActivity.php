@@ -13,6 +13,8 @@ class UserActivity extends Model
 
     public const ACTION_DELETED = 'document.deleted';
 
+    public const ACTION_RESTORED = 'document.restored';
+
     public const ACTION_REATTACHED = 'document.re_attached';
 
     /** @var array<string, string> */
@@ -20,6 +22,7 @@ class UserActivity extends Model
         self::ACTION_UPLOADED => 'Uploaded',
         self::ACTION_REPLACED => 'Edited',
         self::ACTION_DELETED => 'Deleted',
+        self::ACTION_RESTORED => 'Restored',
         self::ACTION_REATTACHED => 'Re-attached',
     ];
 
@@ -45,7 +48,7 @@ class UserActivity extends Model
 
     public function document(): BelongsTo
     {
-        return $this->belongsTo(Document::class);
+        return $this->belongsTo(Document::class)->withTrashed();
     }
 
     public function actionLabel(): string

@@ -130,6 +130,8 @@ class UserActivityController extends Controller
             'file_size' => $this->formatFileSize($fileSizeBytes),
             'item_child_count' => '0',
             'folder_child_count' => '0',
+            'can_restore' => $document->trashed(),
+            'document_id' => (string) $document->id,
         ];
     }
 
@@ -174,6 +176,8 @@ class UserActivityController extends Controller
             'file_size' => $this->propOrDash($props, 'file_size'),
             'item_child_count' => '0',
             'folder_child_count' => '0',
+            'can_restore' => false,
+            'document_id' => '',
         ];
     }
 
