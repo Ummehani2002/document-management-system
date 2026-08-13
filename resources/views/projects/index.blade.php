@@ -71,7 +71,7 @@
                             <a href="{{ route('projects.edit', $project) }}">Edit</a>
                             @role('Admin')
                                 &nbsp;·&nbsp;
-                                <form action="{{ route('projects.destroy', $project) }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete this project and all its documents?');">
+                                <form action="{{ route('projects.destroy', $project) }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete this project? Its documents will move to Trash and can be restored.');">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" style="background: none; border: none; padding: 0; color: #b91c1c; cursor: pointer; text-decoration: underline;">Delete</button>

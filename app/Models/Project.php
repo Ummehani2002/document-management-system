@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Project extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'entity_id',
         'project_number',
@@ -19,12 +22,12 @@ class Project extends Model
     ];
 
     public function entity()
-{
-    return $this->belongsTo(Entity::class);
-}
+    {
+        return $this->belongsTo(Entity::class)->withTrashed();
+    }
 
-public function documents()
-{
-    return $this->hasMany(Document::class);
-}
+    public function documents()
+    {
+        return $this->hasMany(Document::class);
+    }
 }

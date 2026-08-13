@@ -50,7 +50,7 @@ class EntityController extends Controller
         $entity->delete();
 
         $message = $deletedDocs > 0
-            ? "Entity deleted ({$deletedDocs} document(s) removed)."
+            ? "Entity deleted. {$deletedDocs} document(s) moved to Trash and can be restored."
             : 'Entity deleted.';
 
         return redirect()->route('entities.index')->with('success', $message);

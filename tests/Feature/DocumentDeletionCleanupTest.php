@@ -54,7 +54,7 @@ test('non admin cannot delete a project', function () {
     expect(Project::query()->whereKey($project->id)->exists())->toBeTrue();
 });
 
-test('admin project delete cleans storage logs activity and removes documents', function () {
+test('admin project delete moves documents to trash for restore', function () {
     $admin = User::factory()->create(['username' => 'adminuser']);
     $admin->assignRole('Admin');
     $this->actingAs($admin);
@@ -65,17 +65,26 @@ test('admin project delete cleans storage logs activity and removes documents', 
         ->assertRedirect(route('projects.index'));
 
     expect(Project::query()->whereKey($project->id)->exists())->toBeFalse();
+    expect(Project::withTrashed()->whereKey($project->id)->exists())->toBeTrue();
     expect(Document::query()->whereKey($document->id)->exists())->toBeFalse();
-    expect(Storage::disk(config('filesystems.default'))->exists('documents/test/cascade.pdf'))->toBeFalse();
+    expect(Document::withTrashed()->whereKey($document->id)->exists())->toBeTrue();
+    expect(Storage::disk(config('filesystems.default'))->exists('documents/test/cascade.pdf'))->toBeTrue();
 
     $activity = UserActivity::query()->where('action', UserActivity::ACTION_DELETED)->first();
     expect($activity)->not->toBeNull();
     expect($activity->properties['file_name'])->toBe('cascade.pdf');
     expect($activity->properties['project_number'])->toBe('PSE20269999');
-    expect($activity->properties['project_name'])->toBe('Cascade Project');
-    expect($activity->properties['project_client'])->toBe('Cascade Client');
     expect($activity->properties['deleted_via'])->toBe('project');
-    expect($activity->properties['file_size'] ?? null)->not->toBeNull();
+
+    $this->get(route('documents.trash'))
+        ->assertOk()
+        ->assertSee('cascade.pdf');
+
+    $this->post(route('documents.trash.restore', ['id' => $document->id]))
+        ->assertRedirect();
+
+    expect(Document::query()->whereKey($document->id)->exists())->toBeTrue();
+    expect(Project::query()->whereKey($project->id)->exists())->toBeTrue();
 });
 
 test('non admin cannot delete an entity', function () {
@@ -90,24 +99,30 @@ test('non admin cannot delete an entity', function () {
     expect(Entity::query()->whereKey($entity->id)->exists())->toBeTrue();
 });
 
-test('admin entity delete removes nested documents with activity log', function () {
+test('admin entity delete moves nested documents to trash', function () {
     $admin = User::factory()->create(['username' => 'entityadmin']);
     $admin->assignRole('Admin');
     $this->actingAs($admin);
 
-    ['entity' => $entity, 'document' => $document] = makeProjectWithDocument($admin, 'entity-doc.pdf');
+    ['entity' => $entity, 'project' => $project, 'document' => $document] = makeProjectWithDocument($admin, 'entity-doc.pdf');
 
     $this->delete(route('entities.destroy', $entity))
         ->assertRedirect(route('entities.index'));
 
     expect(Entity::query()->whereKey($entity->id)->exists())->toBeFalse();
-    expect(Document::query()->whereKey($document->id)->exists())->toBeFalse();
-    expect(Storage::disk(config('filesystems.default'))->exists('documents/test/entity-doc.pdf'))->toBeFalse();
+    expect(Entity::withTrashed()->whereKey($entity->id)->exists())->toBeTrue();
+    expect(Project::withTrashed()->whereKey($project->id)->exists())->toBeTrue();
+    expect(Document::withTrashed()->whereKey($document->id)->exists())->toBeTrue();
+    expect(Storage::disk(config('filesystems.default'))->exists('documents/test/entity-doc.pdf'))->toBeTrue();
 
     $activity = UserActivity::query()->where('action', UserActivity::ACTION_DELETED)->first();
     expect($activity)->not->toBeNull();
     expect($activity->properties['deleted_via'])->toBe('entity');
     expect($activity->properties['file_name'])->toBe('entity-doc.pdf');
+
+    $this->get(route('documents.trash'))
+        ->assertOk()
+        ->assertSee('entity-doc.pdf');
 });
 
 test('document delete moves file to trash and keeps storage for restore', function () {

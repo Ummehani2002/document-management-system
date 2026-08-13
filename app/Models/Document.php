@@ -48,12 +48,12 @@ class Document extends Model
 
     public function entity()
     {
-        return $this->belongsTo(Entity::class);
+        return $this->belongsTo(Entity::class)->withTrashed();
     }
 
     public function project()
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(Project::class)->withTrashed();
     }
 
     public function modifiedBy()

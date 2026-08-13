@@ -36,7 +36,7 @@
                             <a href="{{ route('entities.edit', $entity) }}">Edit</a>
                             @role('Admin')
                                 &nbsp;·&nbsp;
-                                <form action="{{ route('entities.destroy', $entity) }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete this entity and all its projects?');">
+                                <form action="{{ route('entities.destroy', $entity) }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete this entity? Its projects and documents will move to Trash and can be restored.');">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" style="background: none; border: none; padding: 0; color: #b91c1c; cursor: pointer; text-decoration: underline;">Delete</button>

@@ -8,6 +8,7 @@ use App\Services\DocumentAccessService;
 use App\Services\DocumentDeletionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class ProjectController extends Controller
 {
@@ -32,7 +33,12 @@ class ProjectController extends Controller
     {
         $request->validate([
             'entity_id' => 'required|exists:entities,id',
-            'project_number' => 'required|string|max:100|unique:projects,project_number',
+            'project_number' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('projects', 'project_number')->whereNull('deleted_at'),
+            ],
             'project_name' => 'required|string|max:255',
             'client_name' => 'nullable|string|max:255',
             'consultant' => 'nullable|string|max:255',
@@ -59,7 +65,14 @@ class ProjectController extends Controller
     {
         $request->validate([
             'entity_id' => 'required|exists:entities,id',
-            'project_number' => 'required|string|max:100|unique:projects,project_number,' . $project->id,
+            'project_number' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('projects', 'project_number')
+                    ->ignore($project->id)
+                    ->whereNull('deleted_at'),
+            ],
             'project_name' => 'required|string|max:255',
             'client_name' => 'nullable|string|max:255',
             'consultant' => 'nullable|string|max:255',
@@ -86,7 +99,7 @@ class ProjectController extends Controller
         $project->delete();
 
         $message = $deletedDocs > 0
-            ? "Project deleted ({$deletedDocs} document(s) removed)."
+            ? "Project deleted. {$deletedDocs} document(s) moved to Trash and can be restored."
             : 'Project deleted.';
 
         return redirect()->route('projects.index')->with('success', $message);
