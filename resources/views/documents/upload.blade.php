@@ -107,11 +107,6 @@
                     <option value="">— Select entity first, then pick a project —</option>
                     @foreach($projects as $p)
                         <option value="{{ $p->id }}" data-entity="{{ $p->entity_id }}"
-                            data-name="{{ e($p->project_name ?? '') }}"
-                            data-client="{{ e($p->client_name ?? '') }}"
-                            data-consultant="{{ e($p->consultant ?? '') }}"
-                            data-pm="{{ e($p->project_manager ?? '') }}"
-                            data-dc="{{ e($p->document_controller ?? '') }}"
                             {{ old('project_id') == $p->id ? 'selected' : '' }}>
                             {{ $p->project_number }} — {{ $p->project_name }}
                         </option>
@@ -125,15 +120,6 @@
                     @endrole
                 @endif
                 @error('project_id')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
-            </div>
-
-            <div id="project-details" class="card full-width" style="display: none;">
-                <div style="display: block; margin-bottom: 8px;">Project details</div>
-                <div>Project name: <span id="disp-name">—</span></div>
-                <div>Client: <span id="disp-client">—</span></div>
-                <div>Consultant: <span id="disp-consultant">—</span></div>
-                <div>Project Manager: <span id="disp-pm">—</span></div>
-                <div>Document Controller: <span id="disp-dc">—</span></div>
             </div>
 
             <div class="card">
@@ -198,7 +184,6 @@
         var selectedDocumentType = @json($selectedDocumentType);
         var entitySelect = document.getElementById('entity_id');
         var projectSelect = document.getElementById('project_id');
-        var detailsBox = document.getElementById('project-details');
         var mainFolderSelect = document.getElementById('main_folder');
         var documentTypeSelect = document.getElementById('document_type');
         var modeRadios = document.querySelectorAll('input[name="upload_mode"]');
@@ -245,12 +230,7 @@
             return {
                 value: opt.value,
                 entityId: opt.getAttribute('data-entity'),
-                text: opt.textContent,
-                name: opt.getAttribute('data-name') || '—',
-                client: opt.getAttribute('data-client') || '—',
-                consultant: opt.getAttribute('data-consultant') || '—',
-                pm: opt.getAttribute('data-pm') || '—',
-                dc: opt.getAttribute('data-dc') || '—'
+                text: opt.textContent
             };
         });
 
@@ -262,31 +242,11 @@
                 var option = document.createElement('option');
                 option.value = opt.value;
                 option.textContent = opt.text;
-                option.setAttribute('data-name', opt.name);
-                option.setAttribute('data-client', opt.client);
-                option.setAttribute('data-consultant', opt.consultant);
-                option.setAttribute('data-pm', opt.pm);
-                option.setAttribute('data-dc', opt.dc);
                 if (selectedProjectId && selectedProjectId === opt.value) {
                     option.selected = true;
                 }
                 projectSelect.appendChild(option);
             });
-            showProjectDetails();
-        }
-
-        function showProjectDetails() {
-            var opt = projectSelect.options[projectSelect.selectedIndex];
-            if (!opt || !opt.value) {
-                detailsBox.style.display = 'none';
-                return;
-            }
-            detailsBox.style.display = 'block';
-            document.getElementById('disp-name').textContent = opt.getAttribute('data-name') || '—';
-            document.getElementById('disp-client').textContent = opt.getAttribute('data-client') || '—';
-            document.getElementById('disp-consultant').textContent = opt.getAttribute('data-consultant') || '—';
-            document.getElementById('disp-pm').textContent = opt.getAttribute('data-pm') || '—';
-            document.getElementById('disp-dc').textContent = opt.getAttribute('data-dc') || '—';
         }
 
         function currentFolderTree() {
@@ -338,7 +298,6 @@
             filterProjects();
             renderMainFolderOptions();
         });
-        projectSelect.addEventListener('change', showProjectDetails);
         if (mainFolderSelect) {
             mainFolderSelect.addEventListener('change', function() {
                 selectedDocumentType = '';
@@ -586,8 +545,6 @@
 
         if (entitySelect.value) {
             filterProjects();
-        } else {
-            showProjectDetails();
         }
         renderMainFolderOptions();
         syncManualFieldsVisibility();
