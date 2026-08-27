@@ -21,11 +21,14 @@
 
     <div class="card">
         <label for="entity_id">Entity *</label>
-        <select name="entity_id" id="entity_id" required>
+        <select name="entity_id" id="entity_id" required @if(!empty($currentEntityId)) disabled @endif>
             @foreach($entities as $e)
                 <option value="{{ $e->id }}" {{ old('entity_id', $project->entity_id) == $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
             @endforeach
         </select>
+        @if(!empty($currentEntityId))
+            <input type="hidden" name="entity_id" value="{{ $currentEntityId }}">
+        @endif
     </div>
 
     <div class="card">

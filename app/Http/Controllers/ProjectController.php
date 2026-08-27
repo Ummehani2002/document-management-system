@@ -107,13 +107,38 @@ class ProjectController extends Controller
 
     public function edit(Project $project)
     {
-        $entities = Entity::orderBy('name')->get();
+        $user = Auth::user();
+        $currentEntityId = $this->entityContext->getId($user);
 
-        return view('projects.edit', compact('project', 'entities'));
+        if ($currentEntityId !== null && (int) $project->entity_id !== $currentEntityId) {
+            abort(403, 'This project belongs to another company.');
+        }
+
+        if (! $this->access->canAccessEntity($user, (int) $project->entity_id)) {
+            abort(403, 'You do not have access to this project.');
+        }
+
+        $entityQuery = Entity::orderBy('name');
+        if ($currentEntityId !== null) {
+            $entityQuery->where('id', $currentEntityId);
+        } elseif (! $this->access->isAdmin($user)) {
+            $entityQuery->whereIn('id', $this->access->accessibleEntityIds($user));
+        }
+
+        $entities = $entityQuery->get();
+
+        return view('projects.edit', compact('project', 'entities', 'currentEntityId'));
     }
 
     public function update(Request $request, Project $project): RedirectResponse
     {
+        $user = Auth::user();
+        $currentEntityId = $this->entityContext->getId($user);
+
+        if ($currentEntityId !== null && (int) $project->entity_id !== $currentEntityId) {
+            abort(403, 'This project belongs to another company.');
+        }
+
         $request->validate([
             'entity_id' => 'required|exists:entities,id',
             'project_number' => [
@@ -132,6 +157,15 @@ class ProjectController extends Controller
             'document_controller' => 'nullable|string|max:255',
             'document_controller_email' => 'nullable|email|max:255',
         ]);
+
+        if ($currentEntityId !== null && (int) $request->entity_id !== $currentEntityId) {
+            abort(403, 'You can only assign projects to the current company.');
+        }
+
+        if (! $this->access->canAccessEntity($user, (int) $request->entity_id)) {
+            abort(403, 'You do not have access to this entity.');
+        }
+
         $project->update($request->only([
             'entity_id', 'project_number', 'project_name',
             'client_name', 'consultant', 'project_manager', 'project_manager_email',

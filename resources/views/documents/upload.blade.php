@@ -50,7 +50,7 @@
 
 @if($entities->isEmpty() || $projects->isEmpty())
     <div class="card" style="margin-bottom: 20px; padding: 12px; background: #fffbeb; border-color: #fcd34d;">
-        <strong>No master data yet.</strong> Add at least one <a href="{{ route('entities.create') }}">Entity</a> and one <a href="{{ route('projects.create') }}">Project</a> first.
+        <strong>No master data yet.</strong> Add at least one <a href="{{ route('entities.create') }}">Entity</a> and one <a href="{{ entity_route('projects.create') }}">Project</a> in Project Master first.
     </div>
 @endif
 
@@ -113,7 +113,7 @@
                         </option>
                     @endforeach
                 </select>
-                @if($projects->isEmpty())<p style="margin-top: 6px; color: #b45309;">Add a <a href="{{ route('projects.create') }}">Project</a> first.</p>@endif
+                @if($projects->isEmpty())<p style="margin-top: 6px; color: #b45309;">Add a <a href="{{ entity_route('projects.create') }}">Project</a> in Project Master first.</p>@endif
                 @error('project_id')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
             </div>
 

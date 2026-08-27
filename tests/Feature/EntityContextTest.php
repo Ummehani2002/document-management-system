@@ -112,6 +112,39 @@ class EntityContextTest extends TestCase
             ->assertDontSee('Beta Project');
     }
 
+    public function test_admin_can_add_project_for_current_entity_via_project_master(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('Admin');
+
+        $entityA = Entity::create(['name' => 'Entity A']);
+        $entityB = Entity::create(['name' => 'Entity B']);
+
+        app(EntityContextService::class)->set($admin, $entityA->id);
+
+        $this->actingAs($admin)
+            ->post(route('projects.store'), [
+                'entity_id' => $entityA->id,
+                'project_number' => 'A-NEW',
+                'project_name' => 'New Alpha Project',
+            ])
+            ->assertRedirect(route('projects.index'));
+
+        $this->assertDatabaseHas('projects', [
+            'entity_id' => $entityA->id,
+            'project_number' => 'A-NEW',
+            'project_name' => 'New Alpha Project',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('projects.store'), [
+                'entity_id' => $entityB->id,
+                'project_number' => 'B-NEW',
+                'project_name' => 'Wrong Entity Project',
+            ])
+            ->assertForbidden();
+    }
+
     public function test_user_cannot_enter_unassigned_entity(): void
     {
         $user = User::factory()->create();

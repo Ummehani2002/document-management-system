@@ -13,7 +13,7 @@
 
 @if($entities->isEmpty())
     <div class="card">
-        <p>No entities yet. <a href="{{ route('entities.create') }}">Create an entity</a>, then <a href="{{ route('projects.create') }}">add a project</a>. On Upload you select Entity and Project.</p>
+        <p>No entities yet. <a href="{{ route('entities.create') }}">Create an entity</a>, open that company, then use <strong>Project Master</strong> to add projects.</p>
     </div>
 @else
     <div class="card dms-grid-wrap">
