@@ -37,7 +37,9 @@
     <div class="quick-actions">
         <a href="{{ entity_route('documents.upload') }}" class="quick-action-card">Upload documents</a>
         <a href="{{ entity_route('documents.search') }}" class="quick-action-card">Search documents</a>
-        <a href="{{ entity_route('projects.index') }}" class="quick-action-card">Project Master</a>
+        @role('Admin')
+            <a href="{{ entity_route('projects.index') }}" class="quick-action-card">Project Master</a>
+        @endrole
         <a href="{{ entity_route('summary-dashboard') }}" class="quick-action-card">Summary dashboard</a>
     </div>
 
@@ -112,7 +114,9 @@
                     </tbody>
                 </table>
             </div>
-            <p style="margin: 12px 0 0;"><a href="{{ entity_route('projects.index') }}">Manage projects</a></p>
+            @role('Admin')
+                <p style="margin: 12px 0 0;"><a href="{{ entity_route('projects.index') }}">Manage projects</a></p>
+            @endrole
         </div>
     @endif
 

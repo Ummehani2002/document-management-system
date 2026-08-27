@@ -15,12 +15,14 @@
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
+                    @role('Admin')
                     <x-nav-link :href="route('entities.index')" :active="request()->routeIs('entities.*')">
                         {{ __('Entities') }}
                     </x-nav-link>
                     <x-nav-link :href="route('disciplines.index')" :active="request()->routeIs('disciplines.*')">
                         {{ __('Disciplines') }}
                     </x-nav-link>
+                    @endrole
                     <x-nav-link :href="route('documents.upload')" :active="request()->routeIs('documents.upload')">
                         {{ __('Upload') }}
                     </x-nav-link>
@@ -82,12 +84,14 @@
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
+            @role('Admin')
             <x-responsive-nav-link :href="route('entities.index')" :active="request()->routeIs('entities.*')">
                 {{ __('Entities') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('disciplines.index')" :active="request()->routeIs('disciplines.*')">
                 {{ __('Disciplines') }}
             </x-responsive-nav-link>
+            @endrole
             <x-responsive-nav-link :href="route('documents.upload')" :active="request()->routeIs('documents.upload')">
                 {{ __('Upload') }}
             </x-responsive-nav-link>

@@ -45,17 +45,24 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Project Management (Entity + Project)
-    Route::resource('entities', EntityController::class)->except(['destroy']);
-    Route::resource('projects', ProjectController::class)->only(['edit', 'update']);
-    Route::delete('/entities/{entity}', [EntityController::class, 'destroy'])
-        ->middleware('role:Admin')
-        ->name('entities.destroy');
-    Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])
-        ->middleware('role:Admin')
-        ->name('projects.destroy');
-    Route::resource('disciplines', DisciplineController::class)->except(['show']);
-    Route::get('/user-activities', [UserActivityController::class, 'index'])->name('user-activities.index');
+    Route::middleware('role:Admin')->group(function () {
+        Route::resource('entities', EntityController::class)->except(['destroy']);
+        Route::delete('/entities/{entity}', [EntityController::class, 'destroy'])->name('entities.destroy');
+
+        // Register list/create/store before {project} routes so /projects/create is never captured as an ID.
+        Route::middleware('entity.require')->group(function () {
+            Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
+            Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
+            Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
+        });
+
+        Route::get('/projects/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit')->whereNumber('project');
+        Route::patch('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update')->whereNumber('project');
+        Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy')->whereNumber('project');
+
+        Route::resource('disciplines', DisciplineController::class)->except(['show']);
+        Route::get('/user-activities', [UserActivityController::class, 'index'])->name('user-activities.index');
+    });
 
     Route::middleware('role:Admin')->prefix('admin')->group(function () {
         Route::get('/user-access', [UserAccessController::class, 'index'])->name('user-access.index');
@@ -104,10 +111,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/upload/chunk-finish', [DocumentDirectUploadController::class, 'chunkFinish'])->name('documents.upload.chunk-finish');
         Route::get('/upload/suggest', [DocumentController::class, 'suggestFromFilename'])->name('documents.suggest');
         Route::get('/search', [DocumentController::class, 'search'])->name('documents.search');
-
-        Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
-        Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
-        Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     });
     Route::get('/share/email-suggestions', [DocumentController::class, 'shareEmailSuggestions'])->name('documents.share.email-suggestions');
     Route::post('/documents/{id}/share', [DocumentController::class, 'share'])->name('documents.share')->where('id', '[0-9]+');

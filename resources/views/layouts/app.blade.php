@@ -683,16 +683,18 @@
             <a href="{{ route('workspace') }}" class="dms-nav-link{{ $navActive(['workspace']) }}">Workspace</a>
             <a href="{{ entity_route('documents.upload') }}" class="dms-nav-link{{ $navActive(['documents.upload', 'documents.store']) }}">Upload</a>
             <a href="{{ entity_route('documents.search') }}" class="dms-nav-link{{ $navActive(['documents.search']) }}">Search</a>
-            <a href="{{ entity_route('projects.index') }}" class="dms-nav-link{{ $navActive(['projects.index', 'projects.create', 'projects.store']) }}">Project Master</a>
             <a href="{{ entity_route('summary-dashboard') }}" class="dms-nav-link{{ $navActive(['summary-dashboard', 'summary-dashboard.download']) }}">Dashboard</a>
+            @role('Admin')
+                <a href="{{ entity_route('projects.index') }}" class="dms-nav-link{{ $navActive(['projects.index', 'projects.create', 'projects.store', 'projects.edit', 'projects.update']) }}">Project Master</a>
+            @endrole
         @endif
         @role('Admin')
             <a href="{{ route('entities.index') }}" class="dms-nav-link{{ $navActive(['entities.*']) }}">Entities</a>
             <a href="{{ route('disciplines.index') }}" class="dms-nav-link{{ $navActive(['disciplines.*']) }}">Disciplines</a>
             <a href="{{ route('folders.index') }}" class="dms-nav-link{{ $navActive(['folders.*']) }}">Folders</a>
             <a href="{{ route('user-access.index') }}" class="dms-nav-link{{ $navActive(['user-access.*']) }}">User Access</a>
+            <a href="{{ route('user-activities.index') }}" class="dms-nav-link{{ $navActive(['user-activities.*']) }}">Activity Log</a>
         @endrole
-        <a href="{{ route('user-activities.index') }}" class="dms-nav-link{{ $navActive(['user-activities.*']) }}">Activity Log</a>
         <a href="{{ route('documents.trash') }}" class="dms-nav-link{{ $navActive(['documents.trash', 'documents.trash.*']) }}">Trash</a>
     </nav>
 </header>

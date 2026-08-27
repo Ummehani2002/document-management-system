@@ -85,12 +85,11 @@ class EntityContextTest extends TestCase
 
     public function test_project_master_is_scoped_to_current_entity(): void
     {
-        $user = User::factory()->create();
+        $admin = User::factory()->create();
+        $admin->assignRole('Admin');
+
         $entityA = Entity::create(['name' => 'Entity A']);
         $entityB = Entity::create(['name' => 'Entity B']);
-
-        UserEntityAccess::create(['user_id' => $user->id, 'entity_id' => $entityA->id]);
-        UserEntityAccess::create(['user_id' => $user->id, 'entity_id' => $entityB->id]);
 
         Project::create([
             'entity_id' => $entityA->id,
@@ -103,13 +102,42 @@ class EntityContextTest extends TestCase
             'project_name' => 'Beta Project',
         ]);
 
-        app(EntityContextService::class)->set($user, $entityA->id);
+        app(EntityContextService::class)->set($admin, $entityA->id);
 
-        $this->actingAs($user)
+        $this->actingAs($admin)
             ->get(route('projects.index'))
             ->assertOk()
             ->assertSee('Alpha Project')
             ->assertDontSee('Beta Project');
+    }
+
+    public function test_non_admin_cannot_access_project_master(): void
+    {
+        $user = User::factory()->create();
+        $entity = Entity::create(['name' => 'Entity A']);
+        UserEntityAccess::create(['user_id' => $user->id, 'entity_id' => $entity->id]);
+
+        app(EntityContextService::class)->set($user, $entity->id);
+
+        $this->actingAs($user)
+            ->get(route('projects.index'))
+            ->assertForbidden();
+    }
+
+    public function test_admin_can_open_project_create_form(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('Admin');
+        $entity = Entity::create(['name' => 'Create Form Co']);
+
+        app(EntityContextService::class)->set($admin, $entity->id);
+
+        $this->actingAs($admin)
+            ->get(route('projects.create'))
+            ->assertOk()
+            ->assertSee('Add Project')
+            ->assertSee('Create Form Co')
+            ->assertSee('Save Project');
     }
 
     public function test_admin_can_add_project_for_current_entity_via_project_master(): void

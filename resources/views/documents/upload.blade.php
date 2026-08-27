@@ -50,7 +50,11 @@
 
 @if($entities->isEmpty() || $projects->isEmpty())
     <div class="card" style="margin-bottom: 20px; padding: 12px; background: #fffbeb; border-color: #fcd34d;">
-        <strong>No master data yet.</strong> Add at least one <a href="{{ route('entities.create') }}">Entity</a> and one <a href="{{ entity_route('projects.create') }}">Project</a> in Project Master first.
+        @role('Admin')
+            <strong>No master data yet.</strong> Add at least one <a href="{{ route('entities.create') }}">Entity</a> and one <a href="{{ entity_route('projects.create') }}">Project</a> in Project Master first.
+        @else
+            <strong>No master data yet.</strong> Contact your administrator to set up entities and projects before uploading.
+        @endrole
     </div>
 @endif
 
@@ -113,7 +117,13 @@
                         </option>
                     @endforeach
                 </select>
-                @if($projects->isEmpty())<p style="margin-top: 6px; color: #b45309;">Add a <a href="{{ entity_route('projects.create') }}">Project</a> in Project Master first.</p>@endif
+                @if($projects->isEmpty())
+                    @role('Admin')
+                        <p style="margin-top: 6px; color: #b45309;">Add a <a href="{{ entity_route('projects.create') }}">Project</a> in Project Master first.</p>
+                    @else
+                        <p style="margin-top: 6px; color: #b45309;">No projects are set up yet. Contact your administrator.</p>
+                    @endrole
+                @endif
                 @error('project_id')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
             </div>
 

@@ -6,9 +6,14 @@ use App\Models\Project;
 use App\Models\User;
 use App\Models\UserActivity;
 use App\Services\UserActivityLogger;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(RoleSeeder::class);
+});
 
 test('user activity logger records document upload', function () {
     $user = User::factory()->create();
@@ -50,18 +55,28 @@ test('user activity logger records document upload', function () {
     expect($activity->properties['created_by'])->toBe($user->username);
 });
 
-test('activity log page is available to authenticated users', function () {
-    $user = User::factory()->create();
+test('activity log page is available to admins', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('Admin');
 
-    $this->actingAs($user)
+    $this->actingAs($admin)
         ->get(route('user-activities.index'))
         ->assertOk()
         ->assertSee('User Activity Log');
 });
 
+test('activity log page is forbidden for non-admin users', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('user-activities.index'))
+        ->assertForbidden();
+});
+
 test('activity log shows uploaded edited and deleted actions', function () {
-    $user = User::factory()->create(['name' => 'Activity Tester']);
-    $this->actingAs($user);
+    $admin = User::factory()->create(['name' => 'Activity Tester']);
+    $admin->assignRole('Admin');
+    $this->actingAs($admin);
 
     $entity = Entity::create(['name' => 'Test Entity']);
     $project = Project::create([
@@ -86,7 +101,7 @@ test('activity log shows uploaded edited and deleted actions', function () {
     UserActivityLogger::deleted($document);
     $document->delete();
 
-    $this->actingAs($user)
+    $this->actingAs($admin)
         ->get(route('user-activities.index'))
         ->assertOk()
         ->assertSee('Uploaded')
@@ -102,8 +117,9 @@ test('activity log shows uploaded edited and deleted actions', function () {
 });
 
 test('activity log hydrates project fields from project_id when document is gone', function () {
-    $user = User::factory()->create(['name' => 'Hydrate Tester']);
-    $this->actingAs($user);
+    $admin = User::factory()->create(['name' => 'Hydrate Tester']);
+    $admin->assignRole('Admin');
+    $this->actingAs($admin);
 
     $entity = Entity::create(['name' => 'Hydrate Entity']);
     $project = Project::create([
@@ -116,7 +132,7 @@ test('activity log hydrates project fields from project_id when document is gone
 
     // Older thin delete snapshots only store ids + file name.
     UserActivity::create([
-        'user_id' => $user->id,
+        'user_id' => $admin->id,
         'action' => UserActivity::ACTION_DELETED,
         'document_id' => null,
         'properties' => [
@@ -128,7 +144,7 @@ test('activity log hydrates project fields from project_id when document is gone
         'ip_address' => '127.0.0.1',
     ]);
 
-    $this->actingAs($user)
+    $this->actingAs($admin)
         ->get(route('user-activities.index'))
         ->assertOk()
         ->assertSee('Deleted')
