@@ -222,4 +222,83 @@ class DocumentOlderVersionsTest extends TestCase
         $this->assertSame([$latest->id], $latestIds);
         $this->assertNotContains($older->id, $latestIds);
     }
+
+    public function test_promote_version_makes_older_revision_the_latest(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('Admin');
+
+        $entity = Entity::create(['name' => 'Acme']);
+        $project = Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => 'MH-0026',
+            'project_name' => 'Test Project',
+        ]);
+
+        $older = Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'document_type' => 'MOM',
+            'file_name' => 'RYM-PRO-POL-DT-0003 R.00 - Health Plan.pdf',
+            'file_path' => 'documents/acme/mh-0026/mom/old.pdf',
+        ]);
+
+        Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'document_type' => 'MOM',
+            'file_name' => 'RYM-PRO-POL-DT-0003 R.01 - Health Plan.pdf',
+            'file_path' => 'documents/acme/mh-0026/mom/new.pdf',
+        ]);
+
+        $this->actingAs($user)
+            ->postJson(route('documents.promote-version', ['id' => $older->id]))
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $older->refresh();
+
+        $this->assertTrue(DocumentFileVersioning::isLatestInFamily($older));
+        $this->assertStringContainsString('R.02', $older->file_name);
+
+        $latestIds = DocumentFileVersioning::pickLatestDocumentIds(
+            Document::query()->where('project_id', $project->id)->get(['id', 'file_name', 'project_id'])
+        );
+
+        $this->assertContains($older->id, $latestIds);
+    }
+
+    public function test_versions_endpoint_includes_promote_url_for_older_versions(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('Admin');
+
+        $entity = Entity::create(['name' => 'Acme']);
+        $project = Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => 'MH-0026',
+            'project_name' => 'Test Project',
+        ]);
+
+        $older = Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'document_type' => 'MOM',
+            'file_name' => 'RYM-PRO-POL-DT-0003 R.00 - Health Plan.pdf',
+            'file_path' => 'documents/acme/mh-0026/mom/old.pdf',
+        ]);
+
+        $latest = Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'document_type' => 'MOM',
+            'file_name' => 'RYM-PRO-POL-DT-0003 R.01 - Health Plan.pdf',
+            'file_path' => 'documents/acme/mh-0026/mom/new.pdf',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('documents.versions', ['id' => $latest->id]))
+            ->assertOk()
+            ->assertJsonPath('older_versions.0.promote_url', route('documents.promote-version', ['id' => $older->id]));
+    }
 }

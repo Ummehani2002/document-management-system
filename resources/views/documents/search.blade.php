@@ -139,10 +139,17 @@
     }
 
     .versions-modal-file {
-        margin: 0 0 16px;
+        margin: 0 0 8px;
         color: #64748b;
         font-size: 0.88rem;
         word-break: break-word;
+    }
+
+    .versions-modal-help {
+        margin: 0 0 14px;
+        color: #64748b;
+        font-size: 0.82rem;
+        line-height: 1.45;
     }
 
     .versions-modal-body {
@@ -393,12 +400,15 @@
                 </p>
             @else
             <label for="entity_id" style="display: block; margin-bottom: 4px; font-weight: 500;">Entity </label>
-            <select name="entity_id" id="entity_id" required style="width: 100%; padding: 8px 12px; margin-bottom: 12px;">
+            <select name="entity_id" id="entity_id" required style="width: 100%; padding: 8px 12px; margin-bottom: 12px;" @if(!empty($currentEntityId)) disabled @endif>
                 <option value="">Select entity</option>
                 @foreach($entities ?? [] as $e)
-                    <option value="{{ $e->id }}" {{ (int) request('entity_id') === $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
+                    <option value="{{ $e->id }}" {{ (int) ($entityId ?? request('entity_id')) === (int) $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
                 @endforeach
             </select>
+            @if(!empty($currentEntityId))
+                <input type="hidden" name="entity_id" value="{{ $currentEntityId }}">
+            @endif
 
             <label for="project_id" style="display: block; margin-bottom: 4px; font-weight: 500;">Project</label>
             <select name="project_id" id="project_id" required style="width: 100%; padding: 8px 12px;">
@@ -492,12 +502,15 @@
                 </div>
                 <div style="flex: 1 1 150px; min-width: 140px;">
                     <label for="entity_id" style="display: block; margin-bottom: 4px; font-weight: 500;">Entity</label>
-                    <select name="entity_id" id="entity_id" style="width: 100%; padding: 8px 12px; box-sizing: border-box; margin: 0;">
+                    <select name="entity_id" id="entity_id" style="width: 100%; padding: 8px 12px; box-sizing: border-box; margin: 0;" @if(!empty($currentEntityId)) disabled @endif>
                         <option value="">All entities</option>
                         @foreach($entities ?? [] as $e)
-                            <option value="{{ $e->id }}" {{ (int) request('entity_id') === $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
+                            <option value="{{ $e->id }}" {{ (int) ($entityId ?? request('entity_id')) === (int) $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
                         @endforeach
                     </select>
+                    @if(!empty($currentEntityId))
+                        <input type="hidden" name="entity_id" value="{{ $currentEntityId }}">
+                    @endif
                 </div>
                 <div style="flex: 1 1 180px; min-width: 160px;">
                     <label for="project_id" style="display: block; margin-bottom: 4px; font-weight: 500;">Project</label>
@@ -623,12 +636,15 @@
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: end;">
                     <div>
                         <label for="entity_id_switch" style="display: block; margin-bottom: 4px; font-weight: 500;">Entity</label>
-                        <select name="entity_id" id="entity_id_switch" required style="width: 100%; padding: 8px 12px;">
+                        <select name="entity_id" id="entity_id_switch" required style="width: 100%; padding: 8px 12px;" @if(!empty($currentEntityId)) disabled @endif>
                             <option value="">Select entity</option>
                             @foreach($entities ?? [] as $e)
-                                <option value="{{ $e->id }}" {{ (int) request('entity_id') === $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
+                                <option value="{{ $e->id }}" {{ (int) ($entityId ?? request('entity_id')) === (int) $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
                             @endforeach
                         </select>
+                        @if(!empty($currentEntityId))
+                            <input type="hidden" name="entity_id" value="{{ $currentEntityId }}">
+                        @endif
                     </div>
                     <div>
                         <label for="project_id_switch" style="display: block; margin-bottom: 4px; font-weight: 500;">Project</label>
@@ -971,8 +987,9 @@
 <div id="versions-modal" class="versions-modal share-modal" aria-hidden="true">
     <div class="share-modal-backdrop" onclick="closeVersionsModal()"></div>
     <div class="versions-modal-card" role="dialog" aria-labelledby="versions-modal-title" aria-modal="true">
-        <h3 id="versions-modal-title">Older versions</h3>
+        <h3 id="versions-modal-title">Document versions</h3>
         <p id="versions-modal-file" class="versions-modal-file"></p>
+        <p class="versions-modal-help">Older versions are kept. Use <strong>Set as latest</strong> when you want search and downloads to use an older file again.</p>
         <div id="versions-modal-body" class="versions-modal-body">
             <p class="versions-modal-empty">Loading versions…</p>
         </div>
@@ -1411,9 +1428,56 @@
     });
 
     var documentVersionsUrlTemplate = @json(url('/documents/__ID__/versions'));
+    var csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     function documentVersionsUrl(documentId) {
         return documentVersionsUrlTemplate.replace('__ID__', String(documentId));
+    }
+
+    function promoteVersion(version, button) {
+        if (!version || !version.promote_url) {
+            return;
+        }
+
+        var label = version.file_name || 'this version';
+        if (!window.confirm('Set "' + label + '" as the latest version? Search and downloads will use this file.')) {
+            return;
+        }
+
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Saving…';
+        }
+
+        fetch(version.promote_url, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({})
+        })
+            .then(function (response) {
+                return response.json().then(function (data) {
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.message || 'Could not set this version as latest.');
+                    }
+                    return data;
+                });
+            })
+            .then(function () {
+                window.location.reload();
+            })
+            .catch(function (error) {
+                alert(error.message || 'Could not set this version as latest.');
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = 'Set as latest';
+                }
+            });
     }
 
     function closeVersionsModal() {
@@ -1436,11 +1500,14 @@
             if (version.download_url) {
                 actions.push('<a href="' + version.download_url + '">Download</a>');
             }
+            if (version.promote_url) {
+                actions.push('<button type="button" class="doc-promote-version-btn" data-version-id="' + version.id + '" style="background:none;border:none;padding:0;color:inherit;cursor:pointer;text-decoration:underline;">Set as latest</button>');
+            }
             if (!actions.length) {
                 actions.push('<span style="color:#b91c1c;">File missing</span>');
             }
 
-            return '<tr>'
+            return '<tr data-version-id="' + version.id + '">'
                 + '<td style="word-break:break-word;">' + version.file_name + '</td>'
                 + '<td style="white-space:nowrap;">' + (version.updated_at || '—') + '</td>'
                 + '<td class="text-right" style="white-space:nowrap;">' + actions.join(' · ') + '</td>'
@@ -1478,7 +1545,17 @@
                 return response.json();
             })
             .then(function (data) {
-                bodyEl.innerHTML = renderOlderVersionsTable(Array.isArray(data.older_versions) ? data.older_versions : []);
+                var versions = Array.isArray(data.older_versions) ? data.older_versions : [];
+                bodyEl.innerHTML = renderOlderVersionsTable(versions);
+                bodyEl.querySelectorAll('.doc-promote-version-btn').forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        var versionId = button.getAttribute('data-version-id');
+                        var version = versions.find(function (row) {
+                            return String(row.id) === String(versionId);
+                        });
+                        promoteVersion(version, button);
+                    });
+                });
             })
             .catch(function () {
                 bodyEl.innerHTML = '<p class="versions-modal-empty">Could not load older versions. Please try again.</p>';

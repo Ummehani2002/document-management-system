@@ -6,6 +6,7 @@ use App\Models\Document;
 use App\Models\Entity;
 use App\Models\Project;
 use App\Services\DocumentAccessService;
+use App\Services\EntityContextService;
 use App\Services\DocumentFilenameParser;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,7 +17,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class SummaryDashboardController extends Controller
 {
     public function __construct(
-        protected DocumentAccessService $access
+        protected DocumentAccessService $access,
+        protected EntityContextService $entityContext
     ) {}
 
     public function index(Request $request): View
@@ -96,6 +98,10 @@ class SummaryDashboardController extends Controller
     private function buildReport(Request $request, bool $forExport = false): array
     {
         $entityId = (int) $request->query('entity_id', 0);
+        $currentEntityId = $this->entityContext->getId($request->user());
+        if ($entityId <= 0 && $currentEntityId !== null) {
+            $entityId = $currentEntityId;
+        }
         $projectId = (int) $request->query('project_id', 0);
         $mainFolder = trim((string) $request->query('main_folder', ''));
         $documentType = trim((string) $request->query('document_type', ''));
@@ -125,6 +131,9 @@ class SummaryDashboardController extends Controller
         }
 
         $entities = $this->accessibleEntitiesWithProjects($request);
+        if ($currentEntityId !== null) {
+            $entities = $entities->where('id', $currentEntityId)->values();
+        }
         if ($entityId > 0 && ! $entities->contains('id', $entityId)) {
             $entityId = 0;
             $projectId = 0;

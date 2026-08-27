@@ -10,6 +10,7 @@ use App\Models\UserActivity;
 use App\Jobs\ProcessOCR;
 use App\Jobs\SendSharedDocumentEmail;
 use App\Services\DocumentAccessService;
+use App\Services\EntityContextService;
 use App\Services\DocumentDeletionService;
 use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileReplacer;
@@ -18,6 +19,7 @@ use App\Services\DocumentLocationResolver;
 use App\Services\DocumentPreviewUrl;
 use App\Services\MicrosoftGraphMailService;
 use App\Services\MicrosoftGraphPeopleService;
+use App\Services\DocumentVersionPromoter;
 use App\Services\DocumentVersionSaver;
 use App\Services\OnlyOfficeService;
 use App\Services\SharedDocumentMailBuilder;
@@ -34,7 +36,8 @@ use App\Services\UserActivityLogger;
 class DocumentController extends Controller
 {
     public function __construct(
-        protected DocumentAccessService $access
+        protected DocumentAccessService $access,
+        protected EntityContextService $entityContext
     ) {}
 
     protected function authorizeDocument(?Document $document): void
@@ -67,16 +70,32 @@ class DocumentController extends Controller
     public function create(Request $request)
     {
         $user = Auth::user();
+        $currentEntityId = $this->entityContext->getId($user);
+
         $entityQuery = Entity::orderBy('name');
         if (! $this->access->isAdmin($user)) {
             $entityIds = $this->access->accessibleEntityIds($user);
             $entityQuery->whereIn('id', $entityIds);
         }
+        if ($currentEntityId !== null) {
+            $entityQuery->where('id', $currentEntityId);
+        }
         $entities = $entityQuery->get(['id', 'name']);
+
         $projects = Project::with('entity:id,name')->orderBy('project_number');
         if (! $this->access->isAdmin($user)) {
             $entityIds = $this->access->accessibleEntityIds($user);
             $projects->whereIn('entity_id', $entityIds);
+        }
+        if ($currentEntityId !== null) {
+            $projects->where('entity_id', $currentEntityId);
+            if (! $this->access->isAdmin($user)) {
+                $restrictedEntityIds = $this->access->entitiesWithProjectRestrictions($user);
+                if (in_array($currentEntityId, $restrictedEntityIds, true)) {
+                    $allowedProjectIds = $this->access->allowedProjectIdsForEntity($user, $currentEntityId);
+                    $projects->whereIn('id', $allowedProjectIds);
+                }
+            }
         }
         $projects = $projects->get();
         $folderTree = $this->access->accessibleSidebarFolderTree($user);
@@ -95,7 +114,7 @@ class DocumentController extends Controller
 
         return view('documents.upload', compact(
             'entities', 'projects', 'folderTree', 'folderTreesByEntity', 'mode', 'disciplines',
-            'directUploadEnabled', 'directUploadMinMb'
+            'directUploadEnabled', 'directUploadMinMb', 'currentEntityId'
         ));
     }
 
@@ -458,6 +477,10 @@ class DocumentController extends Controller
         $keyword = trim($request->keyword ?? '');
         $projectId = $request->project_id ? (int) $request->project_id : null;
         $entityId = $request->entity_id ? (int) $request->entity_id : null;
+        $currentEntityId = $this->entityContext->getId(Auth::user());
+        if ($entityId === null && $currentEntityId !== null) {
+            $entityId = $currentEntityId;
+        }
         $discipline = trim($request->discipline ?? '');
         $documentType = trim($request->document_type ?? '');
         $mainFolder = trim((string) $request->input('main_folder', ''));
@@ -491,7 +514,7 @@ class DocumentController extends Controller
             }
         }
 
-        // Project options come from Project Master. Always load every project so the
+        // Project options are loaded for all accessible projects so entity/project
         // entity/project dropdowns can filter client-side when the user switches entity
         // (otherwise only the initially selected entity's projects exist in the DOM).
         $projects = Project::query()
@@ -502,6 +525,10 @@ class DocumentController extends Controller
             $entityIds = $this->access->accessibleEntityIds($user);
             $entities->whereIn('id', $entityIds);
             $projects->whereIn('entity_id', $entityIds);
+        }
+        if ($currentEntityId !== null) {
+            $entities->where('id', $currentEntityId);
+            $projects->where('entity_id', $currentEntityId);
         }
 
         // Sidebar browse: only show entities/projects that have documents in the selected folder.
@@ -690,7 +717,7 @@ class DocumentController extends Controller
         return view('documents.search', compact(
             'documents', 'keyword', 'projects', 'entities',
             'disciplines', 'documentTypes', 'totalDocuments', 'documentsWithoutOcr',
-            'fromSidebar', 'needsProjectSelection'
+            'fromSidebar', 'needsProjectSelection', 'currentEntityId', 'entityId'
         ));
     }
 
@@ -794,6 +821,7 @@ class DocumentController extends Controller
                     'file_available' => $available,
                     'view_url' => $available ? route('documents.view', ['id' => $row->id]) : null,
                     'download_url' => $available ? route('documents.download', ['id' => $row->id]) : null,
+                    'promote_url' => route('documents.promote-version', ['id' => $row->id]),
                 ];
             });
 
@@ -801,8 +829,50 @@ class DocumentController extends Controller
             'current' => [
                 'id' => $document->id,
                 'file_name' => $document->file_name,
+                'is_latest' => DocumentFileVersioning::isLatestInFamily($document),
             ],
             'older_versions' => $olderVersions,
+        ]);
+    }
+
+    public function promoteVersion(Request $request, int $id)
+    {
+        $document = Document::query()->find($id);
+
+        if ($document === null) {
+            abort(404, 'Document not found.');
+        }
+
+        $this->authorizeDocument($document);
+
+        if (DocumentFileVersioning::isLatestInFamily($document)) {
+            return response()->json([
+                'success' => true,
+                'document_id' => $document->id,
+                'file_name' => $document->file_name,
+                'message' => 'This version is already the latest.',
+            ]);
+        }
+
+        try {
+            $promoted = (new DocumentVersionPromoter)->promoteAsLatest($document);
+        } catch (\Throwable $e) {
+            Log::warning('Document version promote failed', [
+                'document_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not set this version as latest. Please try again.',
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'document_id' => $promoted->id,
+            'file_name' => $promoted->file_name,
+            'message' => 'This version is now the latest.',
         ]);
     }
 

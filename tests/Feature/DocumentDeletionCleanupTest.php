@@ -62,7 +62,7 @@ test('admin project delete moves documents to trash for restore', function () {
     ['project' => $project, 'document' => $document] = makeProjectWithDocument($admin, 'cascade.pdf');
 
     $this->delete(route('projects.destroy', $project))
-        ->assertRedirect(route('projects.index'));
+        ->assertRedirect(route('dashboard'));
 
     expect(Project::query()->whereKey($project->id)->exists())->toBeFalse();
     expect(Project::withTrashed()->whereKey($project->id)->exists())->toBeTrue();

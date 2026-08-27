@@ -18,9 +18,6 @@
                     <x-nav-link :href="route('entities.index')" :active="request()->routeIs('entities.*')">
                         {{ __('Entities') }}
                     </x-nav-link>
-                    <x-nav-link :href="route('projects.index')" :active="request()->routeIs('projects.*')">
-                        {{ __('Project Master') }}
-                    </x-nav-link>
                     <x-nav-link :href="route('disciplines.index')" :active="request()->routeIs('disciplines.*')">
                         {{ __('Disciplines') }}
                     </x-nav-link>
@@ -87,9 +84,6 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('entities.index')" :active="request()->routeIs('entities.*')">
                 {{ __('Entities') }}
-            </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('projects.index')" :active="request()->routeIs('projects.*')">
-                {{ __('Project Master') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('disciplines.index')" :active="request()->routeIs('disciplines.*')">
                 {{ __('Disciplines') }}

@@ -17,9 +17,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(append: [
             \App\Http\Middleware\ForceHttpsUrlsWhenNeeded::class,
+            \App\Http\Middleware\ShareEntityContext::class,
         ]);
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'entity.share' => \App\Http\Middleware\ShareEntityContext::class,
+            'entity.require' => \App\Http\Middleware\RequireEntityContext::class,
+            'entity.clear' => \App\Http\Middleware\ClearEntityContext::class,
         ]);
         $middleware->validateCsrfTokens(except: [
             'onlyoffice/callback/*',

@@ -50,7 +50,7 @@
 
 @if($entities->isEmpty() || $projects->isEmpty())
     <div class="card" style="margin-bottom: 20px; padding: 12px; background: #fffbeb; border-color: #fcd34d;">
-        <strong>No master data yet.</strong> Add at least one <a href="{{ route('entities.create') }}">Entity</a> and one <a href="{{ route('projects.create') }}">Project</a> in Project Master first.
+        <strong>No master data yet.</strong> Add at least one <a href="{{ route('entities.create') }}">Entity</a> and one <a href="{{ route('projects.create') }}">Project</a> first.
     </div>
 @endif
 
@@ -85,12 +85,15 @@
     <div class="upload-grid">
             <div class="card">
                 <label for="entity_id">Select Entity *</label>
-                <select name="entity_id" id="entity_id" required>
+                <select name="entity_id" id="entity_id" required @if(!empty($currentEntityId)) disabled @endif>
                     <option value="">— Select Entity —</option>
                     @foreach($entities as $e)
-                        <option value="{{ $e->id }}" {{ old('entity_id') == $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
+                        <option value="{{ $e->id }}" {{ (int) old('entity_id', $currentEntityId ?? 0) === (int) $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
                     @endforeach
                 </select>
+                @if(!empty($currentEntityId))
+                    <input type="hidden" name="entity_id" value="{{ $currentEntityId }}">
+                @endif
                 @if($entities->isEmpty())<p style="margin-top: 6px; color: #b45309;">Add an <a href="{{ route('entities.create') }}">Entity</a> first.</p>@endif
                 @error('entity_id')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
             </div>
@@ -110,12 +113,12 @@
                         </option>
                     @endforeach
                 </select>
-                @if($projects->isEmpty())<p style="margin-top: 6px; color: #b45309;">Add a <a href="{{ route('projects.create') }}">Project</a> in Project Master first.</p>@endif
+                @if($projects->isEmpty())<p style="margin-top: 6px; color: #b45309;">Add a <a href="{{ route('projects.create') }}">Project</a> first.</p>@endif
                 @error('project_id')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
             </div>
 
             <div id="project-details" class="card full-width" style="display: none;">
-                <div style="display: block; margin-bottom: 8px;">Project details (from Project Master)</div>
+                <div style="display: block; margin-bottom: 8px;">Project details</div>
                 <div>Project name: <span id="disp-name">—</span></div>
                 <div>Client: <span id="disp-client">—</span></div>
                 <div>Consultant: <span id="disp-consultant">—</span></div>

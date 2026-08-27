@@ -10,9 +10,26 @@ use Illuminate\Support\Facades\Auth;
 
 class EntityController extends Controller
 {
+    public function __construct(
+        protected DocumentAccessService $access
+    ) {}
+
     public function index()
     {
-        $entities = Entity::withCount('projects')->orderBy('name')->paginate(15);
+        $user = Auth::user();
+        $query = Entity::withCount('projects')->orderBy('name');
+
+        if (! $this->access->isAdmin($user)) {
+            $entityIds = $this->access->accessibleEntityIds($user);
+            if ($entityIds === []) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('id', $entityIds);
+            }
+        }
+
+        $entities = $query->paginate(15);
+
         return view('entities.index', compact('entities'));
     }
 

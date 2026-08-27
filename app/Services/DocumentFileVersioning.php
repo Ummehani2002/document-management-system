@@ -220,6 +220,65 @@ class DocumentFileVersioning
     }
 
     /**
+     * Build a filename that ranks above every document in the same version family.
+     */
+    public static function buildPromotedLatestFilename(string $currentFileName, iterable $familyDocuments): string
+    {
+        $extension = pathinfo($currentFileName, PATHINFO_EXTENSION);
+        $rootBase = self::stripEditVersionSuffix(pathinfo($currentFileName, PATHINFO_FILENAME));
+
+        $maxRevision = 0;
+        $maxEdit = 0;
+        $usesEditSuffix = false;
+
+        foreach ($familyDocuments as $document) {
+            $name = is_object($document) ? (string) $document->file_name : (string) $document;
+            $base = pathinfo($name, PATHINFO_FILENAME);
+            [$revision, $edit] = self::versionRank($name);
+            $maxRevision = max($maxRevision, $revision);
+            $maxEdit = max($maxEdit, $edit);
+
+            if (preg_match('/\s+V\d+$/i', $base)) {
+                $usesEditSuffix = true;
+            }
+        }
+
+        $latestName = collect($familyDocuments)
+            ->sort(fn ($left, $right) => self::compareFilenames(
+                is_object($right) ? (string) $right->file_name : (string) $right,
+                is_object($left) ? (string) $left->file_name : (string) $left
+            ))
+            ->first();
+        $latestFileName = is_object($latestName) ? (string) $latestName->file_name : (string) $latestName;
+        $latestBase = pathinfo($latestFileName, PATHINFO_FILENAME);
+
+        if ($usesEditSuffix || preg_match('/\s+V\d+$/i', $latestBase)) {
+            $newBase = $rootBase.' V'.($maxEdit + 1);
+        } else {
+            $newBase = self::injectVersionNumber($rootBase, $maxRevision + 1);
+        }
+
+        return $extension !== '' ? ($newBase.'.'.$extension) : $newBase;
+    }
+
+    public static function isLatestInFamily(Document $document, ?iterable $familyDocuments = null): bool
+    {
+        $family = $familyDocuments ?? self::versionFamilyDocuments($document);
+
+        foreach ($family as $row) {
+            if ((int) $row->id === (int) $document->id) {
+                continue;
+            }
+
+            if (self::isNewerFilename((string) $row->file_name, (string) $document->file_name)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @return \Illuminate\Support\Collection<int, Document>
      */
     public static function versionFamilyDocuments(Document $document): \Illuminate\Support\Collection

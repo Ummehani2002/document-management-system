@@ -13,7 +13,7 @@
 
 @if($entities->isEmpty())
     <div class="card">
-        <p>No entities yet. <a href="{{ route('entities.create') }}">Create an entity</a>, then add <a href="{{ route('projects.index') }}">projects</a> in Project Master. On Upload you select Entity and Project.</p>
+        <p>No entities yet. <a href="{{ route('entities.create') }}">Create an entity</a>, then <a href="{{ route('projects.create') }}">add a project</a>. On Upload you select Entity and Project.</p>
     </div>
 @else
     <div class="card dms-grid-wrap">
@@ -31,7 +31,10 @@
                         <td><strong>{{ $entity->name }}</strong></td>
                         <td>{{ $entity->projects_count }} project(s)</td>
                         <td class="text-right" style="white-space: nowrap;">
-                            <a href="{{ route('projects.index', ['entity_id' => $entity->id]) }}">Projects</a>
+                            <form action="{{ route('entities.enter', $entity) }}" method="POST" style="display:inline;">
+                                @csrf
+                                <button type="submit" style="background:none;border:none;padding:0;color:inherit;cursor:pointer;text-decoration:underline;">Open</button>
+                            </form>
                             &nbsp;·&nbsp;
                             <a href="{{ route('entities.edit', $entity) }}">Edit</a>
                             @role('Admin')

@@ -64,7 +64,6 @@
                 </div>
             </div>
             <section class="dash-section">
-                <h4 class="dash-section-title">Breakdown</h4>
                 @include('summary-dashboard._breakdown-table', [
                     'title' => 'Entity breakdown',
                     'rows' => $entityRows,
@@ -72,12 +71,6 @@
                     'totalLabel' => 'Total documents',
                     'downloadTab' => 'entity',
                 ])
-            </section>
-            <section class="dash-section">
-                <h4 class="dash-section-title">Charts</h4>
-                <div class="dash-chart-wrap" style="height:320px;">
-                    <canvas id="entityChart"></canvas>
-                </div>
             </section>
         </div>
 
@@ -94,7 +87,7 @@
                         @endforeach
                     </select>
                 </div>
-                <p style="margin:0; color:#64748b; font-size:0.88rem;">Choose an entity to narrow this chart, or leave as all entities.</p>
+                <p style="margin:0; color:#64748b; font-size:0.88rem;">Choose an entity to narrow this report, or leave as all entities.</p>
             </div>
             <div class="dash-panel-head">
                 <div>
@@ -108,7 +101,6 @@
                 </div>
             </div>
             <section class="dash-section">
-                <h4 class="dash-section-title">Breakdown</h4>
                 @include('summary-dashboard._breakdown-table', [
                     'title' => 'Project breakdown',
                     'rows' => $byProject,
@@ -116,12 +108,6 @@
                     'totalLabel' => 'Total documents (project count)',
                     'downloadTab' => 'project',
                 ])
-            </section>
-            <section class="dash-section">
-                <h4 class="dash-section-title">Charts</h4>
-                <div class="dash-chart-wrap" style="height:{{ max(280, min(640, $byProject->count() * 28)) }}px;">
-                    <canvas id="projectChart"></canvas>
-                </div>
             </section>
         </div>
 
@@ -212,7 +198,6 @@
                 </div>
             </div>
             <section class="dash-section">
-                <h4 class="dash-section-title">Breakdown</h4>
                 @include('summary-dashboard._breakdown-table', [
                     'title' => 'Category breakdown',
                     'rows' => $categoryRows,
@@ -221,17 +206,17 @@
                     'downloadTab' => 'category',
                 ])
             </section>
-            <section class="dash-section">
-                <h4 class="dash-section-title">Charts</h4>
-                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:18px;">
-                    <div class="dash-chart-wrap" style="height:360px;">
-                        <canvas id="categoryChart"></canvas>
-                    </div>
-                    <div class="dash-chart-wrap" style="height:360px;">
-                        <canvas id="mainFolderChart"></canvas>
-                    </div>
-                </div>
-            </section>
+            @if($byMainFolder->isNotEmpty())
+                <section class="dash-section">
+                    @include('summary-dashboard._breakdown-table', [
+                        'title' => 'Main folder breakdown',
+                        'rows' => $byMainFolder,
+                        'total' => $byMainFolder->sum('total'),
+                        'totalLabel' => 'Total documents',
+                        'downloadTab' => 'category',
+                    ])
+                </section>
+            @endif
         </div>
     </div>
 
@@ -329,27 +314,12 @@
         .dash-section {
             margin-top: 18px;
         }
-
-        .dash-section-title {
-            margin: 0 0 10px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: #212d3e;
-        }
-
-        .dash-chart-wrap {
-            position: relative;
-        }
     </style>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
     <script>
         (function () {
-            const palette = ['#212d3e', '#c4a47c', '#2d3a52', '#a88962', '#475569', '#64748b', '#94a3b8', '#1e293b', '#d4b896', '#334155'];
-            const chartFont = { family: '"Segoe UI", system-ui, sans-serif' };
-            const charts = {};
             let activeTab = @json($activeTab);
 
             const entityData = @json($entityRows->values());
@@ -372,135 +342,6 @@
                 categoryTabTotal: @json((int) $categoryTabTotal),
             };
 
-            function chartCount(ctx) {
-                const parsed = ctx.parsed;
-                if (parsed != null && typeof parsed === 'object') {
-                    if (ctx.chart.options.indexAxis === 'y') {
-                        return parsed.x ?? ctx.raw;
-                    }
-
-                    return parsed.y ?? parsed.x ?? ctx.raw;
-                }
-
-                return parsed ?? ctx.raw;
-            }
-
-            const commonOptions = {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { labels: { font: chartFont, color: '#334155' } },
-                    tooltip: {
-                        callbacks: {
-                            label: (ctx) => {
-                                return ` ${Number(chartCount(ctx)).toLocaleString()} document(s)`;
-                            },
-                        },
-                    },
-                },
-            };
-
-            function initTabCharts(tab) {
-                if (tab === 'entity' && !charts.entity) {
-                    charts.entity = new Chart(document.getElementById('entityChart'), {
-                        type: 'bar',
-                        data: {
-                            labels: entityData.map((row) => row.label),
-                            datasets: [{
-                                label: 'Documents',
-                                data: entityData.map((row) => row.total),
-                                backgroundColor: palette,
-                                borderRadius: 6,
-                            }],
-                        },
-                        options: {
-                            ...commonOptions,
-                            indexAxis: 'y',
-                            scales: {
-                                x: { beginAtZero: true, ticks: { precision: 0, font: chartFont } },
-                                y: { ticks: { font: chartFont } },
-                            },
-                        },
-                    });
-                }
-
-                if (tab === 'project' && !charts.project) {
-                    charts.project = new Chart(document.getElementById('projectChart'), {
-                        type: 'bar',
-                        data: {
-                            labels: projectData.map((row) => row.label),
-                            datasets: [{
-                                label: 'Documents',
-                                data: projectData.map((row) => row.total),
-                                backgroundColor: '#c4a47c',
-                                borderRadius: 6,
-                            }],
-                        },
-                        options: {
-                            ...commonOptions,
-                            indexAxis: 'y',
-                            scales: {
-                                x: { beginAtZero: true, ticks: { precision: 0, font: chartFont } },
-                                y: { ticks: { font: chartFont, autoSkip: false } },
-                            },
-                        },
-                    });
-                }
-
-                if (tab === 'category' && !charts.category) {
-                    charts.category = new Chart(document.getElementById('categoryChart'), {
-                        type: 'bar',
-                        data: {
-                            labels: categoryData.map((row) => row.label),
-                            datasets: [{
-                                label: 'Documents',
-                                data: categoryData.map((row) => row.total),
-                                backgroundColor: palette,
-                                borderRadius: 6,
-                            }],
-                        },
-                        options: {
-                            ...commonOptions,
-                            scales: {
-                                x: {
-                                    ticks: {
-                                        maxRotation: 60,
-                                        minRotation: 30,
-                                        font: chartFont,
-                                        callback: function (value) {
-                                            const label = this.getLabelForValue(value) || '';
-                                            return label.length > 22 ? label.slice(0, 22) + '…' : label;
-                                        },
-                                    },
-                                },
-                                y: { beginAtZero: true, ticks: { precision: 0, font: chartFont } },
-                            },
-                        },
-                    });
-                    charts.mainFolder = new Chart(document.getElementById('mainFolderChart'), {
-                        type: 'doughnut',
-                        data: {
-                            labels: mainFolderData.map((row) => row.label),
-                            datasets: [{
-                                data: mainFolderData.map((row) => row.total),
-                                backgroundColor: palette,
-                                borderWidth: 2,
-                                borderColor: '#fff',
-                            }],
-                        },
-                        options: {
-                            ...commonOptions,
-                            plugins: {
-                                ...commonOptions.plugins,
-                                legend: { position: 'bottom', labels: { font: chartFont, color: '#334155' } },
-                            },
-                        },
-                    });
-                }
-
-                Object.values(charts).forEach((chart) => chart.resize());
-            }
-
             function switchTab(tab) {
                 activeTab = tab;
                 document.getElementById('filter_tab').value = tab;
@@ -512,7 +353,6 @@
                 document.querySelectorAll('.dash-tab-panel').forEach((panel) => {
                     panel.classList.toggle('is-active', panel.dataset.panel === tab);
                 });
-                initTabCharts(tab);
             }
 
             function tabTitle(tab) {
@@ -543,31 +383,37 @@
                 return 'Total documents';
             }
 
-            function addChartImage(doc, chart, y, maxWidth, maxHeight) {
-                if (!chart) {
-                    return y;
-                }
-
-                const img = chart.toBase64Image('image/png', 1);
-                const pageWidth = doc.internal.pageSize.getWidth();
+            function addBreakdownTable(doc, title, rows, total, totalLabel, startY) {
                 const margin = 14;
-                const availableWidth = Math.min(maxWidth, pageWidth - margin * 2);
-                const canvas = chart.canvas;
-                const ratio = canvas.height / canvas.width;
-                let width = availableWidth;
-                let height = width * ratio;
-                if (height > maxHeight) {
-                    height = maxHeight;
-                    width = height / ratio;
-                }
+                let y = startY;
 
-                if (y + height > doc.internal.pageSize.getHeight() - 14) {
+                if (y > doc.internal.pageSize.getHeight() - 40) {
                     doc.addPage();
                     y = 16;
                 }
 
-                doc.addImage(img, 'PNG', margin, y, width, height);
-                return y + height + 8;
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(11);
+                doc.setTextColor(33, 45, 62);
+                doc.text(title, margin, y);
+                y += 3;
+
+                doc.autoTable({
+                    startY: y,
+                    head: [['Name', 'Documents']],
+                    body: rows.map(function (row) {
+                        return [row.label, Number(row.total).toLocaleString()];
+                    }),
+                    foot: [[totalLabel, Number(total).toLocaleString()]],
+                    theme: 'striped',
+                    styles: { fontSize: 9, cellPadding: 2 },
+                    headStyles: { fillColor: [33, 45, 62], textColor: 255 },
+                    footStyles: { fillColor: [248, 250, 252], textColor: [33, 45, 62], fontStyle: 'bold' },
+                    columnStyles: { 1: { halign: 'right' } },
+                    margin: { left: margin, right: margin },
+                });
+
+                return (doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : y) + 10;
             }
 
             function downloadPdf(tab) {
@@ -578,111 +424,84 @@
                 }
 
                 switchTab(tab);
-                initTabCharts(tab);
 
-                window.setTimeout(function () {
-                    const doc = new jsPdfNs.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-                    const margin = 14;
-                    let y = 16;
+                const doc = new jsPdfNs.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const margin = 14;
+                let y = 16;
 
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(16);
-                    doc.setTextColor(33, 45, 62);
-                    doc.text('Tanseeq DMS Report', margin, y);
-                    y += 8;
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(16);
+                doc.setTextColor(33, 45, 62);
+                doc.text('Tanseeq DMS Report', margin, y);
+                y += 8;
 
-                    doc.setFont('helvetica', 'normal');
-                    doc.setFontSize(11);
-                    doc.text('Report type: ' + tabTitle(tab), margin, y);
-                    y += 6;
-                    doc.setFontSize(10);
-                    doc.setTextColor(71, 85, 105);
-                    doc.text('Generated at: ' + new Date().toLocaleString(), margin, y);
-                    y += 8;
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(11);
+                doc.text('Report type: ' + tabTitle(tab), margin, y);
+                y += 6;
+                doc.setFontSize(10);
+                doc.setTextColor(71, 85, 105);
+                doc.text('Generated at: ' + new Date().toLocaleString(), margin, y);
+                y += 8;
 
-                    doc.setTextColor(33, 45, 62);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text('Filters', margin, y);
+                doc.setTextColor(33, 45, 62);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Filters', margin, y);
+                y += 5;
+                doc.setFont('helvetica', 'normal');
+                const filters = [
+                    'Entity: ' + reportMeta.entityLabel,
+                    'Project: ' + reportMeta.projectLabel,
+                    'Category: ' + reportMeta.mainFolder,
+                    'Folder: ' + reportMeta.documentType,
+                    'Date from: ' + reportMeta.dateFrom,
+                    'Date to: ' + reportMeta.dateTo,
+                ];
+                if (tab === 'category' && reportMeta.selectedProjectId > 0) {
+                    filters.splice(2, 0,
+                        'Project Manager: ' + (reportMeta.projectManager || '—'),
+                        'DC: ' + (reportMeta.documentController || '—')
+                    );
+                }
+                filters.forEach(function (line) {
+                    doc.text(line, margin, y);
                     y += 5;
-                    doc.setFont('helvetica', 'normal');
-                    const filters = [
-                        'Entity: ' + reportMeta.entityLabel,
-                        'Project: ' + reportMeta.projectLabel,
-                        'Category: ' + reportMeta.mainFolder,
-                        'Folder: ' + reportMeta.documentType,
-                        'Date from: ' + reportMeta.dateFrom,
-                        'Date to: ' + reportMeta.dateTo,
-                    ];
-                    if (tab === 'category' && reportMeta.selectedProjectId > 0) {
-                        filters.splice(2, 0,
-                            'Project Manager: ' + (reportMeta.projectManager || '—'),
-                            'DC: ' + (reportMeta.documentController || '—')
-                        );
-                    }
-                    filters.forEach(function (line) {
-                        doc.text(line, margin, y);
-                        y += 5;
-                    });
+                });
 
-                    if (tab === 'category' && reportMeta.selectedProjectId > 0) {
-                        y += 2;
-                        doc.setFont('helvetica', 'bold');
-                        doc.setFontSize(12);
-                        doc.setTextColor(33, 45, 62);
-                        doc.text('Project document count: ' + Number(reportMeta.categoryTabTotal).toLocaleString(), margin, y);
-                        y += 8;
-                        doc.setFontSize(10);
-                    } else {
-                        y += 3;
-                    }
-
-                    const rows = tableRowsForTab(tab).map(function (row) {
-                        return [row.label, Number(row.total).toLocaleString()];
-                    });
-                    const total = Number(totalForTab(tab)).toLocaleString();
-
+                if (tab === 'category' && reportMeta.selectedProjectId > 0) {
+                    y += 2;
                     doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(12);
                     doc.setTextColor(33, 45, 62);
-                    doc.text('Breakdown', margin, y);
+                    doc.text('Project document count: ' + Number(reportMeta.categoryTabTotal).toLocaleString(), margin, y);
+                    y += 8;
+                    doc.setFontSize(10);
+                } else {
                     y += 3;
+                }
 
-                    doc.autoTable({
-                        startY: y,
-                        head: [['Name', 'Documents']],
-                        body: rows,
-                        foot: [[totalLabelForTab(tab), total]],
-                        theme: 'striped',
-                        styles: { fontSize: 9, cellPadding: 2 },
-                        headStyles: { fillColor: [33, 45, 62], textColor: 255 },
-                        footStyles: { fillColor: [248, 250, 252], textColor: [33, 45, 62], fontStyle: 'bold' },
-                        columnStyles: { 1: { halign: 'right' } },
-                        margin: { left: margin, right: margin },
-                    });
+                y = addBreakdownTable(
+                    doc,
+                    'Breakdown',
+                    tableRowsForTab(tab),
+                    totalForTab(tab),
+                    totalLabelForTab(tab),
+                    y
+                );
 
-                    y = (doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : y) + 10;
+                if (tab === 'category' && mainFolderData.length) {
+                    y = addBreakdownTable(
+                        doc,
+                        'Main folder breakdown',
+                        mainFolderData,
+                        mainFolderData.reduce(function (sum, row) { return sum + Number(row.total || 0); }, 0),
+                        'Total documents',
+                        y
+                    );
+                }
 
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(11);
-                    doc.setTextColor(33, 45, 62);
-                    if (y > doc.internal.pageSize.getHeight() - 40) {
-                        doc.addPage();
-                        y = 16;
-                    }
-                    doc.text('Charts', margin, y);
-                    y += 6;
-
-                    if (tab === 'entity') {
-                        y = addChartImage(doc, charts.entity, y, 180, 120);
-                    } else if (tab === 'project') {
-                        y = addChartImage(doc, charts.project, y, 180, 140);
-                    } else {
-                        y = addChartImage(doc, charts.category, y, 180, 100);
-                        y = addChartImage(doc, charts.mainFolder, y, 120, 100);
-                    }
-
-                    const today = new Date().toISOString().slice(0, 10);
-                    doc.save('dashboard-' + tab + '-report-' + today + '.pdf');
-                }, 120);
+                const today = new Date().toISOString().slice(0, 10);
+                doc.save('dashboard-' + tab + '-report-' + today + '.pdf');
             }
 
             document.querySelectorAll('.dash-tab').forEach((button) => {

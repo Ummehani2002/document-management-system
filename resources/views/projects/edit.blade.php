@@ -2,8 +2,8 @@
 
 @section('content')
 
-<h2>Project Master – Edit Project</h2>
-<p style="color: #64748b; margin-bottom: 20px;"><a href="{{ route('projects.index') }}">← Back to Project Master</a></p>
+<h2>Edit Project</h2>
+<p style="color: #64748b; margin-bottom: 20px;"><a href="{{ !empty($currentEntityId) ? entity_route('projects.index') : route('dashboard') }}">← Back to Project Master</a></p>
 
 @if ($errors->any())
     <div class="card" style="background: #fef2f2; border-color: #fecaca;">
@@ -64,7 +64,7 @@
 
     <div style="margin-top: 20px;">
         <button type="submit">Save Project</button>
-        <a href="{{ route('projects.index') }}" style="margin-left: 12px; color: #64748b;">Cancel</a>
+        <a href="{{ !empty($currentEntityId) ? entity_route('projects.index') : route('dashboard') }}" style="margin-left: 12px; color: #64748b;">Cancel</a>
     </div>
 </form>
 

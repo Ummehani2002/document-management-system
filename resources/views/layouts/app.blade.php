@@ -4,13 +4,16 @@
     <title>Document Management System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --navy: #212d3e;
-            --navy-hover: #2d3a52;
-            --navy-soft: #334155;
-            --gold: #c4a47c;
+            --navy: #0c1829;
+            --navy-hover: #152238;
+            --navy-soft: #1e2d42;
+            --gold: #c5a059;
             --gold-dark: #a88962;
             --green: #238651;
             --green-soft: #e8f4ec;
@@ -22,6 +25,8 @@
             --text-muted: #64748b;
             --sidebar-text: #e2e8f0;
             --sidebar-muted: #94a3b8;
+            --header-top-h: 58px;
+            --header-nav-h: 52px;
         }
 
         html, body {
@@ -30,7 +35,7 @@
         }
 
         body {
-            font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+            font-family: "Montserrat", "Segoe UI", system-ui, -apple-system, sans-serif;
             background: var(--bg-page);
             margin: 0;
             color: var(--text);
@@ -61,43 +66,253 @@
             color: var(--gold);
         }
 
-        .navbar {
+        .dms-header {
             background: var(--navy);
-            padding: 15px 30px;
             color: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+        }
+
+        .dms-topbar {
             display: flex;
+            align-items: center;
             justify-content: space-between;
-            font-size: 12px;
+            gap: 20px;
+            min-height: var(--header-top-h);
+            padding: 0 28px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        .navbar strong {
-            font-size: 13px;
+        .dms-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+        }
+
+        .dms-brand-logo {
+            width: 42px;
+            height: 42px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .dms-brand-text {
+            min-width: 0;
+        }
+
+        .dms-brand-title {
+            display: block;
+            font-size: 1.02rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            line-height: 1.25;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .dms-brand-subtitle {
+            display: block;
+            font-size: 0.98rem;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            line-height: 1.25;
+            opacity: 0.98;
+        }
+
+        .dms-brand-tagline {
+            display: block;
+            margin-top: 2px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.14em;
+            color: var(--gold);
+            text-transform: uppercase;
+        }
+
+        .dms-topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            flex-shrink: 0;
+        }
+
+        .dms-date-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            font-size: 0.78rem;
             font-weight: 500;
+            white-space: nowrap;
         }
 
-        .navbar a {
+        .dms-date-pill svg {
+            width: 14px;
+            height: 14px;
+            color: var(--gold);
+            flex-shrink: 0;
+        }
+
+        .dms-topbar-divider {
+            width: 1px;
+            height: 28px;
+            background: rgba(255, 255, 255, 0.18);
+            margin: 0 16px;
+        }
+
+        .dms-user-block {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dms-user-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: var(--green);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            flex-shrink: 0;
+        }
+
+        .dms-user-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            min-width: 0;
+        }
+
+        .dms-user-name {
+            font-size: 0.88rem;
+            font-weight: 700;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+
+        .dms-user-email {
+            font-size: 0.68rem;
+            color: rgba(255, 255, 255, 0.65);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 180px;
+        }
+
+        .dms-logout-btn {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.75);
+            font-family: inherit;
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            cursor: pointer;
+            padding: 0;
+            margin-top: 2px;
+            text-align: left;
+        }
+
+        .dms-logout-btn:hover {
+            color: var(--gold);
+        }
+
+        .dms-nav {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 4px 0;
+            min-height: var(--header-nav-h);
+            padding: 0 20px;
+            background:
+                linear-gradient(rgba(12, 24, 41, 0.88), rgba(12, 24, 41, 0.92)),
+                linear-gradient(135deg, #1a2f4a 0%, #0c1829 50%, #162536 100%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .dms-nav-link {
+            display: inline-block;
+            padding: 14px 18px 12px;
             color: #fff;
             text-decoration: none;
-            margin-left: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            border-bottom: 3px solid transparent;
+            transition: color 0.15s, border-color 0.15s;
+            white-space: nowrap;
         }
 
-        .navbar .logout-form {
-            display: inline;
-            margin-left: 20px;
-        }
-
-        .navbar .logout-btn {
-            background: transparent;
-            color: #fff;
-            border: none;
-            padding: 0;
-            font: inherit;
-            cursor: pointer;
-        }
-
-        .navbar a:hover,
-        .navbar .logout-btn:hover {
+        .dms-nav-link:hover {
             color: var(--gold);
+        }
+
+        .dms-nav-link.is-active {
+            border-bottom-color: var(--gold);
+            color: #fff;
+        }
+
+        .dms-entity-badge {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 12px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(197, 160, 89, 0.18);
+            border: 1px solid rgba(197, 160, 89, 0.35);
+            color: var(--gold);
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        @media (max-width: 1100px) {
+            .dms-topbar {
+                padding: 8px 16px;
+                flex-wrap: wrap;
+            }
+
+            .dms-brand-title,
+            .dms-brand-subtitle {
+                white-space: normal;
+            }
+
+            .dms-date-pill {
+                display: none;
+            }
+
+            .dms-nav {
+                justify-content: flex-start;
+                overflow-x: auto;
+                flex-wrap: nowrap;
+                padding-bottom: 2px;
+            }
+
+            .dms-nav-link {
+                padding: 12px 14px 10px;
+                font-size: 0.68rem;
+            }
         }
 
         .main-content {
@@ -177,7 +392,7 @@
 
         .layout-row {
             display: flex;
-            min-height: calc(100vh - 52px);
+            min-height: calc(100vh - var(--header-top-h) - var(--header-nav-h));
         }
 
         .sidebar {
@@ -242,77 +457,7 @@
 
         .sidebar .folder-toggle.active {
             background: var(--navy-hover);
-            border-color: rgba(196, 164, 124, 0.35);
-        }
-
-        .sidebar-logout-form {
-            margin-top: 12px;
-        }
-
-        .sidebar-profile {
-            margin-top: 18px;
-            padding: 12px 14px;
-            border: 1px solid rgba(148, 163, 184, 0.28);
-            border-radius: 10px;
-            background: rgba(15, 23, 42, 0.35);
-        }
-
-        .sidebar-profile-label {
-            display: block;
-            font-size: 10px;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: var(--sidebar-muted);
-            margin-bottom: 6px;
-        }
-
-        .sidebar-profile-name {
-            display: block;
-            color: #fff;
-            font-size: 13px;
-            font-weight: 500;
-            margin-bottom: 2px;
-            word-break: break-word;
-        }
-
-        .sidebar-profile-email {
-            display: block;
-            color: var(--sidebar-muted);
-            font-size: 12px;
-            word-break: break-all;
-        }
-
-        .sidebar-logout-btn {
-            width: 100%;
-            text-align: left;
-            border: 1px solid rgba(196, 164, 124, 0.38);
-            background: rgba(196, 164, 124, 0.12);
-            color: #fff;
-            border-radius: 10px;
-            padding: 12px 14px;
-            font-size: 12.5px;
-            font-weight: 400;
-            cursor: pointer;
-        }
-
-        .sidebar-logout-btn:hover {
-            background: rgba(196, 164, 124, 0.2);
-        }
-
-        .sidebar-logo-wrap {
-            margin-bottom: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 4px 0;
-        }
-
-        .sidebar-logo-wrap img {
-            width: 100%;
-            max-width: 200px;
-            height: auto;
-            object-fit: contain;
-            display: block;
+            border-color: rgba(197, 160, 89, 0.35);
         }
 
         .folder-blocks-main {
@@ -485,41 +630,82 @@
 </head>
 <body>
 
-<div class="navbar">
-    <div><strong>Document Management System</strong></div>
-    <div>
-        <a href="{{ route('dashboard') }}">Home</a>
-        <a href="{{ route('summary-dashboard') }}">Dashboard</a>
-        <a href="{{ route('project-dashboard') }}">Project Dashboard</a>
-        <a href="{{ route('entities.index') }}">Entities</a>
-        <a href="{{ route('projects.index') }}">Project Master</a>
-        <a href="{{ route('disciplines.index') }}">Disciplines</a>
-        @role('Admin')
-            <a href="{{ route('folders.index') }}">Folders</a>
-        @endrole
-        <a href="{{ route('documents.upload') }}">Upload</a>
-        <a href="{{ route('documents.search') }}">Search</a>
-        <a href="{{ route('user-activities.index') }}">Activity Log</a>
-        <a href="{{ route('documents.trash') }}">Trash</a>
-        @role('Admin')
-            <a href="{{ route('user-access.index') }}">User Access</a>
-        @endrole
+@php
+    $userInitials = auth()->user()->name
+        ? entity_initials(auth()->user()->name)
+        : strtoupper(substr(auth()->user()->email, 0, 2));
+    $displayDate = now()->timezone(config('app.timezone', 'Asia/Dubai'))->format('l, j F Y');
+    $navActive = fn (array $routes): string => request()->routeIs($routes) ? ' is-active' : '';
+@endphp
+
+<header class="dms-header">
+    <div class="dms-topbar">
+        <div class="dms-brand">
+            <img
+                class="dms-brand-logo"
+                src="{{ asset('images/tanseeq-white.png') }}?v=2"
+                alt="Tanseeq Investment"
+            />
+            <div class="dms-brand-text">
+                <span class="dms-brand-title">Tanseeq Investment</span>
+                <span class="dms-brand-subtitle">Document Management System</span>
+                <span class="dms-brand-tagline">Stay Connected</span>
+            </div>
+            @if(!empty($currentEntity))
+                <span class="dms-entity-badge" title="{{ $currentEntity->name }}">{{ $currentEntity->name }}</span>
+            @endif
+        </div>
+        <div class="dms-topbar-right">
+            <div class="dms-date-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+                    <path d="M16 2v4M8 2v4M3 10h18"></path>
+                </svg>
+                <span>{{ $displayDate }}</span>
+            </div>
+            <span class="dms-topbar-divider" aria-hidden="true"></span>
+            <div class="dms-user-block">
+                <span class="dms-user-avatar" aria-hidden="true">{{ $userInitials }}</span>
+                <div class="dms-user-meta">
+                    <span class="dms-user-name">{{ auth()->user()->name ?: 'User' }}</span>
+                    <span class="dms-user-email">{{ auth()->user()->email }}</span>
+                    <form method="POST" action="{{ route('logout') }}" style="margin:0;">
+                        @csrf
+                        <button type="submit" class="dms-logout-btn">Logout</button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
+    <nav class="dms-nav" aria-label="Main navigation">
+        <a href="{{ route('dashboard') }}" class="dms-nav-link{{ $navActive(['dashboard']) }}">Home</a>
+        @if(!empty($currentEntity))
+            <a href="{{ route('workspace') }}" class="dms-nav-link{{ $navActive(['workspace']) }}">Workspace</a>
+            <a href="{{ entity_route('documents.upload') }}" class="dms-nav-link{{ $navActive(['documents.upload', 'documents.store']) }}">Upload</a>
+            <a href="{{ entity_route('documents.search') }}" class="dms-nav-link{{ $navActive(['documents.search']) }}">Search</a>
+            <a href="{{ entity_route('projects.index') }}" class="dms-nav-link{{ $navActive(['projects.index', 'projects.create', 'projects.store']) }}">Project Master</a>
+            <a href="{{ entity_route('summary-dashboard') }}" class="dms-nav-link{{ $navActive(['summary-dashboard', 'summary-dashboard.download']) }}">Dashboard</a>
+        @endif
+        @role('Admin')
+            <a href="{{ route('entities.index') }}" class="dms-nav-link{{ $navActive(['entities.*']) }}">Entities</a>
+            <a href="{{ route('disciplines.index') }}" class="dms-nav-link{{ $navActive(['disciplines.*']) }}">Disciplines</a>
+            <a href="{{ route('folders.index') }}" class="dms-nav-link{{ $navActive(['folders.*']) }}">Folders</a>
+            <a href="{{ route('user-access.index') }}" class="dms-nav-link{{ $navActive(['user-access.*']) }}">User Access</a>
+        @endrole
+        <a href="{{ route('user-activities.index') }}" class="dms-nav-link{{ $navActive(['user-activities.*']) }}">Activity Log</a>
+        <a href="{{ route('documents.trash') }}" class="dms-nav-link{{ $navActive(['documents.trash', 'documents.trash.*']) }}">Trash</a>
+    </nav>
+</header>
 
 <div class="layout-row">
     <aside class="sidebar">
-        <div class="sidebar-logo-wrap">
-            <img
-                src="{{ asset('images/tanseeq-white.png') }}?v=2"
-                alt="TANSEEQ INVESTMENT"
-            />
-        </div>
         <h3>Document types</h3>
         @php
             $accessService = app(\App\Services\DocumentAccessService::class);
             $sidebarTree = $accessService->accessibleSidebarFolderTree(auth()->user());
-            $requestEntityId = request()->filled('entity_id') ? (int) request('entity_id') : null;
+            $requestEntityId = ! empty($currentEntityId)
+                ? (int) $currentEntityId
+                : (request()->filled('entity_id') ? (int) request('entity_id') : null);
             $requestProjectId = request()->filled('project_id') ? (int) request('project_id') : null;
             $requestMainFolder = trim((string) request('main_folder', ''));
             $requestDocumentType = trim((string) request('document_type', ''));
@@ -565,17 +751,6 @@
                 @endforeach
             </ul>
         </div>
-        <div class="sidebar-profile">
-            <span class="sidebar-profile-label">Signed in as</span>
-            @if(auth()->user()->name)
-                <span class="sidebar-profile-name">{{ auth()->user()->name }}</span>
-            @endif
-            <span class="sidebar-profile-email">{{ auth()->user()->email }}</span>
-        </div>
-        <form method="POST" action="{{ route('logout') }}" class="sidebar-logout-form">
-            @csrf
-            <button type="submit" class="sidebar-logout-btn">Logout</button>
-        </form>
     </aside>
     <main class="main-content">
         <div id="folderBlocksMain" class="folder-blocks-main" hidden>
@@ -602,7 +777,7 @@
         var currentMainFolder = params.get('main_folder') || '';
         var currentSubfolder = params.get('document_type') || '';
         var currentProjectId = params.get('project_id') || '';
-        var currentEntityId = params.get('entity_id') || '';
+        var currentEntityId = @json($currentEntityId ?? (request()->filled('entity_id') ? (int) request('entity_id') : null)) || params.get('entity_id') || '';
 
         function setFolderBlocksOpen(open) {
             if (open) {

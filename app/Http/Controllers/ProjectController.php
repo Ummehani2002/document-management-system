@@ -6,31 +6,69 @@ use App\Models\Entity;
 use App\Models\Project;
 use App\Services\DocumentAccessService;
 use App\Services\DocumentDeletionService;
+use App\Services\EntityContextService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class ProjectController extends Controller
 {
+    public function __construct(
+        protected DocumentAccessService $access,
+        protected EntityContextService $entityContext
+    ) {}
+
     public function index(Request $request)
     {
-        $query = Project::with('entity')->withCount('documents');
-        if ($request->filled('entity_id')) {
-            $query->where('entity_id', $request->entity_id);
+        $user = $request->user();
+        $entityId = $this->entityContext->getId($user);
+
+        if ($entityId === null) {
+            abort(403, 'Select a company to continue.');
         }
+
+        $query = Project::with('entity')
+            ->withCount('documents')
+            ->where('entity_id', $entityId);
+
+        if (! $this->access->isAdmin($user)) {
+            $restrictedEntityIds = $this->access->entitiesWithProjectRestrictions($user);
+            if (in_array($entityId, $restrictedEntityIds, true)) {
+                $allowedProjectIds = $this->access->allowedProjectIdsForEntity($user, $entityId);
+                $query->whereIn('id', $allowedProjectIds);
+            }
+        }
+
         $projects = $query->orderBy('project_name')->paginate(15)->withQueryString();
-        $entities = Entity::orderBy('name')->get(['id', 'name']);
-        return view('projects.index', compact('projects', 'entities'));
+        $entity = Entity::query()->findOrFail($entityId);
+
+        return view('projects.index', compact('projects', 'entity'));
     }
 
     public function create()
     {
-        $entities = Entity::orderBy('name')->get();
-        return view('projects.create', compact('entities'));
+        $user = Auth::user();
+        $currentEntityId = $this->entityContext->getId($user);
+
+        $entityQuery = Entity::orderBy('name');
+        if ($currentEntityId !== null) {
+            $entityQuery->where('id', $currentEntityId);
+        } elseif (! $this->access->isAdmin($user)) {
+            $entityIds = $this->access->accessibleEntityIds($user);
+            $entityQuery->whereIn('id', $entityIds);
+        }
+
+        $entities = $entityQuery->get();
+
+        return view('projects.create', compact('entities', 'currentEntityId'));
     }
 
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
+        $user = Auth::user();
+        $currentEntityId = $this->entityContext->getId($user);
+
         $request->validate([
             'entity_id' => 'required|exists:entities,id',
             'project_number' => [
@@ -47,21 +85,34 @@ class ProjectController extends Controller
             'document_controller' => 'nullable|string|max:255',
             'document_controller_email' => 'nullable|email|max:255',
         ]);
+
+        if ($currentEntityId !== null && (int) $request->entity_id !== $currentEntityId) {
+            abort(403, 'You can only add projects to the current company.');
+        }
+
+        if (! $this->access->canAccessEntity($user, (int) $request->entity_id)) {
+            abort(403, 'You do not have access to this entity.');
+        }
+
         Project::create($request->only([
             'entity_id', 'project_number', 'project_name',
             'client_name', 'consultant', 'project_manager', 'project_manager_email',
             'document_controller', 'document_controller_email',
         ]));
-        return redirect()->route('projects.index')->with('success', 'Project created. You can now upload PDFs whose file name starts with "' . $request->project_number . '".');
+
+        return $this->projectRedirect(
+            'Project created. You can now upload PDFs whose file name starts with "'.$request->project_number.'".'
+        );
     }
 
     public function edit(Project $project)
     {
         $entities = Entity::orderBy('name')->get();
+
         return view('projects.edit', compact('project', 'entities'));
     }
 
-    public function update(Request $request, Project $project)
+    public function update(Request $request, Project $project): RedirectResponse
     {
         $request->validate([
             'entity_id' => 'required|exists:entities,id',
@@ -86,12 +137,13 @@ class ProjectController extends Controller
             'client_name', 'consultant', 'project_manager', 'project_manager_email',
             'document_controller', 'document_controller_email',
         ]));
-        return redirect()->route('projects.index')->with('success', 'Project updated.');
+
+        return $this->projectRedirect('Project updated.');
     }
 
-    public function destroy(Project $project, DocumentDeletionService $deletions, DocumentAccessService $access)
+    public function destroy(Project $project, DocumentDeletionService $deletions): RedirectResponse
     {
-        abort_unless($access->isAdmin(Auth::user()), 403);
+        abort_unless($this->access->isAdmin(Auth::user()), 403);
 
         $deletedDocs = $deletions->deleteForProject($project->id, [
             'deleted_via' => 'project',
@@ -102,6 +154,15 @@ class ProjectController extends Controller
             ? "Project deleted. {$deletedDocs} document(s) moved to Trash and can be restored."
             : 'Project deleted.';
 
-        return redirect()->route('projects.index')->with('success', $message);
+        return $this->projectRedirect($message);
+    }
+
+    protected function projectRedirect(string $message): RedirectResponse
+    {
+        if ($this->entityContext->getId(Auth::user()) !== null) {
+            return redirect()->route('projects.index')->with('success', $message);
+        }
+
+        return redirect()->route('dashboard')->with('success', $message);
     }
 }

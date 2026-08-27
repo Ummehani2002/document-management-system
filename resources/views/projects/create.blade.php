@@ -2,8 +2,8 @@
 
 @section('content')
 
-<h2>Add Project</h2>
-<p style="color: #64748b; margin-bottom: 20px;"><a href="{{ route('projects.index') }}">← Back to Project Master</a>.</p>
+<h2>Add Project@if(!empty($currentEntityId) && $entities->isNotEmpty()) — {{ $entities->first()->name }}@endif</h2>
+<p style="color: #64748b; margin-bottom: 20px;"><a href="{{ !empty($currentEntityId) ? entity_route('projects.index') : route('dashboard') }}">← Back to Project Master</a></p>
 
 <style>
     .project-form-grid {
@@ -53,12 +53,15 @@
         <div class="project-form-grid">
             <div class="card">
                 <label for="entity_id">Entity *</label>
-                <select name="entity_id" id="entity_id" required>
+                <select name="entity_id" id="entity_id" required @if(!empty($currentEntityId)) disabled @endif>
                     <option value="">— Select entity —</option>
                     @foreach($entities as $e)
-                        <option value="{{ $e->id }}" {{ old('entity_id') == $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
+                        <option value="{{ $e->id }}" {{ (int) old('entity_id', $currentEntityId ?? 0) === (int) $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
                     @endforeach
                 </select>
+                @if(!empty($currentEntityId))
+                    <input type="hidden" name="entity_id" value="{{ $currentEntityId }}">
+                @endif
             </div>
 
             <div class="card">
@@ -98,7 +101,7 @@
 
         <div style="margin-top: 20px;">
             <button type="submit">Save Project</button>
-            <a href="{{ route('projects.index') }}" style="margin-left: 12px; color: #64748b;">Cancel</a>
+            <a href="{{ !empty($currentEntityId) ? entity_route('projects.index') : route('dashboard') }}" style="margin-left: 12px; color: #64748b;">Cancel</a>
         </div>
     </form>
 @endif
