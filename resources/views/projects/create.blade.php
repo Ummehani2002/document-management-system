@@ -2,7 +2,12 @@
 
 @section('content')
 
-<h2>Add Project@if(!empty($currentEntityId) && $entities->isNotEmpty()) — {{ $entities->first()->name }}@endif</h2>
+<h2>
+    Add Project
+    @if(!empty($currentEntityId) && $entities->isNotEmpty())
+        — {{ $entities->first()->name }}
+    @endif
+</h2>
 <p style="color: #64748b; margin-bottom: 20px;"><a href="{{ !empty($currentEntityId) ? entity_route('projects.index') : route('dashboard') }}">← Back to Project Master</a></p>
 
 <style>
@@ -53,7 +58,7 @@
         <div class="project-form-grid">
             <div class="card">
                 <label for="entity_id">Entity *</label>
-                <select name="entity_id" id="entity_id" required @if(!empty($currentEntityId)) disabled @endif>
+                <select name="entity_id" id="entity_id" required {{ !empty($currentEntityId) ? 'disabled' : '' }}>
                     <option value="">— Select entity —</option>
                     @foreach($entities as $e)
                         <option value="{{ $e->id }}" {{ (int) old('entity_id', $currentEntityId ?? 0) === (int) $e->id ? 'selected' : '' }}>{{ $e->name }}</option>

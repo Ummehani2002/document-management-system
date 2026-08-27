@@ -21,7 +21,7 @@
 
     <div class="card">
         <label for="entity_id">Entity *</label>
-        <select name="entity_id" id="entity_id" required @if(!empty($currentEntityId)) disabled @endif>
+        <select name="entity_id" id="entity_id" required {{ !empty($currentEntityId) ? 'disabled' : '' }}>
             @foreach($entities as $e)
                 <option value="{{ $e->id }}" {{ old('entity_id', $project->entity_id) == $e->id ? 'selected' : '' }}>{{ $e->name }}</option>
             @endforeach
