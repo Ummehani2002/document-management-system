@@ -406,14 +406,6 @@
             flex-direction: column;
         }
 
-        .sidebar h3 {
-            margin: 0 0 12px 0;
-            font-size: 0.82rem;
-            color: var(--sidebar-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
         .sidebar-shell {
             display: flex;
             flex-direction: column;
@@ -701,34 +693,10 @@
 
 <div class="layout-row">
     <aside class="sidebar">
-        <h3>Document types</h3>
         @php
             $accessService = app(\App\Services\DocumentAccessService::class);
+            // Show every folder the user is allowed to access (do not hide empty ones).
             $sidebarTree = $accessService->accessibleSidebarFolderTree(auth()->user());
-            $requestEntityId = ! empty($currentEntityId)
-                ? (int) $currentEntityId
-                : (request()->filled('entity_id') ? (int) request('entity_id') : null);
-            $requestProjectId = request()->filled('project_id') ? (int) request('project_id') : null;
-            $requestMainFolder = trim((string) request('main_folder', ''));
-            $requestDocumentType = trim((string) request('document_type', ''));
-
-            if ($requestMainFolder === '' && $requestDocumentType !== '') {
-                $requestMainFolder = \App\Services\DocumentFilenameParser::mainFolderForDocumentType($requestDocumentType) ?? '';
-            }
-
-            // While browsing a category (e.g. Financial Documents), only show that folder.
-            if ($requestMainFolder !== '' && isset($sidebarTree[$requestMainFolder])) {
-                $sidebarTree = [$requestMainFolder => $sidebarTree[$requestMainFolder]];
-            }
-
-            if ($requestEntityId || $requestProjectId) {
-                $sidebarTree = $accessService->filterFolderTreeByDocumentPresence(
-                    auth()->user(),
-                    $sidebarTree,
-                    $requestEntityId,
-                    $requestProjectId
-                );
-            }
             $sidebarFolders = collect($sidebarTree)
                 ->map(fn (array $items, string $name): array => ['name' => $name, 'items' => $items])
                 ->values()
