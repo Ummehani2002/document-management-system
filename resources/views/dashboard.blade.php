@@ -68,19 +68,6 @@
                                 <span class="entity-tag">{{ $card->projects_count }} projects</span>
                             @endif
                         </div>
-                        @if($card->recent_documents->isNotEmpty())
-                            <div class="entity-recent-uploads">
-                                <p class="entity-recent-title">Latest uploads</p>
-                                <ul class="entity-recent-list">
-                                    @foreach($card->recent_documents as $doc)
-                                        <li>
-                                            <span class="entity-recent-file" title="{{ $doc->file_name }}">{{ $doc->file_name }}</span>
-                                            <span class="entity-recent-date">{{ format_model_datetime($doc, 'created_at', 'd M Y') }}</span>
-                                        </li>
-                                    @endforeach
-                                </ul>
-                            </div>
-                        @endif
                     </div>
                     <div class="entity-card-footer">
                         <span class="entity-card-docs">{{ number_format($card->documents_count) }} docs</span>
@@ -222,46 +209,6 @@
             color: #475569;
             padding: 3px 8px;
             border-radius: 4px;
-            font-size: 0.78rem;
-        }
-        .entity-recent-uploads {
-            margin-top: 14px;
-            padding-top: 12px;
-            border-top: 1px solid var(--border);
-        }
-        .entity-recent-title {
-            margin: 0 0 8px;
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: var(--text-muted);
-        }
-        .entity-recent-list {
-            margin: 0;
-            padding: 0;
-            list-style: none;
-        }
-        .entity-recent-list li {
-            display: flex;
-            justify-content: space-between;
-            gap: 8px;
-            padding: 5px 0;
-            font-size: 0.82rem;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        .entity-recent-list li:last-child {
-            border-bottom: none;
-        }
-        .entity-recent-file {
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            color: var(--text);
-        }
-        .entity-recent-date {
-            flex-shrink: 0;
-            color: var(--text-muted);
             font-size: 0.78rem;
         }
         .entity-card-footer {

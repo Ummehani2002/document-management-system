@@ -198,7 +198,7 @@ class EntityContextTest extends TestCase
         $this->assertNull(app(EntityContextService::class)->getId($admin));
     }
 
-    public function test_dashboard_shows_latest_five_uploads_per_company(): void
+    public function test_workspace_shows_latest_five_uploads_for_company(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole('Admin');
@@ -221,9 +221,17 @@ class EntityContextTest extends TestCase
             ]);
         }
 
-        $response = $this->actingAs($admin)->get(route('dashboard'));
+        app(EntityContextService::class)->set($admin, $entity->id);
 
-        $response->assertOk()
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('file-7.pdf');
+
+        $this->actingAs($admin)
+            ->get(route('workspace'))
+            ->assertOk()
+            ->assertSee('Latest uploads')
             ->assertSee('file-7.pdf')
             ->assertSee('file-6.pdf')
             ->assertSee('file-3.pdf')

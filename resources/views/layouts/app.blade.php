@@ -123,16 +123,6 @@
             opacity: 0.98;
         }
 
-        .dms-brand-tagline {
-            display: block;
-            margin-top: 2px;
-            font-size: 0.68rem;
-            font-weight: 600;
-            letter-spacing: 0.14em;
-            color: var(--gold);
-            text-transform: uppercase;
-        }
-
         .dms-topbar-right {
             display: flex;
             align-items: center;
@@ -168,66 +158,74 @@
         }
 
         .dms-user-block {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            position: relative;
+        }
+
+        .dms-user-dropdown {
+            position: relative;
+        }
+
+        .dms-user-dropdown > summary {
+            list-style: none;
+            cursor: pointer;
+        }
+
+        .dms-user-dropdown > summary::-webkit-details-marker {
+            display: none;
         }
 
         .dms-user-avatar {
-            width: 34px;
-            height: 34px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             background: var(--green);
             color: #fff;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             font-weight: 700;
             letter-spacing: 0.03em;
             flex-shrink: 0;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            transition: border-color 0.15s ease;
         }
 
-        .dms-user-meta {
-            display: flex;
-            flex-direction: column;
-            gap: 1px;
-            min-width: 0;
+        .dms-user-dropdown[open] .dms-user-avatar,
+        .dms-user-dropdown > summary:hover .dms-user-avatar {
+            border-color: var(--gold);
         }
 
-        .dms-user-name {
-            font-size: 0.88rem;
-            font-weight: 700;
-            line-height: 1.2;
-            white-space: nowrap;
-        }
-
-        .dms-user-email {
-            font-size: 0.68rem;
-            color: rgba(255, 255, 255, 0.65);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 180px;
+        .dms-user-dropdown-panel {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 120px;
+            padding: 8px;
+            border-radius: 8px;
+            background: #fff;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+            z-index: 120;
         }
 
         .dms-logout-btn {
             background: transparent;
             border: none;
-            color: rgba(255, 255, 255, 0.75);
+            color: var(--navy);
             font-family: inherit;
-            font-size: 0.68rem;
+            font-size: 0.82rem;
             font-weight: 600;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
             cursor: pointer;
-            padding: 0;
-            margin-top: 2px;
+            padding: 8px 10px;
+            width: 100%;
             text-align: left;
+            border-radius: 6px;
         }
 
         .dms-logout-btn:hover {
-            color: var(--gold);
+            background: #f8fafc;
+            color: var(--gold-dark);
         }
 
         .dms-nav {
@@ -641,7 +639,6 @@
             <div class="dms-brand-text">
                 <span class="dms-brand-title">Tanseeq Investment</span>
                 <span class="dms-brand-subtitle">Document Management System</span>
-                <span class="dms-brand-tagline">Stay Connected</span>
             </div>
             @if(!empty($currentEntity))
                 <span class="dms-entity-badge" title="{{ $currentEntity->name }}">{{ $currentEntity->name }}</span>
@@ -657,15 +654,15 @@
             </div>
             <span class="dms-topbar-divider" aria-hidden="true"></span>
             <div class="dms-user-block">
-                <span class="dms-user-avatar" aria-hidden="true">{{ $userInitials }}</span>
-                <div class="dms-user-meta">
-                    <span class="dms-user-name">{{ auth()->user()->name ?: 'User' }}</span>
-                    <span class="dms-user-email">{{ auth()->user()->email }}</span>
-                    <form method="POST" action="{{ route('logout') }}" style="margin:0;">
-                        @csrf
-                        <button type="submit" class="dms-logout-btn">Logout</button>
-                    </form>
-                </div>
+                <details class="dms-user-dropdown">
+                    <summary class="dms-user-avatar" title="{{ auth()->user()->name ?: auth()->user()->email }}" aria-label="Account menu">{{ $userInitials }}</summary>
+                    <div class="dms-user-dropdown-panel">
+                        <form method="POST" action="{{ route('logout') }}">
+                            @csrf
+                            <button type="submit" class="dms-logout-btn">Logout</button>
+                        </form>
+                    </div>
+                </details>
             </div>
         </div>
     </div>

@@ -29,21 +29,11 @@
         </div>
     </div>
 
-    <h3 style="margin: 0 0 12px; color: var(--navy);">Quick actions</h3>
     @if (session('success'))
         <div class="success">{{ session('success') }}</div>
     @endif
 
-    <div class="quick-actions">
-        <a href="{{ entity_route('documents.upload') }}" class="quick-action-card">Upload documents</a>
-        <a href="{{ entity_route('documents.search') }}" class="quick-action-card">Search documents</a>
-        @role('Admin')
-            <a href="{{ entity_route('projects.index') }}" class="quick-action-card">Project Master</a>
-        @endrole
-        <a href="{{ entity_route('summary-dashboard') }}" class="quick-action-card">Summary dashboard</a>
-    </div>
-
-    <div class="card" style="padding:0; overflow:hidden; margin-top: 24px;">
+    <div class="card" style="padding:0; overflow:hidden;">
         <div style="background:#212d3e; color:#fff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
             <h3 style="margin:0; font-size:1.05rem;">Latest uploads</h3>
             <a href="{{ entity_route('documents.search') }}" style="color:#fff; font-size:0.9rem;">View all</a>
@@ -175,26 +165,6 @@
         .stat-label {
             color: var(--text-muted);
             font-size: 0.85rem;
-        }
-        .quick-actions {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 12px;
-            margin-bottom: 8px;
-        }
-        .quick-action-card {
-            display: block;
-            padding: 16px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: #fff;
-            text-decoration: none;
-            color: var(--navy);
-            font-weight: 500;
-        }
-        .quick-action-card:hover {
-            border-color: var(--gold);
-            color: var(--gold-dark);
         }
     </style>
 @endsection
