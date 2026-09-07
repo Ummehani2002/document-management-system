@@ -174,7 +174,6 @@ class SummaryDashboardController extends Controller
             $categoryQuery->where('documents.project_id', $projectId);
         }
         $this->applyFolderFilter($categoryQuery, $folderTree, $mainFolder, $documentType);
-        $this->excludeUnclassifiedDocuments($categoryQuery);
         $byCategory = $this->aggregateByCategory($categoryQuery, $forExport);
         $byMainFolder = $this->aggregateByMainFolder($categoryQuery);
         $folderHierarchy = $this->aggregateFolderHierarchy($categoryQuery);
@@ -342,36 +341,63 @@ class SummaryDashboardController extends Controller
         return (clone $query)
             ->select('document_type')
             ->get()
-            ->groupBy(fn (Document $document) => DocumentFilenameParser::mainFolderForDocumentType($document->document_type))
-            ->filter(fn ($rows, $label) => is_string($label) && $label !== '' && strcasecmp($label, 'Other') !== 0)
-            ->map(fn ($rows, $label) => ['label' => $label, 'total' => $rows->count()])
+            ->groupBy(function (Document $document) {
+                $type = trim((string) ($document->document_type ?? ''));
+                if ($type === '' || strcasecmp($type, 'Other') === 0) {
+                    return 'Unclassified';
+                }
+
+                $main = DocumentFilenameParser::mainFolderForDocumentType($type);
+
+                if (! is_string($main) || $main === '' || strcasecmp($main, 'Other') === 0) {
+                    return 'Unclassified';
+                }
+
+                return $main;
+            })
+            ->map(fn ($rows, $label) => ['label' => (string) $label, 'total' => $rows->count()])
             ->sortByDesc('total')
             ->values();
     }
 
     /**
      * Main folders with nested document-type counts for expandable category report.
+     * Unclassified / Other / unmapped types are kept so totals match project-wise counts.
      *
      * @return \Illuminate\Support\Collection<int, array{label: string, total: int, children: list<array{label: string, total: int}>}>
      */
     private function aggregateFolderHierarchy(Builder $query)
     {
         $byType = (clone $query)
-            ->selectRaw('document_type as label, count(*) as total')
-            ->groupBy('document_type')
+            ->selectRaw("COALESCE(NULLIF(TRIM(document_type), ''), '') as label, count(*) as total")
+            ->groupByRaw("COALESCE(NULLIF(TRIM(document_type), ''), '')")
             ->orderByDesc('total')
             ->get();
 
         $groups = [];
+        $unclassifiedChildren = [];
+        $unclassifiedTotal = 0;
 
         foreach ($byType as $row) {
             $type = trim((string) $row->label);
-            if ($type === '') {
-                continue;
-            }
+            $total = (int) $row->total;
+            $main = $type !== '' && strcasecmp($type, 'Other') !== 0
+                ? (DocumentFilenameParser::mainFolderForDocumentType($type) ?? '')
+                : '';
 
-            $main = DocumentFilenameParser::mainFolderForDocumentType($type) ?? '';
-            if ($main === '' || strcasecmp($main, 'Other') === 0) {
+            if ($type === '' || strcasecmp($type, 'Other') === 0 || $main === '' || strcasecmp($main, 'Other') === 0) {
+                $childLabel = match (true) {
+                    $type === '' => 'No category',
+                    strcasecmp($type, 'Other') === 0 => 'Other',
+                    default => $type,
+                };
+
+                if (! isset($unclassifiedChildren[$childLabel])) {
+                    $unclassifiedChildren[$childLabel] = 0;
+                }
+                $unclassifiedChildren[$childLabel] += $total;
+                $unclassifiedTotal += $total;
+
                 continue;
             }
 
@@ -383,7 +409,6 @@ class SummaryDashboardController extends Controller
                 ];
             }
 
-            $total = (int) $row->total;
             $groups[$main]['children'][] = [
                 'label' => $type,
                 'total' => $total,
@@ -391,21 +416,30 @@ class SummaryDashboardController extends Controller
             $groups[$main]['total'] += $total;
         }
 
+        if ($unclassifiedTotal > 0) {
+            $children = [];
+            foreach ($unclassifiedChildren as $label => $total) {
+                $children[] = ['label' => $label, 'total' => $total];
+            }
+            usort($children, fn (array $a, array $b) => $b['total'] <=> $a['total']);
+
+            $groups['Unclassified'] = [
+                'label' => 'Unclassified',
+                'total' => $unclassifiedTotal,
+                'children' => $children,
+            ];
+        }
+
         return collect($groups)
             ->map(function (array $group) {
-                usort($group['children'], fn (array $a, array $b) => $b['total'] <=> $a['total']);
+                if ($group['label'] !== 'Unclassified') {
+                    usort($group['children'], fn (array $a, array $b) => $b['total'] <=> $a['total']);
+                }
 
                 return $group;
             })
             ->sortByDesc('total')
             ->values();
-    }
-
-    private function excludeUnclassifiedDocuments(Builder $query): void
-    {
-        $query->whereNotNull('documents.document_type')
-            ->where('documents.document_type', '!=', '')
-            ->whereRaw("LOWER(TRIM(documents.document_type)) != 'other'");
     }
 
     /**

@@ -192,7 +192,7 @@ class SummaryDashboardTest extends TestCase
         $this->assertStringContainsString('Entity', $response->streamedContent());
     }
 
-    public function test_category_tab_hides_other_documents(): void
+    public function test_category_tab_includes_unclassified_so_totals_match_project(): void
     {
         $entity = Entity::create(['name' => 'Alpha']);
         $project = Project::create([
@@ -215,16 +215,36 @@ class SummaryDashboardTest extends TestCase
             'file_name' => 'misc.pdf',
             'file_path' => 'documents/misc.pdf',
         ]);
+        Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'document_type' => null,
+            'file_name' => 'blank.pdf',
+            'file_path' => 'documents/blank.pdf',
+        ]);
 
         $admin = User::factory()->create();
         $admin->assignRole('Admin');
 
         $this->actingAs($admin)
-            ->get(route('summary-dashboard', ['tab' => 'category']))
+            ->get(route('summary-dashboard', [
+                'tab' => 'category',
+                'entity_id' => $entity->id,
+                'project_id' => $project->id,
+            ]))
             ->assertOk()
             ->assertSee('Invoice')
-            ->assertSee('1 document(s)')
-            ->assertDontSee('"label":"Other"', false);
+            ->assertSee('Unclassified')
+            ->assertSee('3 document(s)')
+            ->assertSee('Project document count: 3');
+
+        $this->actingAs($admin)
+            ->get(route('summary-dashboard', [
+                'tab' => 'project',
+                'entity_id' => $entity->id,
+            ]))
+            ->assertOk()
+            ->assertSee('3');
     }
 
     public function test_category_tab_shows_readonly_project_contacts(): void
