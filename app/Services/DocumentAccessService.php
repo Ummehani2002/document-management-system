@@ -352,7 +352,7 @@ class DocumentAccessService
     /**
      * @return array<string, list<string>>
      */
-    public function accessibleSidebarFolderTree(?User $user): array
+    public function accessibleSidebarFolderTree(?User $user, ?int $entityId = null): array
     {
         $fullTree = DocumentFilenameParser::sidebarFolderTree();
 
@@ -364,15 +364,23 @@ class DocumentAccessService
             return $fullTree;
         }
 
-        $entityIds = $this->accessibleEntityIds($user);
+        $entityIds = $entityId !== null
+            ? [$entityId]
+            : $this->accessibleEntityIds($user);
+
         if ($entityIds === []) {
             return [];
         }
 
+        if ($entityId !== null && ! $this->canAccessEntity($user, $entityId)) {
+            return [];
+        }
+
         $allowedTypes = collect();
-        foreach ($entityIds as $entityId) {
-            $rows = $this->folderAccessForEntity($user, $entityId);
+        foreach ($entityIds as $id) {
+            $rows = $this->folderAccessForEntity($user, $id);
             if ($rows->isEmpty()) {
+                // No folder restrictions = full tree for this scope.
                 return $fullTree;
             }
             $allowedTypes = $allowedTypes->merge($this->documentTypesFromFolderRows($rows));

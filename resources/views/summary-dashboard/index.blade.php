@@ -4,7 +4,6 @@
     @php
         $activeTab = in_array($activeTab ?? 'entity', ['entity', 'project', 'category'], true) ? $activeTab : 'entity';
         $entityRows = $byEntity->map(fn ($row) => ['label' => $row->label, 'total' => $row->total]);
-        $categoryRows = $byCategory->map(fn ($row) => ['label' => $row->label, 'total' => $row->total]);
         $pdfEntityLabel = (int) $selectedEntityId > 0
             ? ($entities->firstWhere('id', $selectedEntityId)?->name ?? ('Entity #'.$selectedEntityId))
             : 'All entities';
@@ -188,7 +187,8 @@
                 <div>
                     <h3 style="margin:0;">Category-wise report</h3>
                     <p style="margin:6px 0 0; color:#64748b; font-size:0.92rem;">
-                        {{ number_format($categoryTabTotal) }} document(s) in {{ number_format($byCategory->count()) }} categor{{ $byCategory->count() === 1 ? 'y' : 'ies' }}.
+                        {{ number_format($categoryTabTotal) }} document(s) in {{ number_format($folderHierarchy->count()) }} main folder{{ $folderHierarchy->count() === 1 ? '' : 's' }}.
+                        Click a main folder to see its document types.
                     </p>
                     @if((int) $selectedProjectId > 0)
                         <p style="margin:8px 0 0; color:#212d3e; font-size:1rem; font-weight:600;">
@@ -198,25 +198,14 @@
                 </div>
             </div>
             <section class="dash-section">
-                @include('summary-dashboard._breakdown-table', [
-                    'title' => 'Category breakdown',
-                    'rows' => $categoryRows,
+                @include('summary-dashboard._folder-hierarchy-table', [
+                    'title' => 'Folder breakdown',
+                    'rows' => $folderHierarchy,
                     'total' => $categoryTabTotal,
                     'totalLabel' => (int) $selectedProjectId > 0 ? 'Total documents (project count)' : 'Total documents',
                     'downloadTab' => 'category',
                 ])
             </section>
-            @if($byMainFolder->isNotEmpty())
-                <section class="dash-section">
-                    @include('summary-dashboard._breakdown-table', [
-                        'title' => 'Main folder breakdown',
-                        'rows' => $byMainFolder,
-                        'total' => $byMainFolder->sum('total'),
-                        'totalLabel' => 'Total documents',
-                        'downloadTab' => 'category',
-                    ])
-                </section>
-            @endif
         </div>
     </div>
 
@@ -324,8 +313,7 @@
 
             const entityData = @json($entityRows->values());
             const projectData = @json($byProject->values());
-            const categoryData = @json($categoryRows->values());
-            const mainFolderData = @json($byMainFolder->values());
+            const folderHierarchyData = @json($folderHierarchy->values());
 
             const reportMeta = {
                 entityLabel: @json($pdfEntityLabel),
@@ -363,7 +351,16 @@
 
             function tableRowsForTab(tab) {
                 if (tab === 'project') return projectData;
-                if (tab === 'category') return categoryData;
+                if (tab === 'category') {
+                    const rows = [];
+                    folderHierarchyData.forEach(function (group) {
+                        rows.push({ label: group.label, total: group.total, isParent: true });
+                        (group.children || []).forEach(function (child) {
+                            rows.push({ label: '    ' + child.label, total: child.total, isParent: false });
+                        });
+                    });
+                    return rows;
+                }
                 return entityData;
             }
 
@@ -482,23 +479,12 @@
 
                 y = addBreakdownTable(
                     doc,
-                    'Breakdown',
+                    tab === 'category' ? 'Folder breakdown' : 'Breakdown',
                     tableRowsForTab(tab),
                     totalForTab(tab),
                     totalLabelForTab(tab),
                     y
                 );
-
-                if (tab === 'category' && mainFolderData.length) {
-                    y = addBreakdownTable(
-                        doc,
-                        'Main folder breakdown',
-                        mainFolderData,
-                        mainFolderData.reduce(function (sum, row) { return sum + Number(row.total || 0); }, 0),
-                        'Total documents',
-                        y
-                    );
-                }
 
                 const today = new Date().toISOString().slice(0, 10);
                 doc.save('dashboard-' + tab + '-report-' + today + '.pdf');

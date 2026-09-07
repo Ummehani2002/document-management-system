@@ -126,12 +126,17 @@
         }
         .workspace-header h2 { margin: 0; }
         .workspace-switch-btn {
-            background: #fff;
-            color: var(--navy);
-            border: 1px solid var(--border);
+            background: #fff !important;
+            color: #1e293b !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 8px;
+            padding: 10px 16px !important;
+            font-weight: 600;
         }
         .workspace-switch-btn:hover {
-            background: #f8fafc;
+            background: #f8fafc !important;
+            border-color: #c5a059 !important;
+            color: #1e293b !important;
         }
         .stats-row {
             display: grid;

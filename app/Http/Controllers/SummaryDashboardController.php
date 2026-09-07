@@ -74,15 +74,12 @@ class SummaryDashboardController extends Controller
             }
 
             if ($tab === 'category') {
-                $this->writeCsvRow($handle, ['Category', 'Documents']);
-                foreach ($report['byCategory'] as $row) {
-                    $this->writeCsvRow($handle, [$row->label, $row->total]);
-                }
-
-                $this->writeCsvRow($handle, []);
-                $this->writeCsvRow($handle, ['Main folder', 'Documents']);
-                foreach ($report['byMainFolder'] as $row) {
-                    $this->writeCsvRow($handle, [$row['label'], $row['total']]);
+                $this->writeCsvRow($handle, ['Main folder / Document type', 'Documents']);
+                foreach ($report['folderHierarchy'] as $group) {
+                    $this->writeCsvRow($handle, [$group['label'], $group['total']]);
+                    foreach ($group['children'] as $child) {
+                        $this->writeCsvRow($handle, ['  '.$child['label'], $child['total']]);
+                    }
                 }
             }
 
@@ -180,6 +177,7 @@ class SummaryDashboardController extends Controller
         $this->excludeUnclassifiedDocuments($categoryQuery);
         $byCategory = $this->aggregateByCategory($categoryQuery, $forExport);
         $byMainFolder = $this->aggregateByMainFolder($categoryQuery);
+        $folderHierarchy = $this->aggregateFolderHierarchy($categoryQuery);
         $categoryTabTotal = (clone $categoryQuery)->count();
 
         $projectsByEntity = $entities->mapWithKeys(function ($entity) use ($entities, $request) {
@@ -205,6 +203,7 @@ class SummaryDashboardController extends Controller
             'byProject' => $byProject,
             'byCategory' => $byCategory,
             'byMainFolder' => $byMainFolder,
+            'folderHierarchy' => $folderHierarchy,
             'entities' => $entities,
             'filterProjects' => $filterProjects,
             'projectsByEntity' => $projectsByEntity,
@@ -346,6 +345,58 @@ class SummaryDashboardController extends Controller
             ->groupBy(fn (Document $document) => DocumentFilenameParser::mainFolderForDocumentType($document->document_type))
             ->filter(fn ($rows, $label) => is_string($label) && $label !== '' && strcasecmp($label, 'Other') !== 0)
             ->map(fn ($rows, $label) => ['label' => $label, 'total' => $rows->count()])
+            ->sortByDesc('total')
+            ->values();
+    }
+
+    /**
+     * Main folders with nested document-type counts for expandable category report.
+     *
+     * @return \Illuminate\Support\Collection<int, array{label: string, total: int, children: list<array{label: string, total: int}>}>
+     */
+    private function aggregateFolderHierarchy(Builder $query)
+    {
+        $byType = (clone $query)
+            ->selectRaw('document_type as label, count(*) as total')
+            ->groupBy('document_type')
+            ->orderByDesc('total')
+            ->get();
+
+        $groups = [];
+
+        foreach ($byType as $row) {
+            $type = trim((string) $row->label);
+            if ($type === '') {
+                continue;
+            }
+
+            $main = DocumentFilenameParser::mainFolderForDocumentType($type) ?? '';
+            if ($main === '' || strcasecmp($main, 'Other') === 0) {
+                continue;
+            }
+
+            if (! isset($groups[$main])) {
+                $groups[$main] = [
+                    'label' => $main,
+                    'total' => 0,
+                    'children' => [],
+                ];
+            }
+
+            $total = (int) $row->total;
+            $groups[$main]['children'][] = [
+                'label' => $type,
+                'total' => $total,
+            ];
+            $groups[$main]['total'] += $total;
+        }
+
+        return collect($groups)
+            ->map(function (array $group) {
+                usort($group['children'], fn (array $a, array $b) => $b['total'] <=> $a['total']);
+
+                return $group;
+            })
             ->sortByDesc('total')
             ->values();
     }

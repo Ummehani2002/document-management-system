@@ -65,16 +65,6 @@
                         </div>
                         <div class="entity-card-body">
                             <h3 class="entity-card-name">{{ $card->name }}</h3>
-                            <p class="entity-card-desc">
-                                Documents, projects, and files for {{ $card->name }}.
-                            </p>
-                            <div class="entity-card-tags">
-                                <span class="entity-tag">Documents</span>
-                                <span class="entity-tag">Projects</span>
-                                @if($card->projects_count > 0)
-                                    <span class="entity-tag">{{ $card->projects_count }} projects</span>
-                                @endif
-                            </div>
                         </div>
                         <div class="entity-card-footer">
                             <span class="entity-card-docs">{{ number_format($card->documents_count) }} docs</span>
@@ -247,39 +237,20 @@
             overflow: hidden;
         }
         .entity-card-body {
-            padding: 28px 16px 12px;
+            padding: 16px 16px 8px;
             flex: 1;
             background: #ffffff;
         }
         .entity-card-name {
-            margin: 0 0 8px;
+            margin: 0;
             font-size: 1.1rem;
             font-weight: 600;
             color: #0f172a !important;
         }
-        .entity-card-desc {
-            margin: 0 0 12px;
-            color: #64748b !important;
-            font-size: 0.88rem;
-            line-height: 1.45;
-        }
-        .entity-card-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-        .entity-tag {
-            background: #f1f5f9;
-            color: #475569;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 0.78rem;
-        }
         .entity-card-footer {
             display: flex;
             align-items: center;
-            padding: 12px 16px;
-            border-top: 1px solid #e2e8f0;
+            padding: 8px 16px 14px;
             background: #ffffff;
         }
         .entity-card-docs {

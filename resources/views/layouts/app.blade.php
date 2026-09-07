@@ -288,6 +288,32 @@
             vertical-align: middle;
         }
 
+        .dms-switch-company-form {
+            display: inline-flex;
+            margin: 0 0 0 10px;
+        }
+
+        button.dms-switch-company-btn,
+        .dms-switch-company-btn {
+            background: #fff !important;
+            color: #1e293b !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 999px;
+            padding: 6px 12px !important;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        button.dms-switch-company-btn:hover,
+        .dms-switch-company-btn:hover {
+            background: #f8fafc !important;
+            border-color: var(--gold) !important;
+            color: #1e293b !important;
+        }
+
         @media (max-width: 1100px) {
             .dms-topbar {
                 padding: 8px 16px;
@@ -394,6 +420,10 @@
         .layout-row {
             display: flex;
             min-height: calc(100vh - var(--header-top-h) - var(--header-nav-h));
+        }
+
+        .layout-row.no-sidebar .main-content {
+            width: 100%;
         }
 
         .sidebar {
@@ -648,6 +678,10 @@
             </div>
             @if(!empty($currentEntity))
                 <span class="dms-entity-badge" title="{{ $currentEntity->name }}">{{ $currentEntity->name }}</span>
+                <form method="POST" action="{{ route('workspace.exit') }}" class="dms-switch-company-form">
+                    @csrf
+                    <button type="submit" class="dms-switch-company-btn">Switch company</button>
+                </form>
             @endif
         </div>
         <div class="dms-topbar-right">
@@ -694,37 +728,48 @@
     </nav>
 </header>
 
-<div class="layout-row">
-    <aside class="sidebar">
-        @php
-            $accessService = app(\App\Services\DocumentAccessService::class);
-            // Show every folder the user is allowed to access (do not hide empty ones).
-            $sidebarTree = $accessService->accessibleSidebarFolderTree(auth()->user());
-            $sidebarFolders = collect($sidebarTree)
-                ->map(fn (array $items, string $name): array => ['name' => $name, 'items' => $items])
-                ->values()
-                ->all();
-        @endphp
+<div class="layout-row{{ empty($currentEntity) ? ' no-sidebar' : '' }}">
+    @php
+        $sidebarFolders = [];
+    @endphp
+    @if(!empty($currentEntity))
+        <aside class="sidebar">
+            @php
+                $accessService = app(\App\Services\DocumentAccessService::class);
+                $sidebarTree = $accessService->accessibleSidebarFolderTree(
+                    auth()->user(),
+                    (int) ($currentEntityId ?? $currentEntity->id)
+                );
+                $sidebarFolders = collect($sidebarTree)
+                    ->map(fn (array $items, string $name): array => ['name' => $name, 'items' => $items])
+                    ->values()
+                    ->all();
+            @endphp
 
-        <div class="sidebar-shell">
-            <ul class="folder-menu" id="folderMenu">
-                @foreach($sidebarFolders as $index => $folder)
-                    <li class="folder-item">
-                        <button
-                            type="button"
-                            class="folder-toggle"
-                            data-folder-toggle
-                            data-folder-index="{{ $index }}"
-                            aria-expanded="false"
-                        >
-                            <span>{{ $folder['name'] }}</span>
-                            <span class="caret">&#9662;</span>
-                        </button>
-                    </li>
-                @endforeach
-            </ul>
-        </div>
-    </aside>
+            <div class="sidebar-shell">
+                <ul class="folder-menu" id="folderMenu">
+                    @forelse($sidebarFolders as $index => $folder)
+                        <li class="folder-item">
+                            <button
+                                type="button"
+                                class="folder-toggle"
+                                data-folder-toggle
+                                data-folder-index="{{ $index }}"
+                                aria-expanded="false"
+                            >
+                                <span>{{ $folder['name'] }}</span>
+                                <span class="caret">&#9662;</span>
+                            </button>
+                        </li>
+                    @empty
+                        <li class="folder-item" style="color:var(--text-muted);font-size:0.85rem;padding:8px 4px;">
+                            No folders available for your access.
+                        </li>
+                    @endforelse
+                </ul>
+            </div>
+        </aside>
+    @endif
     <main class="main-content">
         <div id="folderBlocksMain" class="folder-blocks-main" hidden>
             <div class="folder-blocks-main-inner">
@@ -740,12 +785,15 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        var folderData = @json($sidebarFolders);
+        var folderData = @json($sidebarFolders ?? []);
         var toggles = document.querySelectorAll('[data-folder-toggle]');
         var folderBlocksMain = document.getElementById('folderBlocksMain');
         var folderBlocksTitle = document.getElementById('folderBlocksTitle');
         var folderBlocksGrid = document.getElementById('folderBlocksGrid');
         var mainPageContainer = document.getElementById('mainPageContainer');
+        if (!folderBlocksMain || !folderBlocksGrid || !mainPageContainer || !toggles.length) {
+            return;
+        }
         var params = new URLSearchParams(window.location.search);
         var currentMainFolder = params.get('main_folder') || '';
         var currentSubfolder = params.get('document_type') || '';
