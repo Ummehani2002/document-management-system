@@ -52,15 +52,14 @@
             @foreach($entityCards as $card)
                 <form method="POST" action="{{ route('entities.enter', $card->id) }}" class="entity-card-form">
                     @csrf
-                    <button type="submit" class="entity-card">
-                        <div class="entity-card-banner">
-                            <span class="entity-card-category">Company</span>
-                            <span class="entity-card-count">{{ number_format($card->documents_count) }}</span>
+                    <button type="submit" class="entity-card{{ !empty($card->logo_url) ? ' has-logo' : '' }}">
+                        <div class="entity-card-banner{{ !empty($card->logo_url) ? ' entity-card-banner-logo' : '' }}">
                             @if(!empty($card->logo_url))
-                                <span class="entity-card-avatar entity-card-avatar-logo">
-                                    <img src="{{ $card->logo_url }}" alt="{{ $card->name }}">
-                                </span>
+                                <img class="entity-card-banner-image" src="{{ $card->logo_url }}" alt="{{ $card->name }}">
+                                <span class="entity-card-count">{{ number_format($card->documents_count) }}</span>
                             @else
+                                <span class="entity-card-category">Company</span>
+                                <span class="entity-card-count">{{ number_format($card->documents_count) }}</span>
                                 <span class="entity-card-avatar">{{ $card->initials }}</span>
                             @endif
                         </div>
@@ -189,6 +188,29 @@
             min-height: 56px;
             border-bottom: 1px solid #e2e8f0;
         }
+        .entity-card-banner-logo {
+            padding: 0;
+            min-height: 160px;
+            height: 160px;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .entity-card-banner-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center;
+            display: block;
+            padding: 8px 12px;
+            box-sizing: border-box;
+            background: #fff;
+        }
+        .entity-card.has-logo .entity-card-body {
+            padding-top: 16px;
+        }
         .entity-card-category {
             font-size: 0.72rem;
             letter-spacing: 0.06em;
@@ -197,10 +219,15 @@
         }
         .entity-card-count {
             position: absolute;
-            top: 14px;
-            right: 16px;
-            font-size: 0.9rem;
+            top: 10px;
+            right: 12px;
+            font-size: 0.85rem;
             color: #64748b;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid #e2e8f0;
+            border-radius: 999px;
+            padding: 2px 8px;
+            z-index: 1;
         }
         .entity-card-avatar {
             position: absolute;
@@ -219,24 +246,8 @@
             border: 3px solid #fff;
             overflow: hidden;
         }
-        .entity-card-avatar-logo {
-            width: 52px;
-            height: 52px;
-            bottom: -24px;
-            background: #fff;
-            border: 3px solid #fff;
-            box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
-            padding: 4px;
-            box-sizing: border-box;
-        }
-        .entity-card-avatar-logo img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            display: block;
-        }
         .entity-card-body {
-            padding: 32px 16px 12px;
+            padding: 28px 16px 12px;
             flex: 1;
             background: #ffffff;
         }
