@@ -144,41 +144,49 @@
             margin: 0;
             min-width: 0;
         }
+        button.entity-card,
         .entity-card {
             width: 100%;
-            border: 1px solid var(--border);
+            border: 1px solid #e2e8f0 !important;
             border-radius: 10px;
             overflow: hidden;
-            background: #fff;
+            background: #ffffff !important;
             display: flex;
             flex-direction: column;
             text-align: left;
-            padding: 0;
+            padding: 0 !important;
             font: inherit;
-            color: inherit;
+            color: #1e293b !important;
             cursor: pointer;
             transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
         }
+        button.entity-card:hover,
         .entity-card:hover {
-            border-color: var(--gold);
+            background: #ffffff !important;
+            border-color: #c5a059 !important;
+            color: #1e293b !important;
             box-shadow: 0 4px 14px rgba(33, 45, 62, 0.08);
         }
+        button.entity-card:focus-visible,
         .entity-card:focus-visible {
-            outline: 2px solid var(--gold);
+            outline: 2px solid #c5a059;
             outline-offset: 2px;
+            background: #ffffff !important;
+            color: #1e293b !important;
         }
         .entity-card-banner {
-            background: var(--bg-page);
-            color: var(--text);
+            background: #f8fafc;
+            color: #1e293b;
             padding: 14px 16px 36px;
             position: relative;
             min-height: 56px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid #e2e8f0;
         }
         .entity-card-category {
             font-size: 0.72rem;
             letter-spacing: 0.06em;
-            color: var(--text-muted);
+            color: #64748b;
             text-transform: uppercase;
         }
         .entity-card-count {
@@ -186,7 +194,7 @@
             top: 14px;
             right: 16px;
             font-size: 0.9rem;
-            color: var(--text-muted);
+            color: #64748b;
         }
         .entity-card-avatar {
             position: absolute;
@@ -195,8 +203,8 @@
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: var(--gold);
-            color: var(--navy);
+            background: #c5a059;
+            color: #1e293b;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -207,15 +215,17 @@
         .entity-card-body {
             padding: 28px 16px 12px;
             flex: 1;
+            background: #ffffff;
         }
         .entity-card-name {
             margin: 0 0 8px;
-            font-size: 1.05rem;
-            color: var(--navy);
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #0f172a !important;
         }
         .entity-card-desc {
             margin: 0 0 12px;
-            color: var(--text-muted);
+            color: #64748b !important;
             font-size: 0.88rem;
             line-height: 1.45;
         }
@@ -235,10 +245,11 @@
             display: flex;
             align-items: center;
             padding: 12px 16px;
-            border-top: 1px solid var(--border);
+            border-top: 1px solid #e2e8f0;
+            background: #ffffff;
         }
         .entity-card-docs {
-            color: var(--text-muted);
+            color: #64748b !important;
             font-size: 0.85rem;
         }
     </style>
