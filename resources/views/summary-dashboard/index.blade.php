@@ -302,13 +302,13 @@
 
         .dash-download-btn-light {
             background: #fff;
-            color: #212d3e;
-            border: 1px solid rgba(255, 255, 255, 0.35);
+            color: #1e293b;
+            border: 1px solid #e2e8f0;
         }
 
         .dash-download-btn-light:hover {
-            background: #f8fafc;
-            color: #212d3e;
+            background: #f1f5f9;
+            color: #1e293b;
         }
 
         .dash-section {

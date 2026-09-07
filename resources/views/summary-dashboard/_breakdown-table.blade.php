@@ -17,7 +17,7 @@
     $totalLabel = $totalLabel ?? 'Total documents';
 @endphp
 <div class="dms-grid-wrap" style="margin-top: 0; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
-    <div style="background:#212d3e; color:#fff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+    <div style="background:#f8fafc; color:#1e293b; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; border-bottom:1px solid #e2e8f0;">
         <h4 style="margin:0; font-size:1rem;">{{ $title }}</h4>
         @if($downloadTab)
             @include('summary-dashboard._download-button', ['tab' => $downloadTab, 'buttonClass' => 'dash-download-btn-light'])

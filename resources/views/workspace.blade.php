@@ -34,9 +34,9 @@
     @endif
 
     <div class="card" style="padding:0; overflow:hidden;">
-        <div style="background:#212d3e; color:#fff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="background:#f8fafc; color:#1e293b; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0;">
             <h3 style="margin:0; font-size:1.05rem;">Latest uploads</h3>
-            <a href="{{ entity_route('documents.search') }}" style="color:#fff; font-size:0.9rem;">View all</a>
+            <a href="{{ entity_route('documents.search') }}" style="color:#a88962; font-size:0.9rem;">View all</a>
         </div>
         @if($recentDocuments->isEmpty())
             <p style="margin: 0; padding: 16px;">No documents yet. <a href="{{ entity_route('documents.upload') }}">Upload PDFs</a>.</p>

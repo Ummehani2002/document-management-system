@@ -32,18 +32,18 @@
 @else
     @foreach($folders as $folder)
         <div class="card" style="margin-bottom:16px; padding:0; overflow:hidden;">
-            <div style="background:#212d3e; color:#fff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+            <div style="background:#f8fafc; color:#1e293b; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; border-bottom:1px solid #e2e8f0;">
                 <div>
                     <strong>{{ $folder->name }}</strong>
-                    <span style="opacity:0.8; font-size:0.85rem; margin-left:8px;">{{ $folder->subfolders->count() }} subfolder(s)</span>
+                    <span style="color:#64748b; font-size:0.85rem; margin-left:8px;">{{ $folder->subfolders->count() }} subfolder(s)</span>
                 </div>
                 <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-                    <a href="{{ route('folders.subfolders.create', $folder) }}" style="color:#fff;">Add subfolder</a>
-                    <a href="{{ route('folders.edit', $folder) }}" style="color:#fff;">Edit</a>
+                    <a href="{{ route('folders.subfolders.create', $folder) }}" style="color:#a88962;">Add subfolder</a>
+                    <a href="{{ route('folders.edit', $folder) }}" style="color:#a88962;">Edit</a>
                     <form action="{{ route('folders.destroy', $folder) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this main folder?');">
                         @csrf
                         @method('DELETE')
-                        <button type="submit" style="background:none; border:none; padding:0; color:#fca5a5; cursor:pointer; text-decoration:underline;">Delete</button>
+                        <button type="submit" style="background:none; border:none; padding:0; color:#b91c1c; cursor:pointer; text-decoration:underline;">Delete</button>
                     </form>
                 </div>
             </div>

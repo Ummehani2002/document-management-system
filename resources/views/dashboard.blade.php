@@ -50,33 +50,32 @@
     @else
         <div class="entity-grid">
             @foreach($entityCards as $card)
-                <article class="entity-card">
-                    <div class="entity-card-banner">
-                        <span class="entity-card-category">Company</span>
-                        <span class="entity-card-count">{{ number_format($card->documents_count) }}</span>
-                        <span class="entity-card-avatar">{{ $card->initials }}</span>
-                    </div>
-                    <div class="entity-card-body">
-                        <h3 class="entity-card-name">{{ $card->name }}</h3>
-                        <p class="entity-card-desc">
-                            Documents, projects, and files for {{ $card->name }}.
-                        </p>
-                        <div class="entity-card-tags">
-                            <span class="entity-tag">Documents</span>
-                            <span class="entity-tag">Projects</span>
-                            @if($card->projects_count > 0)
-                                <span class="entity-tag">{{ $card->projects_count }} projects</span>
-                            @endif
+                <form method="POST" action="{{ route('entities.enter', $card->id) }}" class="entity-card-form">
+                    @csrf
+                    <button type="submit" class="entity-card">
+                        <div class="entity-card-banner">
+                            <span class="entity-card-category">Company</span>
+                            <span class="entity-card-count">{{ number_format($card->documents_count) }}</span>
+                            <span class="entity-card-avatar">{{ $card->initials }}</span>
                         </div>
-                    </div>
-                    <div class="entity-card-footer">
-                        <span class="entity-card-docs">{{ number_format($card->documents_count) }} docs</span>
-                        <form method="POST" action="{{ route('entities.enter', $card->id) }}" style="margin:0;">
-                            @csrf
-                            <button type="submit" class="entity-open-btn">Open</button>
-                        </form>
-                    </div>
-                </article>
+                        <div class="entity-card-body">
+                            <h3 class="entity-card-name">{{ $card->name }}</h3>
+                            <p class="entity-card-desc">
+                                Documents, projects, and files for {{ $card->name }}.
+                            </p>
+                            <div class="entity-card-tags">
+                                <span class="entity-tag">Documents</span>
+                                <span class="entity-tag">Projects</span>
+                                @if($card->projects_count > 0)
+                                    <span class="entity-tag">{{ $card->projects_count }} projects</span>
+                                @endif
+                            </div>
+                        </div>
+                        <div class="entity-card-footer">
+                            <span class="entity-card-docs">{{ number_format($card->documents_count) }} docs</span>
+                        </div>
+                    </button>
+                </form>
             @endforeach
         </div>
     @endif
@@ -141,32 +140,53 @@
             gap: 18px;
             margin-bottom: 24px;
         }
+        .entity-card-form {
+            margin: 0;
+            min-width: 0;
+        }
         .entity-card {
+            width: 100%;
             border: 1px solid var(--border);
             border-radius: 10px;
             overflow: hidden;
             background: #fff;
             display: flex;
             flex-direction: column;
+            text-align: left;
+            padding: 0;
+            font: inherit;
+            color: inherit;
+            cursor: pointer;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .entity-card:hover {
+            border-color: var(--gold);
+            box-shadow: 0 4px 14px rgba(33, 45, 62, 0.08);
+        }
+        .entity-card:focus-visible {
+            outline: 2px solid var(--gold);
+            outline-offset: 2px;
         }
         .entity-card-banner {
-            background: var(--navy);
-            color: #fff;
+            background: var(--bg-page);
+            color: var(--text);
             padding: 14px 16px 36px;
             position: relative;
             min-height: 56px;
+            border-bottom: 1px solid var(--border);
         }
         .entity-card-category {
             font-size: 0.72rem;
             letter-spacing: 0.06em;
-            opacity: 0.85;
+            color: var(--text-muted);
+            text-transform: uppercase;
         }
         .entity-card-count {
             position: absolute;
             top: 14px;
             right: 16px;
             font-size: 0.9rem;
-            opacity: 0.95;
+            color: var(--text-muted);
         }
         .entity-card-avatar {
             position: absolute;
@@ -214,26 +234,12 @@
         .entity-card-footer {
             display: flex;
             align-items: center;
-            justify-content: space-between;
             padding: 12px 16px;
             border-top: 1px solid var(--border);
         }
         .entity-card-docs {
             color: var(--text-muted);
             font-size: 0.85rem;
-        }
-        .entity-open-btn {
-            background: transparent;
-            color: var(--gold-dark);
-            border: none;
-            padding: 0;
-            font: inherit;
-            cursor: pointer;
-            text-decoration: underline;
-        }
-        .entity-open-btn:hover {
-            color: var(--gold);
-            background: transparent;
         }
     </style>
 @endsection

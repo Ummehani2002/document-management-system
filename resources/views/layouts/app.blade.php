@@ -10,9 +10,9 @@
 
     <style>
         :root {
-            --navy: #0c1829;
-            --navy-hover: #152238;
-            --navy-soft: #1e2d42;
+            --navy: #1e293b;
+            --navy-hover: #334155;
+            --navy-soft: #475569;
             --gold: #c5a059;
             --gold-dark: #a88962;
             --green: #238651;
@@ -23,8 +23,8 @@
             --border: #e2e8f0;
             --text: #1e293b;
             --text-muted: #64748b;
-            --sidebar-text: #e2e8f0;
-            --sidebar-muted: #94a3b8;
+            --sidebar-text: #1e293b;
+            --sidebar-muted: #64748b;
             --header-top-h: 58px;
             --header-nav-h: 52px;
         }
@@ -67,12 +67,13 @@
         }
 
         .dms-header {
-            background: var(--navy);
-            color: #fff;
+            background: var(--bg-card);
+            color: var(--text);
             position: sticky;
             top: 0;
             z-index: 100;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+            box-shadow: 0 1px 0 var(--border);
+            border-bottom: 1px solid var(--border);
         }
 
         .dms-topbar {
@@ -82,7 +83,8 @@
             gap: 20px;
             min-height: var(--header-top-h);
             padding: 0 28px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
         }
 
         .dms-brand {
@@ -109,6 +111,7 @@
             font-weight: 700;
             letter-spacing: 0.01em;
             line-height: 1.25;
+            color: var(--text);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -120,7 +123,7 @@
             font-weight: 600;
             letter-spacing: 0.01em;
             line-height: 1.25;
-            opacity: 0.98;
+            color: var(--text-muted);
         }
 
         .dms-topbar-right {
@@ -136,8 +139,9 @@
             gap: 8px;
             padding: 7px 14px;
             border-radius: 999px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: var(--bg-page);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
             font-size: 0.78rem;
             font-weight: 500;
             white-space: nowrap;
@@ -153,7 +157,7 @@
         .dms-topbar-divider {
             width: 1px;
             height: 28px;
-            background: rgba(255, 255, 255, 0.18);
+            background: var(--border);
             margin: 0 16px;
         }
 
@@ -187,8 +191,9 @@
             font-weight: 700;
             letter-spacing: 0.03em;
             flex-shrink: 0;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            transition: border-color 0.15s ease;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 1px var(--border);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
 
         .dms-user-dropdown[open] .dms-user-avatar,
@@ -236,16 +241,14 @@
             gap: 4px 0;
             min-height: var(--header-nav-h);
             padding: 0 20px;
-            background:
-                linear-gradient(rgba(12, 24, 41, 0.88), rgba(12, 24, 41, 0.92)),
-                linear-gradient(135deg, #1a2f4a 0%, #0c1829 50%, #162536 100%);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            background: var(--bg-page);
+            border-bottom: 1px solid var(--border);
         }
 
         .dms-nav-link {
             display: inline-block;
             padding: 14px 18px 12px;
-            color: #fff;
+            color: var(--text-muted);
             text-decoration: none;
             font-size: 0.72rem;
             font-weight: 600;
@@ -257,12 +260,12 @@
         }
 
         .dms-nav-link:hover {
-            color: var(--gold);
+            color: var(--gold-dark);
         }
 
         .dms-nav-link.is-active {
             border-bottom-color: var(--gold);
-            color: #fff;
+            color: var(--text);
         }
 
         .dms-entity-badge {
@@ -271,9 +274,9 @@
             margin-left: 12px;
             padding: 4px 10px;
             border-radius: 999px;
-            background: rgba(197, 160, 89, 0.18);
-            border: 1px solid rgba(197, 160, 89, 0.35);
-            color: var(--gold);
+            background: #fef9ef;
+            border: 1px solid rgba(197, 160, 89, 0.45);
+            color: var(--gold-dark);
             font-size: 0.65rem;
             font-weight: 600;
             letter-spacing: 0.06em;
@@ -396,8 +399,8 @@
         .sidebar {
             width: 215px;
             min-width: 215px;
-            background: var(--navy);
-            border-right: 1px solid rgba(0, 0, 0, 0.15);
+            background: var(--bg-page);
+            border-right: 1px solid var(--border);
             padding: 16px;
             overflow-y: auto;
             display: flex;
@@ -424,8 +427,8 @@
         .sidebar .folder-toggle {
             width: 100%;
             text-align: left;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border);
+            background: var(--bg-card);
             color: var(--sidebar-text);
             border-radius: 10px;
             padding: 12px 14px;
@@ -437,7 +440,8 @@
         }
 
         .sidebar .folder-toggle:hover {
-            background: rgba(255, 255, 255, 0.1);
+            background: #f1f5f9;
+            border-color: #cbd5e1;
         }
 
         .sidebar .folder-toggle .caret {
@@ -446,8 +450,9 @@
         }
 
         .sidebar .folder-toggle.active {
-            background: var(--navy-hover);
-            border-color: rgba(197, 160, 89, 0.35);
+            background: #f1f5f9;
+            border-color: var(--gold);
+            color: var(--text);
         }
 
         .folder-blocks-main {
@@ -588,9 +593,10 @@
         }
 
         .dms-grid-table thead th {
-            background: var(--navy);
-            color: #fff;
-            border-color: #2d3a52;
+            background: #f1f5f9;
+            color: var(--text);
+            border-color: #cbd5e1;
+            font-weight: 600;
         }
 
         .dms-grid-table tbody tr:nth-child(even) td {
@@ -633,7 +639,7 @@
         <div class="dms-brand">
             <img
                 class="dms-brand-logo"
-                src="{{ asset('images/tanseeq-white.png') }}?v=2"
+                src="{{ asset('images/tanseeq.png') }}?v=3"
                 alt="Tanseeq Investment"
             />
             <div class="dms-brand-text">
