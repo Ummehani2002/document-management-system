@@ -14,7 +14,7 @@
     @if($groups->isEmpty())
         <p style="margin:0; padding:16px; color:#64748b;">No documents for the selected filters.</p>
     @else
-        <table class="dms-grid-table folder-hierarchy-table">
+        <table class="dms-grid-table folder-hierarchy-table" id="folderHierarchyTable">
             <thead>
                 <tr>
                     <th>Name</th>
@@ -23,7 +23,7 @@
             </thead>
             <tbody>
                 @foreach($groups as $index => $group)
-                    <tr class="folder-parent-row" data-folder-toggle="{{ $index }}" role="button" tabindex="0" aria-expanded="false">
+                    <tr class="folder-parent-row" data-hierarchy-toggle="{{ $index }}" role="button" tabindex="0" aria-expanded="false">
                         <td>
                             <span class="folder-caret" aria-hidden="true">&#9654;</span>
                             <strong>{{ $group['label'] }}</strong>
@@ -32,7 +32,7 @@
                         <td class="text-right"><strong>{{ number_format((int) $group['total']) }}</strong></td>
                     </tr>
                     @foreach(($group['children'] ?? []) as $child)
-                        <tr class="folder-child-row" data-folder-parent="{{ $index }}" hidden>
+                        <tr class="folder-child-row is-collapsed" data-hierarchy-parent="{{ $index }}">
                             <td class="folder-child-name">{{ $child['label'] }}</td>
                             <td class="text-right">{{ number_format((int) $child['total']) }}</td>
                         </tr>
@@ -53,6 +53,7 @@
     .folder-hierarchy-table .folder-parent-row {
         cursor: pointer;
         background: #fff;
+        user-select: none;
     }
     .folder-hierarchy-table .folder-parent-row:hover {
         background: #f8fafc;
@@ -84,26 +85,54 @@
     .folder-hierarchy-table .folder-child-name {
         padding-left: 36px !important;
     }
+    .folder-hierarchy-table .folder-child-row.is-collapsed {
+        display: none;
+    }
 </style>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('.folder-parent-row').forEach(function (row) {
-            function toggle() {
-                var index = row.getAttribute('data-folder-toggle');
-                var open = row.classList.toggle('is-open');
-                row.setAttribute('aria-expanded', open ? 'true' : 'false');
-                document.querySelectorAll('.folder-child-row[data-folder-parent="' + index + '"]').forEach(function (child) {
-                    child.hidden = !open;
-                });
-            }
-            row.addEventListener('click', toggle);
-            row.addEventListener('keydown', function (event) {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    toggle();
+    (function () {
+        function bindHierarchyToggles(root) {
+            root.querySelectorAll('.folder-parent-row[data-hierarchy-toggle]').forEach(function (row) {
+                if (row.dataset.hierarchyBound === '1') {
+                    return;
                 }
+                row.dataset.hierarchyBound = '1';
+
+                function toggle(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    var index = row.getAttribute('data-hierarchy-toggle');
+                    var open = !row.classList.contains('is-open');
+                    row.classList.toggle('is-open', open);
+                    row.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+                    root.querySelectorAll('.folder-child-row[data-hierarchy-parent="' + index + '"]').forEach(function (child) {
+                        child.classList.toggle('is-collapsed', !open);
+                    });
+                }
+
+                row.addEventListener('click', toggle);
+                row.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        toggle(event);
+                    }
+                });
             });
-        });
-    });
+        }
+
+        function init() {
+            var table = document.getElementById('folderHierarchyTable');
+            if (table) {
+                bindHierarchyToggles(table);
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
 </script>

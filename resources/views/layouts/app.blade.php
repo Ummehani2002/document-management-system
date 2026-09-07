@@ -786,7 +786,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         var folderData = @json($sidebarFolders ?? []);
-        var toggles = document.querySelectorAll('[data-folder-toggle]');
+        var toggles = document.querySelectorAll('.sidebar [data-folder-toggle]');
         var folderBlocksMain = document.getElementById('folderBlocksMain');
         var folderBlocksTitle = document.getElementById('folderBlocksTitle');
         var folderBlocksGrid = document.getElementById('folderBlocksGrid');
