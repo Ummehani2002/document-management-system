@@ -56,7 +56,13 @@
                         <div class="entity-card-banner">
                             <span class="entity-card-category">Company</span>
                             <span class="entity-card-count">{{ number_format($card->documents_count) }}</span>
-                            <span class="entity-card-avatar">{{ $card->initials }}</span>
+                            @if(!empty($card->logo_url))
+                                <span class="entity-card-avatar entity-card-avatar-logo">
+                                    <img src="{{ $card->logo_url }}" alt="{{ $card->name }}">
+                                </span>
+                            @else
+                                <span class="entity-card-avatar">{{ $card->initials }}</span>
+                            @endif
                         </div>
                         <div class="entity-card-body">
                             <h3 class="entity-card-name">{{ $card->name }}</h3>
@@ -211,9 +217,26 @@
             font-size: 0.85rem;
             font-weight: 600;
             border: 3px solid #fff;
+            overflow: hidden;
+        }
+        .entity-card-avatar-logo {
+            width: 52px;
+            height: 52px;
+            bottom: -24px;
+            background: #fff;
+            border: 3px solid #fff;
+            box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+            padding: 4px;
+            box-sizing: border-box;
+        }
+        .entity-card-avatar-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
         }
         .entity-card-body {
-            padding: 28px 16px 12px;
+            padding: 32px 16px 12px;
             flex: 1;
             background: #ffffff;
         }

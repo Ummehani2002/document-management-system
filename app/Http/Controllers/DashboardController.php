@@ -47,6 +47,7 @@ class DashboardController extends Controller
                 'id' => $entity->id,
                 'name' => $entity->name,
                 'initials' => entity_initials($entity->name),
+                'logo_url' => entity_logo_url($entity->name),
                 'documents_count' => $documentCounts[$entity->id] ?? 0,
                 'projects_count' => $projectCounts[$entity->id] ?? 0,
                 'recent_documents' => $recentByEntity[$entity->id] ?? collect(),

@@ -59,3 +59,37 @@ if (! function_exists('entity_initials')) {
         return $initials !== '' ? $initials : 'CO';
     }
 }
+
+if (! function_exists('entity_logo_url')) {
+    /**
+     * Optional company logo for known entity names.
+     */
+    function entity_logo_url(string $name): ?string
+    {
+        $key = mb_strtolower(trim($name));
+        $key = preg_replace('/\s+/', ' ', $key) ?? $key;
+
+        if (str_contains($key, 'water in motion')) {
+            return asset('images/water-in-motion.png').'?v=1';
+        }
+
+        if (str_contains($key, 'proscape infra')) {
+            return asset('images/proscape-infra.png').'?v=1';
+        }
+
+        if (str_contains($key, 'proscape international')) {
+            return asset('images/proscape-international.png').'?v=1';
+        }
+
+        // Plain PROSCAPE (exact / short name only — after infra & international checks)
+        if ($key === 'proscape' || preg_match('/^proscape(\s+llc)?$/', $key) === 1) {
+            return asset('images/proscape.png').'?v=1';
+        }
+
+        if (str_contains($key, 'tanseeq')) {
+            return asset('images/tanseeq-investment.png').'?v=1';
+        }
+
+        return null;
+    }
+}
