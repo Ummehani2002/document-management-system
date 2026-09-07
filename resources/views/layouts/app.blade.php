@@ -101,6 +101,31 @@
             flex-shrink: 0;
         }
 
+        .dms-entity-logo {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+            flex-shrink: 0;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 3px;
+            box-sizing: border-box;
+        }
+
+        .dms-entity-logo-initials {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #c5a059;
+            color: #1e293b;
+            border-color: #c5a059;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            padding: 0;
+        }
+
         .dms-brand-text {
             min-width: 0;
         }
@@ -667,11 +692,24 @@
 <header class="dms-header">
     <div class="dms-topbar">
         <div class="dms-brand">
-            <img
-                class="dms-brand-logo"
-                src="{{ asset('images/tanseeq.png') }}?v=3"
-                alt="Tanseeq Investment"
-            />
+            @if(!empty($currentEntity))
+                @if(!empty($currentEntityLogoUrl))
+                    <img
+                        class="dms-entity-logo"
+                        src="{{ $currentEntityLogoUrl }}"
+                        alt="{{ $currentEntity->name }}"
+                        title="{{ $currentEntity->name }}"
+                    />
+                @else
+                    <span class="dms-entity-logo dms-entity-logo-initials" title="{{ $currentEntity->name }}">{{ entity_initials($currentEntity->name) }}</span>
+                @endif
+            @else
+                <img
+                    class="dms-brand-logo"
+                    src="{{ asset('images/tanseeq.png') }}?v=3"
+                    alt="Tanseeq Investment"
+                />
+            @endif
             <div class="dms-brand-text">
                 <span class="dms-brand-title">Tanseeq Investment</span>
                 <span class="dms-brand-subtitle">Document Management System</span>

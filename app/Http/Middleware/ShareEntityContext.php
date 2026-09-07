@@ -27,6 +27,10 @@ class ShareEntityContext
 
             view()->share('currentEntity', $entity);
             view()->share('currentEntityId', $entityId);
+            view()->share(
+                'currentEntityLogoUrl',
+                $entity !== null ? entity_logo_url((string) $entity->name) : null
+            );
         }
 
         return $next($request);
