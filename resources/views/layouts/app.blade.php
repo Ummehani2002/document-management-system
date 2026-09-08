@@ -10,20 +10,20 @@
 
     <style>
         :root {
-            --navy: #1e293b;
-            --navy-hover: #334155;
-            --navy-soft: #475569;
-            --gold: #c5a059;
-            --gold-dark: #a88962;
-            --green: #238651;
-            --green-soft: #e8f4ec;
-            --green-text: #1a5c38;
-            --bg-page: #f8fafc;
+            --navy: #0b1f3a;
+            --navy-hover: #163a66;
+            --navy-soft: #1e4d7b;
+            --gold: #3b82f6;
+            --gold-dark: #1d4ed8;
+            --green: #15803d;
+            --green-soft: #dcfce7;
+            --green-text: #166534;
+            --bg-page: #f1f5f9;
             --bg-card: #ffffff;
             --border: #e2e8f0;
-            --text: #1e293b;
+            --text: #0b1f3a;
             --text-muted: #64748b;
-            --sidebar-text: #1e293b;
+            --sidebar-text: #0b1f3a;
             --sidebar-muted: #64748b;
             --header-top-h: 58px;
             --header-nav-h: 52px;
@@ -282,6 +282,20 @@
             border-bottom: 3px solid transparent;
             transition: color 0.15s, border-color 0.15s;
             white-space: nowrap;
+        }
+
+        .dms-home-form {
+            margin: 0;
+            display: inline;
+        }
+
+        button.dms-nav-button.dms-nav-link {
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-family: inherit;
+            appearance: none;
         }
 
         .dms-nav-link:hover {
@@ -745,7 +759,10 @@
         </div>
     </div>
     <nav class="dms-nav" aria-label="Main navigation">
-        <a href="{{ route('dashboard') }}" class="dms-nav-link{{ $navActive(['dashboard']) }}">Home</a>
+        <form method="POST" action="{{ route('dashboard.sector.clear') }}" class="dms-home-form">
+            @csrf
+            <button type="submit" class="dms-nav-link dms-nav-button{{ $navActive(['dashboard']) }}">Home</button>
+        </form>
         @if(!empty($currentEntity))
             <a href="{{ route('workspace') }}" class="dms-nav-link{{ $navActive(['workspace']) }}">Workspace</a>
             <a href="{{ entity_route('documents.upload') }}" class="dms-nav-link{{ $navActive(['documents.upload', 'documents.store']) }}">Upload</a>

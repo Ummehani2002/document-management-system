@@ -22,26 +22,73 @@ class EntityContextTest extends TestCase
         $this->seed(RoleSeeder::class);
     }
 
-    public function test_admin_sees_all_entities_on_dashboard(): void
+    public function test_admin_sees_sector_choices_on_dashboard(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole('Admin');
 
-        Entity::create(['name' => 'Company A']);
-        Entity::create(['name' => 'Company B']);
+        Entity::create(['name' => 'Metaline LLC']);
+        Entity::create(['name' => 'Proscape Infra']);
 
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Company A')
-            ->assertSee('Company B');
+            ->assertSee('Select Category')
+            ->assertSee('Trading')
+            ->assertSee('Construction')
+            ->assertDontSee('Metaline LLC')
+            ->assertDontSee('Proscape Infra');
     }
 
-    public function test_user_sees_only_assigned_entities_on_dashboard(): void
+    public function test_trading_sector_shows_only_trading_companies(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('Admin');
+
+        Entity::create(['name' => 'Metaline LLC']);
+        Entity::create(['name' => 'Tanseeq LLC']);
+        Entity::create(['name' => 'Stones and Slates LLC']);
+        Entity::create(['name' => 'Proscape Infra']);
+
+        $this->actingAs($admin)
+            ->post(route('dashboard.sector'), ['sector' => 'trading'])
+            ->assertRedirect(route('dashboard'));
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Metaline LLC')
+            ->assertSee('Tanseeq LLC')
+            ->assertSee('Stones and Slates LLC')
+            ->assertDontSee('Proscape Infra');
+    }
+
+    public function test_construction_sector_shows_only_construction_companies(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('Admin');
+
+        Entity::create(['name' => 'Metaline LLC']);
+        Entity::create(['name' => 'Proscape Infra']);
+        Entity::create(['name' => 'Water in Motion']);
+
+        $this->actingAs($admin)
+            ->post(route('dashboard.sector'), ['sector' => 'construction'])
+            ->assertRedirect(route('dashboard'));
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Proscape Infra')
+            ->assertSee('Water in Motion')
+            ->assertDontSee('Metaline LLC');
+    }
+
+    public function test_user_sees_only_assigned_entities_after_sector_select(): void
     {
         $user = User::factory()->create();
-        $assigned = Entity::create(['name' => 'Assigned Co']);
-        Entity::create(['name' => 'Other Co']);
+        $assigned = Entity::create(['name' => 'Metaline LLC']);
+        Entity::create(['name' => 'Tanseeq LLC']);
 
         UserEntityAccess::create([
             'user_id' => $user->id,
@@ -49,10 +96,14 @@ class EntityContextTest extends TestCase
         ]);
 
         $this->actingAs($user)
+            ->post(route('dashboard.sector'), ['sector' => 'trading'])
+            ->assertRedirect(route('dashboard'));
+
+        $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Assigned Co')
-            ->assertDontSee('Other Co');
+            ->assertSee('Metaline LLC')
+            ->assertDontSee('Tanseeq LLC');
     }
 
     public function test_opening_entity_sets_context_and_scopes_workspace(): void

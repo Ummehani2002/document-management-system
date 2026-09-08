@@ -21,10 +21,12 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('/dashboard', DashboardController::class)
-    ->middleware(['auth', 'entity.clear'])
+    ->middleware(['auth'])
     ->name('dashboard');
 
 Route::middleware(['auth'])->group(function () {
+    Route::post('/dashboard/sector', [DashboardController::class, 'selectSector'])->name('dashboard.sector');
+    Route::post('/dashboard/sector/clear', [DashboardController::class, 'clearSector'])->name('dashboard.sector.clear');
     Route::post('/entities/{entity}/enter', [EntityWorkspaceController::class, 'enter'])->name('entities.enter');
     Route::post('/workspace/exit', [EntityWorkspaceController::class, 'exit'])->name('workspace.exit');
 });

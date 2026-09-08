@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Document;
-use App\Models\Project;
+use App\Services\BusinessSectorService;
 use App\Services\DocumentAccessService;
 use App\Services\EntityContextService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -13,34 +13,30 @@ class DashboardController extends Controller
 {
     public function __construct(
         protected DocumentAccessService $access,
-        protected EntityContextService $entityContext
+        protected EntityContextService $entityContext,
+        protected BusinessSectorService $businessSector
     ) {}
 
     public function __invoke(Request $request): View
     {
         $user = $request->user();
-        $entities = $this->entityContext->accessibleEntities($user);
+        // Home is never inside a company workspace.
+        $this->entityContext->clear();
+
+        $selectedSector = $this->businessSector->get();
+        $allEntities = $this->entityContext->accessibleEntities($user);
+        $entities = $selectedSector !== null
+            ? $this->businessSector->filterEntities($allEntities, $selectedSector)
+            : $allEntities;
+
         $documentCounts = $this->entityContext->documentCountsByEntity($user);
         $projectCounts = $this->entityContext->projectCountsByEntity($user);
         $recentByEntity = $this->entityContext->recentDocumentsByEntity($user);
 
-        $totalDocumentsQuery = Document::query();
-        $this->access->scopeAccessible($totalDocumentsQuery, $user);
-        $totalDocuments = $totalDocumentsQuery->count();
-
-        $projectsQuery = Project::query();
-        if (! $this->access->isAdmin($user)) {
-            $accessibleEntityIds = $this->access->accessibleEntityIds($user);
-            $selectedProjectIds = $this->access->selectedProjectIdsForUser($user);
-            if ($selectedProjectIds !== []) {
-                $projectsQuery->whereIn('id', $selectedProjectIds);
-            } elseif ($accessibleEntityIds !== []) {
-                $projectsQuery->whereIn('entity_id', $accessibleEntityIds);
-            } else {
-                $projectsQuery->whereRaw('1 = 0');
-            }
-        }
-        $totalProjects = $projectsQuery->count();
+        $statsEntityIds = $entities->pluck('id')->all();
+        $totalDocuments = collect($statsEntityIds)->sum(fn ($id) => $documentCounts[$id] ?? 0);
+        $totalProjects = collect($statsEntityIds)->sum(fn ($id) => $projectCounts[$id] ?? 0);
+        $totalEntities = $entities->count();
 
         $entityCards = $entities->map(function ($entity) use ($documentCounts, $projectCounts, $recentByEntity) {
             return (object) [
@@ -54,12 +50,39 @@ class DashboardController extends Controller
             ];
         });
 
+        $tradingCount = $this->businessSector->filterEntities($allEntities, BusinessSectorService::TRADING)->count();
+        $constructionCount = $this->businessSector->filterEntities($allEntities, BusinessSectorService::CONSTRUCTION)->count();
+
         return view('dashboard', [
             'totalDocuments' => $totalDocuments,
             'totalProjects' => $totalProjects,
-            'totalEntities' => $entities->count(),
+            'totalEntities' => $totalEntities,
             'entityCards' => $entityCards,
             'isAdmin' => $this->access->isAdmin($user),
+            'selectedSector' => $selectedSector,
+            'selectedSectorLabel' => $this->businessSector->label($selectedSector),
+            'tradingCount' => $tradingCount,
+            'constructionCount' => $constructionCount,
         ]);
+    }
+
+    public function selectSector(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'sector' => 'required|in:trading,construction',
+        ]);
+
+        $this->entityContext->clear();
+        $this->businessSector->set($validated['sector']);
+
+        return redirect()->route('dashboard');
+    }
+
+    public function clearSector(Request $request): RedirectResponse
+    {
+        $this->entityContext->clear();
+        $this->businessSector->clear();
+
+        return redirect()->route('dashboard');
     }
 }
