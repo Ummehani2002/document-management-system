@@ -12,14 +12,17 @@ class CompanyEntitiesSeeder extends Seeder
      */
     public function run(): void
     {
-        $names = [
-            'Metaline LLC',
-            'Tanseeq LLC',
-            'Stones and Slates LLC',
+        $companies = [
+            ['name' => 'Metaline LLC', 'business_type' => Entity::TYPE_TRADING],
+            ['name' => 'Tanseeq LLC', 'business_type' => Entity::TYPE_TRADING],
+            ['name' => 'Stones and Slates LLC', 'business_type' => Entity::TYPE_TRADING],
         ];
 
-        foreach ($names as $name) {
-            Entity::query()->firstOrCreate(['name' => $name]);
+        foreach ($companies as $company) {
+            Entity::query()->updateOrCreate(
+                ['name' => $company['name']],
+                ['business_type' => $company['business_type']]
+            );
         }
     }
 }

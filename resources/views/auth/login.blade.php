@@ -5,15 +5,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --navy: #212d3e;
-            --navy-deep: #18222f;
-            --navy-soft: #2d3a52;
-            --gold: #c4a47c;
-            --gold-dark: #a88962;
-            --text: #1e293b;
+            --navy: #0b1f3a;
+            --navy-deep: #071526;
+            --navy-soft: #163a66;
+            --accent: #3b82f6;
+            --text: #0b1f3a;
             --text-muted: #64748b;
             --border: #e2e8f0;
         }
@@ -24,7 +26,7 @@
 
         body {
             margin: 0;
-            font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+            font-family: "Montserrat", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
             color: var(--text);
             background: #f1f5f9;
             display: flex;
@@ -38,11 +40,10 @@
             min-height: 100vh;
         }
 
-        /* ---------- Brand panel ---------- */
         .brand-panel {
             position: relative;
             overflow: hidden;
-            background: radial-gradient(circle at 20% 20%, var(--navy-soft), var(--navy) 45%, var(--navy-deep) 100%);
+            background: linear-gradient(145deg, #0b1f3a 0%, #163a66 55%, #1e4d7b 100%);
             color: #fff;
             display: flex;
             flex-direction: column;
@@ -55,7 +56,7 @@
             content: "";
             position: absolute;
             border-radius: 50%;
-            background: rgba(196, 164, 124, 0.14);
+            background: rgba(59, 130, 246, 0.16);
             filter: blur(2px);
             animation: float 12s ease-in-out infinite;
         }
@@ -69,7 +70,7 @@
             width: 240px; height: 240px;
             bottom: -70px; left: -60px;
             animation-delay: -4s;
-            background: rgba(196, 164, 124, 0.10);
+            background: rgba(59, 130, 246, 0.10);
         }
 
         @keyframes float {
@@ -86,8 +87,8 @@
             font-size: 0.72rem;
             letter-spacing: 0.18em;
             text-transform: uppercase;
-            color: var(--gold);
-            border: 1px solid rgba(196, 164, 124, 0.4);
+            color: #bfdbfe;
+            border: 1px solid rgba(147, 197, 253, 0.45);
             padding: 6px 14px;
             border-radius: 999px;
             margin-bottom: 30px;
@@ -100,7 +101,7 @@
             margin: 0 0 18px;
         }
 
-        .brand-title .accent { color: var(--gold); }
+        .brand-title .accent { color: #93c5fd; }
 
         .brand-tagline {
             font-size: 1.02rem;
@@ -124,8 +125,8 @@
             flex: none;
             width: 22px; height: 22px;
             border-radius: 50%;
-            background: rgba(196, 164, 124, 0.18);
-            color: var(--gold);
+            background: rgba(59, 130, 246, 0.22);
+            color: #93c5fd;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -133,7 +134,6 @@
             margin-top: 1px;
         }
 
-        /* ---------- Form panel ---------- */
         .form-panel {
             display: flex;
             align-items: center;
@@ -145,10 +145,10 @@
             width: 100%;
             max-width: 420px;
             background: #fff;
-            border: 2px solid var(--gold);
+            border: 1px solid var(--border);
             border-radius: 16px;
             padding: 44px 40px 40px;
-            box-shadow: 0 24px 60px -28px rgba(15, 23, 42, 0.45);
+            box-shadow: 0 24px 60px -28px rgba(11, 31, 58, 0.35);
             animation: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
 
@@ -196,7 +196,7 @@
 
         .microsoft-btn:hover {
             background: var(--navy-soft);
-            box-shadow: 0 12px 24px -12px rgba(33, 45, 62, 0.7);
+            box-shadow: 0 12px 24px -12px rgba(11, 31, 58, 0.7);
             transform: translateY(-2px);
         }
 
@@ -221,7 +221,6 @@
             font-size: 0.78rem;
         }
 
-        /* ---------- Responsive ---------- */
         @media (max-width: 920px) {
             .login-shell { grid-template-columns: 1fr; }
             .brand-panel { display: none; }

@@ -39,7 +39,7 @@
 @if($entities->isEmpty())
     <div class="card">
         <p>Create an entity first so you can assign projects to it.</p>
-        <a href="{{ route('entities.create') }}" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #212d3e; color: white; text-decoration: none; border-radius: 5px;">Add Entity</a>
+        <a href="{{ route('entities.create') }}" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #0b1f3a; color: white; text-decoration: none; border-radius: 5px;">Add Entity</a>
     </div>
 @else
     @if ($errors->any())

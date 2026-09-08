@@ -9,7 +9,7 @@
 @endif
 
 <p style="margin-bottom: 16px;">
-    <a href="{{ route('disciplines.create') }}" style="display: inline-block; padding: 10px 20px; background: #212d3e; color: white; text-decoration: none; border-radius: 5px;">Add Discipline</a>
+    <a href="{{ route('disciplines.create') }}" style="display: inline-block; padding: 10px 20px; background: #0b1f3a; color: white; text-decoration: none; border-radius: 5px;">Add Discipline</a>
 </p>
 
 @if($disciplines->isEmpty())

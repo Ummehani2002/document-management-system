@@ -22,7 +22,7 @@
 @endif
 
 <p style="margin-bottom:16px;">
-    <a href="{{ route('folders.create') }}" style="display:inline-block; padding:10px 20px; background:#212d3e; color:#fff; text-decoration:none; border-radius:5px;">Add main folder</a>
+    <a href="{{ route('folders.create') }}" style="display:inline-block; padding:10px 20px; background:#0b1f3a; color:#fff; text-decoration:none; border-radius:5px;">Add main folder</a>
 </p>
 
 @if($folders->isEmpty())
@@ -38,8 +38,8 @@
                     <span style="color:#64748b; font-size:0.85rem; margin-left:8px;">{{ $folder->subfolders->count() }} subfolder(s)</span>
                 </div>
                 <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-                    <a href="{{ route('folders.subfolders.create', $folder) }}" style="color:#a88962;">Add subfolder</a>
-                    <a href="{{ route('folders.edit', $folder) }}" style="color:#a88962;">Edit</a>
+                    <a href="{{ route('folders.subfolders.create', $folder) }}" style="color:#1d4ed8;">Add subfolder</a>
+                    <a href="{{ route('folders.edit', $folder) }}" style="color:#1d4ed8;">Edit</a>
                     <form action="{{ route('folders.destroy', $folder) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this main folder?');">
                         @csrf
                         @method('DELETE')

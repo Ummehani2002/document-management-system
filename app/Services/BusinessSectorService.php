@@ -53,26 +53,11 @@ class BusinessSectorService
         };
     }
 
-    public function sectorForEntityName(string $name): string
+    public function sectorForEntity(Entity $entity): string
     {
-        $key = mb_strtolower(trim($name));
-        $key = preg_replace('/\s+/', ' ', $key) ?? $key;
+        $type = (string) ($entity->business_type ?? '');
 
-        // Trading companies
-        if (str_contains($key, 'metaline')) {
-            return self::TRADING;
-        }
-
-        if (str_contains($key, 'stones') && str_contains($key, 'slates')) {
-            return self::TRADING;
-        }
-
-        // Tanseeq LLC is trading; Tanseeq Investment stays construction.
-        if (str_contains($key, 'tanseeq llc') || $key === 'tanseeq') {
-            return self::TRADING;
-        }
-
-        return self::CONSTRUCTION;
+        return in_array($type, self::all(), true) ? $type : self::CONSTRUCTION;
     }
 
     /**
@@ -88,7 +73,7 @@ class BusinessSectorService
         }
 
         return $entities
-            ->filter(fn (Entity $entity) => $this->sectorForEntityName((string) $entity->name) === $sector)
+            ->filter(fn (Entity $entity) => $this->sectorForEntity($entity) === $sector)
             ->values();
     }
 }

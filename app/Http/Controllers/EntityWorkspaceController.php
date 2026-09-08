@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Document;
 use App\Models\Entity;
 use App\Models\Project;
+use App\Services\BusinessSectorService;
 use App\Services\DocumentAccessService;
 use App\Services\DocumentLocationResolver;
 use App\Services\EntityContextService;
@@ -16,12 +17,24 @@ class EntityWorkspaceController extends Controller
 {
     public function __construct(
         protected EntityContextService $entityContext,
-        protected DocumentAccessService $access
+        protected DocumentAccessService $access,
+        protected BusinessSectorService $businessSector
     ) {}
 
     public function enter(Request $request, Entity $entity): RedirectResponse
     {
+        $selectedSector = $this->businessSector->get();
+        $entitySector = $this->businessSector->sectorForEntity($entity);
+
+        // From Home: only allow companies in the selected category.
+        if ($selectedSector !== null && $selectedSector !== $entitySector) {
+            return redirect()
+                ->route('dashboard')
+                ->with('info', 'That company is not in the selected category.');
+        }
+
         $this->entityContext->set($request->user(), (int) $entity->id);
+        $this->businessSector->set($entitySector);
 
         return redirect()->route('workspace');
     }

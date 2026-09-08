@@ -103,7 +103,7 @@
 </div>
 
 <p style="margin-top: 20px;">
-    <button type="submit" style="padding: 10px 24px; background: #212d3e; color: #fff; border: none; border-radius: 5px; cursor: pointer;">
+    <button type="submit" style="padding: 10px 24px; background: #0b1f3a; color: #fff; border: none; border-radius: 5px; cursor: pointer;">
         {{ ($isEdit ?? false) ? 'Save access' : 'Add user' }}
     </button>
 </p>

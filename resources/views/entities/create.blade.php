@@ -21,6 +21,14 @@
     <div class="card">
         <label for="name">Entity Name *</label>
         <input type="text" name="name" id="name" value="{{ old('name') }}" placeholder="Enter entity name" required>
+
+        <label for="business_type" style="margin-top: 16px; display: block;">Business Type *</label>
+        <select name="business_type" id="business_type" required>
+            <option value="">Select type</option>
+            <option value="trading" @selected(old('business_type') === 'trading')>Trading</option>
+            <option value="construction" @selected(old('business_type', 'construction') === 'construction')>Construction</option>
+        </select>
+        <p style="margin: 8px 0 0; color: #64748b; font-size: 0.85rem;">This decides whether the company appears under Trading or Construction on Home.</p>
     </div>
 
     <div style="margin-top: 20px;">

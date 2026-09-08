@@ -40,8 +40,13 @@ class EntityController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate(['name' => 'required|string|max:255']);
-        Entity::create($request->only('name'));
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'business_type' => 'required|in:trading,construction',
+        ]);
+
+        Entity::create($validated);
+
         return redirect()->route('entities.index')->with('success', 'Entity created.');
     }
 
@@ -52,8 +57,13 @@ class EntityController extends Controller
 
     public function update(Request $request, Entity $entity)
     {
-        $request->validate(['name' => 'required|string|max:255']);
-        $entity->update($request->only('name'));
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'business_type' => 'required|in:trading,construction',
+        ]);
+
+        $entity->update($validated);
+
         return redirect()->route('entities.index')->with('success', 'Entity updated.');
     }
 

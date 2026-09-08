@@ -135,7 +135,7 @@
     .versions-modal-card h3 {
         margin: 0 0 6px;
         font-size: 1.15rem;
-        color: #212d3e;
+        color: #0b1f3a;
     }
 
     .versions-modal-file {
@@ -195,7 +195,7 @@
     .share-modal-card h3 {
         margin: 0 0 6px;
         font-size: 1.15rem;
-        color: #212d3e;
+        color: #0b1f3a;
     }
 
     .share-modal-file {
@@ -369,8 +369,8 @@
     }
 
     .share-modal-send {
-        background: #212d3e;
-        border: 1px solid #212d3e;
+        background: #0b1f3a;
+        border: 1px solid #0b1f3a;
         color: #fff;
     }
 

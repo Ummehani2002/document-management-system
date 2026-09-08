@@ -13,6 +13,8 @@
             --navy: #0b1f3a;
             --navy-hover: #163a66;
             --navy-soft: #1e4d7b;
+            --accent: #3b82f6;
+            --accent-dark: #1d4ed8;
             --gold: #3b82f6;
             --gold-dark: #1d4ed8;
             --green: #15803d;
@@ -23,8 +25,10 @@
             --border: #e2e8f0;
             --text: #0b1f3a;
             --text-muted: #64748b;
-            --sidebar-text: #0b1f3a;
-            --sidebar-muted: #64748b;
+            --sidebar-bg: #0b1f3a;
+            --sidebar-text: #e2e8f0;
+            --sidebar-muted: #94a3b8;
+            --sidebar-active: #1e4d7b;
             --header-top-h: 58px;
             --header-nav-h: 52px;
         }
@@ -67,13 +71,13 @@
         }
 
         .dms-header {
-            background: var(--bg-card);
-            color: var(--text);
+            background: var(--navy);
+            color: #fff;
             position: sticky;
             top: 0;
             z-index: 100;
-            box-shadow: 0 1px 0 var(--border);
-            border-bottom: 1px solid var(--border);
+            box-shadow: 0 2px 12px rgba(11, 31, 58, 0.28);
+            border-bottom: none;
         }
 
         .dms-topbar {
@@ -83,8 +87,8 @@
             gap: 20px;
             min-height: var(--header-top-h);
             padding: 0 28px;
-            background: var(--bg-card);
-            border-bottom: 1px solid var(--border);
+            background: var(--navy);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .dms-brand {
@@ -117,9 +121,9 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: #c5a059;
-            color: #1e293b;
-            border-color: #c5a059;
+            background: var(--accent-dark);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.35);
             font-size: 0.72rem;
             font-weight: 700;
             letter-spacing: 0.02em;
@@ -136,7 +140,7 @@
             font-weight: 700;
             letter-spacing: 0.01em;
             line-height: 1.25;
-            color: var(--text);
+            color: #fff;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -148,7 +152,7 @@
             font-weight: 600;
             letter-spacing: 0.01em;
             line-height: 1.25;
-            color: var(--text-muted);
+            color: rgba(255, 255, 255, 0.72);
         }
 
         .dms-topbar-right {
@@ -164,9 +168,9 @@
             gap: 8px;
             padding: 7px 14px;
             border-radius: 999px;
-            background: var(--bg-page);
-            border: 1px solid var(--border);
-            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            color: rgba(255, 255, 255, 0.85);
             font-size: 0.78rem;
             font-weight: 500;
             white-space: nowrap;
@@ -175,14 +179,14 @@
         .dms-date-pill svg {
             width: 14px;
             height: 14px;
-            color: var(--gold);
+            color: var(--accent);
             flex-shrink: 0;
         }
 
         .dms-topbar-divider {
             width: 1px;
             height: 28px;
-            background: var(--border);
+            background: rgba(255, 255, 255, 0.18);
             margin: 0 16px;
         }
 
@@ -207,7 +211,7 @@
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            background: var(--green);
+            background: var(--accent-dark);
             color: #fff;
             display: inline-flex;
             align-items: center;
@@ -216,14 +220,14 @@
             font-weight: 700;
             letter-spacing: 0.03em;
             flex-shrink: 0;
-            border: 2px solid #fff;
-            box-shadow: 0 0 0 1px var(--border);
+            border: 2px solid rgba(255, 255, 255, 0.85);
+            box-shadow: none;
             transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
 
         .dms-user-dropdown[open] .dms-user-avatar,
         .dms-user-dropdown > summary:hover .dms-user-avatar {
-            border-color: var(--gold);
+            border-color: var(--accent);
         }
 
         .dms-user-dropdown-panel {
@@ -254,8 +258,8 @@
         }
 
         .dms-logout-btn:hover {
-            background: #f8fafc;
-            color: var(--gold-dark);
+            background: #f1f5f9;
+            color: var(--accent-dark);
         }
 
         .dms-nav {
@@ -266,21 +270,21 @@
             gap: 4px 0;
             min-height: var(--header-nav-h);
             padding: 0 20px;
-            background: var(--bg-page);
-            border-bottom: 1px solid var(--border);
+            background: #0a1a31;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .dms-nav-link {
             display: inline-block;
             padding: 14px 18px 12px;
-            color: var(--text-muted);
+            color: rgba(255, 255, 255, 0.72);
             text-decoration: none;
             font-size: 0.72rem;
             font-weight: 600;
             letter-spacing: 0.1em;
             text-transform: uppercase;
             border-bottom: 3px solid transparent;
-            transition: color 0.15s, border-color 0.15s;
+            transition: color 0.15s, border-color 0.15s, background 0.15s;
             white-space: nowrap;
         }
 
@@ -296,15 +300,16 @@
             cursor: pointer;
             font-family: inherit;
             appearance: none;
+            color: rgba(255, 255, 255, 0.72);
         }
 
         .dms-nav-link:hover {
-            color: var(--gold-dark);
+            color: #fff;
         }
 
         .dms-nav-link.is-active {
-            border-bottom-color: var(--gold);
-            color: var(--text);
+            border-bottom-color: var(--accent);
+            color: #fff;
         }
 
         .dms-entity-badge {
@@ -313,9 +318,9 @@
             margin-left: 12px;
             padding: 4px 10px;
             border-radius: 999px;
-            background: #fef9ef;
-            border: 1px solid rgba(197, 160, 89, 0.45);
-            color: var(--gold-dark);
+            background: rgba(59, 130, 246, 0.18);
+            border: 1px solid rgba(147, 197, 253, 0.45);
+            color: #bfdbfe;
             font-size: 0.65rem;
             font-weight: 600;
             letter-spacing: 0.06em;
@@ -334,9 +339,9 @@
 
         button.dms-switch-company-btn,
         .dms-switch-company-btn {
-            background: #fff !important;
-            color: #1e293b !important;
-            border: 1px solid #cbd5e1 !important;
+            background: rgba(255, 255, 255, 0.1) !important;
+            color: #fff !important;
+            border: 1px solid rgba(255, 255, 255, 0.28) !important;
             border-radius: 999px;
             padding: 6px 12px !important;
             font-size: 0.72rem;
@@ -348,9 +353,9 @@
 
         button.dms-switch-company-btn:hover,
         .dms-switch-company-btn:hover {
-            background: #f8fafc !important;
-            border-color: var(--gold) !important;
-            color: #1e293b !important;
+            background: rgba(255, 255, 255, 0.18) !important;
+            border-color: var(--accent) !important;
+            color: #fff !important;
         }
 
         @media (max-width: 1100px) {
@@ -468,8 +473,8 @@
         .sidebar {
             width: 215px;
             min-width: 215px;
-            background: var(--bg-page);
-            border-right: 1px solid var(--border);
+            background: var(--sidebar-bg);
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
             padding: 16px;
             overflow-y: auto;
             display: flex;
@@ -496,8 +501,8 @@
         .sidebar .folder-toggle {
             width: 100%;
             text-align: left;
-            border: 1px solid var(--border);
-            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.04);
             color: var(--sidebar-text);
             border-radius: 10px;
             padding: 12px 14px;
@@ -509,8 +514,8 @@
         }
 
         .sidebar .folder-toggle:hover {
-            background: #f1f5f9;
-            border-color: #cbd5e1;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(147, 197, 253, 0.35);
         }
 
         .sidebar .folder-toggle .caret {
@@ -519,9 +524,9 @@
         }
 
         .sidebar .folder-toggle.active {
-            background: #f1f5f9;
-            border-color: var(--gold);
-            color: var(--text);
+            background: var(--sidebar-active);
+            border-color: var(--accent);
+            color: #fff;
         }
 
         .folder-blocks-main {
@@ -581,16 +586,16 @@
         }
 
         .folder-blocks-main .folder-block-card a:hover {
-            border-color: rgba(196, 164, 124, 0.85);
-            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
+            border-color: var(--accent);
+            box-shadow: 0 8px 22px rgba(29, 78, 216, 0.14);
             transform: scale(1.06);
             color: var(--navy) !important;
         }
 
         .folder-blocks-main .folder-block-card a.is-active {
-            border-color: var(--gold);
+            border-color: var(--accent-dark);
             background: #fff;
-            box-shadow: 0 0 0 2px rgba(196, 164, 124, 0.35);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.28);
         }
 
         .folder-blocks-main .folder-block-icon {

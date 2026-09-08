@@ -14,7 +14,7 @@
 </p>
 
 <p style="margin-bottom: 20px;">
-    <a href="{{ route('user-access.create') }}" style="display:inline-block; padding:10px 18px; background:#212d3e; color:#fff; text-decoration:none; border-radius:5px;">
+    <a href="{{ route('user-access.create') }}" style="display:inline-block; padding:10px 18px; background:#0b1f3a; color:#fff; text-decoration:none; border-radius:5px;">
         + Add user
     </a>
 </p>

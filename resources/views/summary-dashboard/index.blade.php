@@ -191,7 +191,7 @@
                         Click a main folder to see its document types.
                     </p>
                     @if((int) $selectedProjectId > 0)
-                        <p style="margin:8px 0 0; color:#212d3e; font-size:1rem; font-weight:600;">
+                        <p style="margin:8px 0 0; color:#0b1f3a; font-size:1rem; font-weight:600;">
                             Project document count: {{ number_format($categoryTabTotal) }}
                         </p>
                     @endif
@@ -233,12 +233,12 @@
         }
 
         .dash-tab:hover {
-            color: #212d3e;
+            color: #0b1f3a;
         }
 
         .dash-tab.is-active {
-            color: #212d3e;
-            border-bottom-color: #c4a47c;
+            color: #0b1f3a;
+            border-bottom-color: #3b82f6;
             background: #fff;
         }
 
@@ -274,7 +274,7 @@
             align-items: center;
             padding: 10px 14px;
             border-radius: 8px;
-            background: #212d3e;
+            background: #0b1f3a;
             color: #fff;
             text-decoration: none;
             font-size: 0.9rem;

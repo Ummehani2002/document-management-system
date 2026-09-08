@@ -27,8 +27,8 @@ class EntityContextTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole('Admin');
 
-        Entity::create(['name' => 'Metaline LLC']);
-        Entity::create(['name' => 'Proscape Infra']);
+        Entity::create(['name' => 'Metaline LLC', 'business_type' => 'trading']);
+        Entity::create(['name' => 'Proscape Infra', 'business_type' => 'construction']);
 
         $this->actingAs($admin)
             ->get(route('dashboard'))
@@ -45,10 +45,10 @@ class EntityContextTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole('Admin');
 
-        Entity::create(['name' => 'Metaline LLC']);
-        Entity::create(['name' => 'Tanseeq LLC']);
-        Entity::create(['name' => 'Stones and Slates LLC']);
-        Entity::create(['name' => 'Proscape Infra']);
+        Entity::create(['name' => 'Metaline LLC', 'business_type' => 'trading']);
+        Entity::create(['name' => 'Tanseeq LLC', 'business_type' => 'trading']);
+        Entity::create(['name' => 'Stones and Slates LLC', 'business_type' => 'trading']);
+        Entity::create(['name' => 'Proscape Infra', 'business_type' => 'construction']);
 
         $this->actingAs($admin)
             ->post(route('dashboard.sector'), ['sector' => 'trading'])
@@ -68,9 +68,9 @@ class EntityContextTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole('Admin');
 
-        Entity::create(['name' => 'Metaline LLC']);
-        Entity::create(['name' => 'Proscape Infra']);
-        Entity::create(['name' => 'Water in Motion']);
+        Entity::create(['name' => 'Metaline LLC', 'business_type' => 'trading']);
+        Entity::create(['name' => 'Proscape Infra', 'business_type' => 'construction']);
+        Entity::create(['name' => 'Water in Motion', 'business_type' => 'construction']);
 
         $this->actingAs($admin)
             ->post(route('dashboard.sector'), ['sector' => 'construction'])
@@ -87,8 +87,8 @@ class EntityContextTest extends TestCase
     public function test_user_sees_only_assigned_entities_after_sector_select(): void
     {
         $user = User::factory()->create();
-        $assigned = Entity::create(['name' => 'Metaline LLC']);
-        Entity::create(['name' => 'Tanseeq LLC']);
+        $assigned = Entity::create(['name' => 'Metaline LLC', 'business_type' => 'trading']);
+        Entity::create(['name' => 'Tanseeq LLC', 'business_type' => 'trading']);
 
         UserEntityAccess::create([
             'user_id' => $user->id,

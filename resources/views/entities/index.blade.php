@@ -9,7 +9,7 @@
     <div class="success">{{ session('success') }}</div>
 @endif
 
-<p style="margin-bottom: 16px;"><a href="{{ route('entities.create') }}" style="display: inline-block; padding: 10px 20px; background: #212d3e; color: white; text-decoration: none; border-radius: 5px;">Add Entity</a></p>
+<p style="margin-bottom: 16px;"><a href="{{ route('entities.create') }}" style="display: inline-block; padding: 10px 20px; background: #0b1f3a; color: white; text-decoration: none; border-radius: 5px;">Add Entity</a></p>
 
 @if($entities->isEmpty())
     <div class="card">
@@ -21,6 +21,7 @@
             <thead>
                 <tr>
                     <th>Entity</th>
+                    <th>Type</th>
                     <th>Projects</th>
                     <th class="text-right">Actions</th>
                 </tr>
@@ -29,6 +30,7 @@
                 @foreach ($entities as $entity)
                     <tr>
                         <td><strong>{{ $entity->name }}</strong></td>
+                        <td>{{ $entity->businessTypeLabel() }}</td>
                         <td>{{ $entity->projects_count }} project(s)</td>
                         <td class="text-right" style="white-space: nowrap;">
                             <form action="{{ route('entities.enter', $entity) }}" method="POST" style="display:inline;">

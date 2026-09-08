@@ -4,7 +4,6 @@
     <div class="home-hero">
         <div class="home-hero-copy">
             <h2>Welcome to Document Management System</h2>
-            <p>Choose your business type, then open a company to manage documents securely.</p>
         </div>
     </div>
 
@@ -42,7 +41,6 @@
                 <span class="home-step-num">1</span>
                 <div>
                     <h3>Select Category</h3>
-                    <p>Choose Trading or Construction to see related companies.</p>
                 </div>
             </div>
 
@@ -132,8 +130,6 @@
         </div>
     @endif
 
-    <p class="home-tagline">Better Documents | Better Decisions | A More Efficient Tomorrow.</p>
-
     <style>
         .home-hero {
             background: linear-gradient(120deg, #0b1f3a 0%, #163a66 55%, #1e4d7b 100%);
@@ -179,17 +175,10 @@
             font-size: 0.85rem;
         }
         .home-hero-copy h2 {
-            margin: 0 0 8px;
+            margin: 0;
             font-size: 1.45rem;
             font-weight: 600;
             color: #fff;
-        }
-        .home-hero-copy p {
-            margin: 0;
-            max-width: 520px;
-            color: rgba(255, 255, 255, 0.85);
-            font-size: 0.95rem;
-            line-height: 1.5;
         }
         .home-step {
             margin-bottom: 28px;
@@ -443,13 +432,6 @@
         .entity-card-arrow {
             color: #1d4ed8;
             font-size: 1rem;
-        }
-        .home-tagline {
-            text-align: center;
-            color: #64748b;
-            font-size: 0.85rem;
-            margin: 32px 0 8px;
-            letter-spacing: 0.02em;
         }
     </style>
 @endsection
