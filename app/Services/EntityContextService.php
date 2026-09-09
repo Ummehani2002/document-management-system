@@ -82,7 +82,7 @@ class EntityContextService
             }
         }
 
-        return $query->get(['id', 'name']);
+        return $query->get();
     }
 
     /**

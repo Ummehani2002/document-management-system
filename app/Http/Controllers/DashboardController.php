@@ -50,8 +50,9 @@ class DashboardController extends Controller
             ];
         });
 
-        $tradingCount = $this->businessSector->filterEntities($allEntities, BusinessSectorService::TRADING)->count();
-        $constructionCount = $this->businessSector->filterEntities($allEntities, BusinessSectorService::CONSTRUCTION)->count();
+        $sectorCounts = $this->businessSector->countsForEntities($allEntities);
+        $tradingCount = $sectorCounts[BusinessSectorService::TRADING];
+        $constructionCount = $sectorCounts[BusinessSectorService::CONSTRUCTION];
 
         return view('dashboard', [
             'totalDocuments' => $totalDocuments,

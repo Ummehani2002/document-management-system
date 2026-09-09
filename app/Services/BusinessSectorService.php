@@ -55,9 +55,34 @@ class BusinessSectorService
 
     public function sectorForEntity(Entity $entity): string
     {
-        $type = (string) ($entity->business_type ?? '');
+        $type = mb_strtolower(trim((string) ($entity->getAttribute('business_type') ?? '')));
 
-        return in_array($type, self::all(), true) ? $type : self::CONSTRUCTION;
+        if (in_array($type, self::all(), true)) {
+            return $type;
+        }
+
+        // Fallback if column missing/empty on older rows.
+        return $this->sectorForEntityName((string) $entity->name);
+    }
+
+    public function sectorForEntityName(string $name): string
+    {
+        $key = mb_strtolower(trim($name));
+        $key = preg_replace('/\s+/', ' ', $key) ?? $key;
+
+        if (str_contains($key, 'metaline')) {
+            return self::TRADING;
+        }
+
+        if (str_contains($key, 'stones') && str_contains($key, 'slates')) {
+            return self::TRADING;
+        }
+
+        if (str_contains($key, 'tanseeq llc') || $key === 'tanseeq') {
+            return self::TRADING;
+        }
+
+        return self::CONSTRUCTION;
     }
 
     /**
@@ -75,5 +100,29 @@ class BusinessSectorService
         return $entities
             ->filter(fn (Entity $entity) => $this->sectorForEntity($entity) === $sector)
             ->values();
+    }
+
+    /**
+     * Count accessible entities per sector (DB-backed).
+     *
+     * @return array{trading: int, construction: int}
+     */
+    public function countsForEntities(Collection $entities): array
+    {
+        $trading = 0;
+        $construction = 0;
+
+        foreach ($entities as $entity) {
+            if ($this->sectorForEntity($entity) === self::TRADING) {
+                $trading++;
+            } else {
+                $construction++;
+            }
+        }
+
+        return [
+            self::TRADING => $trading,
+            self::CONSTRUCTION => $construction,
+        ];
     }
 }
