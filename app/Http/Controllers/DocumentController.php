@@ -644,9 +644,18 @@ class DocumentController extends Controller
 
                 foreach ($tokens as $token) {
                     $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $token) . '%';
-                    $query->where(function ($q) use ($like) {
-                        $q->whereRaw('LOWER(ocr_text) LIKE LOWER(?)', [$like])
-                          ->orWhereRaw('LOWER(file_name) LIKE LOWER(?)', [$like])
+                    $useFullText = $this->supportsOcrFullText();
+                    $query->where(function ($q) use ($like, $token, $useFullText) {
+                        if ($useFullText) {
+                            $q->whereRaw(
+                                'MATCH(ocr_text) AGAINST (? IN BOOLEAN MODE)',
+                                [$this->toFullTextBooleanTerm($token)]
+                            )->orWhereRaw('LOWER(ocr_text) LIKE LOWER(?)', [$like]);
+                        } else {
+                            $q->whereRaw('LOWER(ocr_text) LIKE LOWER(?)', [$like]);
+                        }
+
+                        $q->orWhereRaw('LOWER(file_name) LIKE LOWER(?)', [$like])
                           ->orWhereRaw('LOWER(document_type) LIKE LOWER(?)', [$like])
                           ->orWhereRaw('LOWER(COALESCE(discipline, \'\')) LIKE LOWER(?)', [$like])
                           ->orWhereHas('entity', fn ($eq) => $eq->whereRaw('LOWER(name) LIKE LOWER(?)', [$like]))
@@ -656,9 +665,7 @@ class DocumentController extends Controller
                               ->orWhereRaw('LOWER(COALESCE(client_name, \'\')) LIKE LOWER(?)', [$like])
                               ->orWhereRaw('LOWER(COALESCE(consultant, \'\')) LIKE LOWER(?)', [$like])
                               ->orWhereRaw('LOWER(COALESCE(project_manager, \'\')) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(COALESCE(project_manager_email, \'\')) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(COALESCE(document_controller, \'\')) LIKE LOWER(?)', [$like])
-                              ->orWhereRaw('LOWER(COALESCE(document_controller_email, \'\')) LIKE LOWER(?)', [$like]));
+                              ->orWhereRaw('LOWER(COALESCE(document_controller, \'\')) LIKE LOWER(?)', [$like]));
                     });
                 }
             }
@@ -1268,6 +1275,25 @@ class DocumentController extends Controller
             return;
         }
         ProcessOCR::dispatch($documentId, $preserveFolder)->afterResponse();
+    }
+
+    protected function supportsOcrFullText(): bool
+    {
+        return in_array(Document::query()->getConnection()->getDriverName(), ['mysql', 'mariadb'], true);
+    }
+
+    /**
+     * Build a MySQL BOOLEAN MODE term for keyword search.
+     */
+    protected function toFullTextBooleanTerm(string $token): string
+    {
+        $clean = preg_replace('/[^\p{L}\p{N}\-_]+/u', '', $token) ?? '';
+        $clean = trim($clean);
+        if ($clean === '') {
+            return '""';
+        }
+
+        return '+'.$clean.'*';
     }
 
     /**

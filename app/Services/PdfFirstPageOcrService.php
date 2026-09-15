@@ -2,15 +2,38 @@
 
 namespace App\Services;
 
+use Smalot\PdfParser\Parser as SmalotPdfParser;
 use Spatie\PdfToText\Pdf;
 
 /**
- * Extract text from the first page of a PDF.
- * Uses pdftotext first; if the page is image-only (scanned), falls back to
- * rendering the page to an image and running Tesseract OCR.
+ * Extract searchable / classification text from PDFs.
+ * Prefers pdftotext; falls back to PHP PdfParser, then Tesseract for image-only pages.
  */
 class PdfFirstPageOcrService
 {
+    public const SEARCH_MAX_CHARS = 200000;
+
+    public const SEARCH_MAX_PAGES = 12;
+
+    /**
+     * Broader extraction for keyword search (more pages + PHP fallback).
+     */
+    public function extractTextForSearch(string $pdfPath): string
+    {
+        $text = $this->extractWithPdftotextPageRange($pdfPath, 1, self::SEARCH_MAX_PAGES);
+        if ($this->isUsableText($text)) {
+            return $this->limitText($text);
+        }
+
+        $text = $this->extractWithSmalot($pdfPath);
+        if ($this->isUsableText($text)) {
+            return $this->limitText($text);
+        }
+
+        // Last resort: first-page OCR for scanned PDFs.
+        return $this->limitText($this->extractFirstPageText($pdfPath));
+    }
+
     /**
      * Text extraction used for classification:
      * first page attempts, then a broader whole-document parser fallback.
@@ -27,6 +50,11 @@ class PdfFirstPageOcrService
         $text = $this->extractWithPdftotextPageRange($pdfPath, 1, 3);
         if (trim($text) !== '') {
             return $text;
+        }
+
+        $text = $this->extractWithSmalot($pdfPath, 3);
+        if (trim($text) !== '') {
+            return $this->limitText($text, 20000);
         }
 
         // Scanned / image-only: render first page and run Tesseract (unchanged).
@@ -71,8 +99,64 @@ class PdfFirstPageOcrService
                 ->text();
         } catch (\Throwable $e) {
             \Log::debug('PdfFirstPageOcr: pdftotext failed', ['path' => $pdfPath, 'error' => $e->getMessage()]);
+
             return '';
         }
+    }
+
+    /**
+     * Pure-PHP fallback (works when pdftotext/poppler is not installed on the host).
+     */
+    protected function extractWithSmalot(string $pdfPath, ?int $maxPages = null): string
+    {
+        try {
+            $parser = new SmalotPdfParser();
+            $pdf = $parser->parseFile($pdfPath);
+            $pages = $pdf->getPages();
+            if ($pages === []) {
+                return '';
+            }
+
+            $limit = $maxPages ?? self::SEARCH_MAX_PAGES;
+            $chunks = [];
+            foreach (array_slice($pages, 0, max(1, $limit)) as $page) {
+                $chunks[] = (string) $page->getText();
+            }
+
+            return trim(implode("\n", $chunks));
+        } catch (\Throwable $e) {
+            \Log::debug('PdfFirstPageOcr: smalot pdfparser failed', [
+                'path' => $pdfPath,
+                'error' => $e->getMessage(),
+            ]);
+
+            return '';
+        }
+    }
+
+    protected function isUsableText(string $text): bool
+    {
+        $trimmed = trim($text);
+        if ($trimmed === '') {
+            return false;
+        }
+
+        // Ignore tiny junk extractions.
+        return mb_strlen(preg_replace('/\s+/', '', $trimmed) ?? '') >= 12;
+    }
+
+    protected function limitText(string $text, int $max = self::SEARCH_MAX_CHARS): string
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return '';
+        }
+
+        if (mb_strlen($text) <= $max) {
+            return $text;
+        }
+
+        return mb_substr($text, 0, $max);
     }
 
     /**
@@ -84,6 +168,7 @@ class PdfFirstPageOcrService
         $tempDir = sys_get_temp_dir() . '/dms_ocr_' . substr(md5($pdfPath), 0, 8);
         if (!@mkdir($tempDir, 0700, true) && !is_dir($tempDir)) {
             \Log::warning('PdfFirstPageOcr: could not create temp dir', ['dir' => $tempDir]);
+
             return '';
         }
 
@@ -110,7 +195,6 @@ class PdfFirstPageOcrService
         }
     }
 
-
     protected function renderFirstPageToPng(string $pdfPath, string $tempDir, string $imagePath): ?string
     {
         // 1) pdftoppm (poppler-utils)
@@ -118,7 +202,6 @@ class PdfFirstPageOcrService
             'pdftoppm -png -f 1 -l 1 -r 300 %s %s 2>&1',
             escapeshellarg($pdfPath),
             escapeshellarg($imagePath)
-            
         );
         exec($cmd, $out, $ret);
         if ($ret === 0) {
@@ -148,6 +231,7 @@ class PdfFirstPageOcrService
         }
 
         \Log::debug('PdfFirstPageOcr: could not render PDF to image (tried pdftoppm and ImageMagick)');
+
         return null;
     }
 
@@ -164,9 +248,11 @@ class PdfFirstPageOcrService
         if ($ret === 0 && file_exists($txtFile)) {
             $text = file_get_contents($txtFile);
             @unlink($txtFile);
+
             return $text ?: '';
         }
         \Log::debug('PdfFirstPageOcr: tesseract failed', ['return' => $ret, 'output' => implode("\n", $output ?? [])]);
+
         return '';
     }
 }

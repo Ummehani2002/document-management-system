@@ -14,7 +14,7 @@ class IndexDocumentOcr extends Command
         {--project= : Limit to project_id}
         {--id=* : Limit to document id(s), repeatable}';
 
-    protected $description = 'Index first page of PDFs: dispatch OCR for documents with empty ocr_text, or run sync to process now.';
+    protected $description = 'Index PDF/Office text into ocr_text for keyword search. Uses broader page extraction and PHP PDF fallback when available.';
 
     public function handle(): int
     {

@@ -62,7 +62,12 @@ class ProcessOCR implements ShouldQueue
 
                 $text = '';
                 if ($ext === 'pdf') {
-                    $text = app(PdfFirstPageOcrService::class)->extractTextForClassification($tempPath);
+                    // Prefer broader extraction so keyword search finds body text
+                    // (e.g. material descriptions), not only the title block.
+                    $text = app(PdfFirstPageOcrService::class)->extractTextForSearch($tempPath);
+                    if (trim($text) === '') {
+                        $text = app(PdfFirstPageOcrService::class)->extractTextForClassification($tempPath);
+                    }
                 } elseif (in_array($ext, ['docx', 'xlsx', 'doc', 'xls'], true)) {
                     $text = app(OfficeDocumentTextExtractionService::class)->extractText($tempPath, $ext);
                 }

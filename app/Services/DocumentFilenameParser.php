@@ -107,10 +107,25 @@ class DocumentFilenameParser
         if (self::textLooksLikeTestingAndCommissioningLoose($normalized)) {
             return 'Testing And Commissioning';
         }
+        // Title-style memo / award / shop-drawing must beat incidental BOQ / EI legend text in the body.
+        if (self::looksLikeInternalMemo($normalized)) {
+            return 'Internal Memo';
+        }
+        if (preg_match('/PROJECT\s+AWARD\s+NOTIFICATION|\bPAN\s*REPORT\b|\bPANREPORT\b|\(\s*PAN\s*\)/iu', $normalized)) {
+            return 'Project Award Notification';
+        }
+        if (preg_match('/SHOP\s*DRAWING|(?:^|[^A-Z0-9])SDR(?:[^A-Z0-9]|$)|(?:^|[^A-Z0-9])SD(?:[^A-Z0-9]|$)/iu', $normalized)
+            && ! preg_match('/SD\s*=\s*SHOP/iu', $normalized)) {
+            // Prefer SD/SDR when it looks like a real drawing code, not a form legend.
+            if (preg_match('/SHOP\s*DRAWING|(?:^|[^A-Z0-9])SDR(?:[^A-Z0-9]|$)|(?:^|[^A-Z0-9])SD[-_]\d/iu', $normalized)) {
+                return 'Shop Drawing';
+            }
+        }
         if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $normalized)) {
             return 'Taking Over Certificate';
         }
-        if (preg_match('/ENGINEER\S*\s*INSTRUCTION|(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)/i', $normalized)) {
+        // Require the phrase — bare "EI" / legend lines match drawings too often.
+        if (self::looksLikeEngineersInstructionDocument($normalized)) {
             return 'Engineers Instruction';
         }
         if (preg_match('/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)/i', $normalized)) {
@@ -125,9 +140,6 @@ class DocumentFilenameParser
         if (self::textLooksLikeMaterialSubmittal($normalized)) {
             return 'Material Submittal';
         }
-        if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $normalized)) {
-            return 'BOQ Bill Of Quantities';
-        }
         $window = substr($normalized, 0, 14000);
 
         // OCR order: title/header first, then explicit subject (filename handled in classifyForAutomation).
@@ -140,8 +152,11 @@ class DocumentFilenameParser
             return $subjectCategory;
         }
 
-        if (preg_match('/PROJECT\s+AWARD\s+NOTIFICATION|\(\s*PAN\s*\)/iu', $window)) {
+        if (preg_match('/PROJECT\s+AWARD\s+NOTIFICATION|\bPAN\s*REPORT\b|\bPANREPORT\b|\(\s*PAN\s*\)/iu', $window)) {
             return 'Project Award Notification';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $window)) {
+            return 'BOQ Bill Of Quantities';
         }
         if (preg_match('/PAYMENT\s*CERTI(?:FICATE|ACATE)|SUBCONTRACTOR\s*PAYMENT\s*CERTI|CERTIFICATE\s*NO\.?\s*[:\-]/iu', $window)) {
             return 'Payment Certificate';
@@ -168,7 +183,7 @@ class DocumentFilenameParser
                 if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $normalized)) {
                     return 'Taking Over Certificate';
                 }
-                if (preg_match('/ENGINEER\S*\s*INSTRUCTION|(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)/i', $normalized)) {
+                if (self::looksLikeEngineersInstructionDocument($normalized)) {
                     return 'Engineers Instruction';
                 }
                 if (preg_match('/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)/i', $normalized)) {
@@ -218,7 +233,17 @@ class DocumentFilenameParser
         if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $normalized)) {
             return 'Taking Over Certificate';
         }
-        if (preg_match('/ENGINEER\S*\s*INSTRUCTION|(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)/i', $normalized)) {
+        if (self::looksLikeInternalMemo($normalized)) {
+            return 'Internal Memo';
+        }
+        if (preg_match('/PROJECT\s+AWARD\s+NOTIFICATION|\bPAN\s*REPORT\b|\bPANREPORT\b|\(\s*PAN\s*\)/iu', $normalized)) {
+            return 'Project Award Notification';
+        }
+        if (preg_match('/SHOP\s*DRAWING|(?:^|[^A-Z0-9])SDR(?:[^A-Z0-9]|$)|(?:^|[^A-Z0-9])SD[-_]\d/iu', $normalized)) {
+            return 'Shop Drawing';
+        }
+        // Require the phrase — bare "EI" matches drawing legends too often.
+        if (self::looksLikeEngineersInstructionDocument($normalized)) {
             return 'Engineers Instruction';
         }
         if (preg_match('/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)/i', $normalized)) {
@@ -233,9 +258,7 @@ class DocumentFilenameParser
         if (self::textLooksLikeMaterialSubmittal($normalized)) {
             return 'Material Submittal';
         }
-        if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $normalized)) {
-            return 'BOQ Bill Of Quantities';
-        }
+        // Do not match bare BOQ here — headings-only should stay title/subject driven.
         $window = substr($normalized, 0, 14000);
         $cat = self::detectCategoryFromTitle($window);
         if ($cat !== 'Other') {
@@ -400,6 +423,31 @@ class DocumentFilenameParser
             return true;
         }
         if (preg_match('/(^|\n)\s*MEMO\s*(?:\n|$)/u', $upper)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * True when OCR looks like an Engineers Instruction document, not a drawing legend.
+     */
+    protected static function looksLikeEngineersInstructionDocument(string $text): bool
+    {
+        $upper = strtoupper(self::normalizeOcrText($text));
+        // Strip abbreviation legends: "EI = Engineers Instruction", "SD = Shop Drawings".
+        $upper = preg_replace(
+            '/(?:^|\n)\s*(?:EI|SD|SDR|RFI|WIR|MIR|BOQ)\s*=\s*[^\n]+/u',
+            "\n",
+            $upper
+        ) ?? $upper;
+
+        if (preg_match('/(?:^|\n)\s*ENGINEER\S*\s*INSTRUCTION\b/u', $upper)) {
+            return true;
+        }
+
+        // Standalone EI register code (not legend).
+        if (preg_match('/(?:^|[^A-Z0-9])EI[-_\/ ]?\d{1,5}(?:[^A-Z0-9]|$)/u', $upper)) {
             return true;
         }
 
@@ -765,7 +813,7 @@ class DocumentFilenameParser
         $ocrHeadlineCategory = $ocr !== '' ? self::guessSubfolderFromOcrHeadingsOnly($ocr) : 'Other';
         $upperName = strtoupper(pathinfo($filename, PATHINFO_FILENAME));
         $hasStrongShopDrawingSignal = (bool) preg_match(
-            '/(?:^|[^A-Z0-9])SD(?:[^A-Z0-9]|$)|SHOP\s*DRAWING\s*SUBMITTAL|SHOP\s*DRAWING|\bDWG\b|(?:^|[^A-Z0-9])DS[-_]\d{2,}[-_]\d{2,}|CODE\s+[A-Z0-9]/iu',
+            '/(?:^|[^A-Z0-9])(?:SD|SDR)(?:[^A-Z0-9]|$)|SHOP\s*DRAWING\s*SUBMITTAL|SHOP\s*DRAWING|\bDWG\b|(?:^|[^A-Z0-9])DS[-_]\d{2,}[-_]\d{2,}|CODE\s+[A-Z0-9]/iu',
             $upperName
         );
         $hasStrongMethodSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:MS|MST|MSS|MOS|MTS)(?:[^A-Z0-9]|$)|METHOD\s*STATEMENT/u', $upperName);
@@ -782,8 +830,16 @@ class DocumentFilenameParser
         $hasStrongEiSignal = (bool) preg_match('/(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)|ENGINEER\S*\s*INSTRUCTION/i', $upperName);
         $hasStrongRfiSignal = (bool) preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $upperName);
         $hasStrongBoqSignal = (bool) preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $upperName);
-        $hasStrongPanReportSignal = (bool) preg_match('/PAN\s*REPORT|PANREPORT/u', $upperName);
-        $hasStrongReportSignal = (bool) preg_match('/(?:^|[^A-Z0-9])MPR(?:[^A-Z0-9]|$)|\bKPI\b|PAN\s*REPORT|PANREPORT|MONTHLY[\s\-_A-Z0-9]*REPORT|PROGRESS[\s\-_A-Z0-9]*REPORT|MAINTENANCE[\s\-_A-Z0-9]*REPORT|\bREPORT\b/u', $upperName);
+        $hasStrongPanAwardSignal = (bool) preg_match(
+            '/PROJECT\s+AWARD\s+NOTIFICATION|\bPAN\s*REPORT\b|\bPANREPORT\b|(?:^|[^A-Z0-9])PAN(?:[^A-Z0-9]|$)/u',
+            $upperName
+        );
+        $hasStrongPanReportSignal = $hasStrongPanAwardSignal;
+        $hasStrongReportSignal = (bool) preg_match(
+            '/(?:^|[^A-Z0-9])MPR(?:[^A-Z0-9]|$)|\bKPI\b|MONTHLY[\s\-_A-Z0-9]*REPORT|PROGRESS[\s\-_A-Z0-9]*REPORT|MAINTENANCE[\s\-_A-Z0-9]*REPORT/u',
+            $upperName
+        );
+        // Generic bare "REPORT" alone is weak; do not treat PANREPORT as monthly.
         $hasStrongPaymentCertificateSignal = (bool) preg_match('/PAYMENT\s*CERTI(?:FICATE|ACATE)|(?:^|[^A-Z0-9])PC[#\/\-\s]*\d{1,3}(?:[^A-Z0-9]|$)|SUBCONTRACTOR\s*PAYMENT\s*CERTI/u', $upperName);
         $hasStrongDlcSignal = (bool) preg_match('/DEFECTS?\s+LIABILITY\s+CERTIFICATE|\bDLC\b|REQUEST\s+FOR\s+DEFECTS?\s+LIABILITY/i', $upperName);
         $hasStrongVariationSignal = (bool) preg_match('/\bVARIATION\b|COST\s+VARIATION|VARIATION\s+FOR|DESIGN\s+CHANGE.*?VARIATION/i', $upperName);
@@ -804,7 +860,7 @@ class DocumentFilenameParser
         $hasStrongFilenameCode = $hasStrongShopDrawingSignal || $hasStrongMethodSignal
             || $hasStrongMaterialSignal || $hasStrongTransmittalSignal
             || $hasStrongMirSignal || $hasStrongWirSignal || $hasStrongEiSignal || $hasStrongRfiSignal || $hasStrongBoqSignal
-            || $hasStrongLetterRefSignal || $hasStrongPanReportSignal
+            || $hasStrongLetterRefSignal || $hasStrongPanAwardSignal
             || $hasStrongDlcSignal || $hasStrongVariationSignal
             || $hasStrongCviSignal || $hasStrongQorSignal
             || $hasStrongSorSonSignal || $hasStrongSiteIncidentSignal || $hasStrongTocSignal
@@ -959,6 +1015,7 @@ class DocumentFilenameParser
             'Material Submittal' => $hasStrongMaterialSignal,
             'Monthly Report' => $hasStrongReportSignal,
             'KPI Report' => $hasStrongReportSignal,
+            'Project Award Notification' => $hasStrongPanAwardSignal,
             'Payment Certificate' => $hasStrongPaymentCertificateSignal,
             'Defect Liability Certificate' => $hasStrongDlcSignal,
             'Variation' => $hasStrongVariationSignal,
@@ -1113,6 +1170,10 @@ class DocumentFilenameParser
         if (preg_match('/\bIMO\d{3,5}\/SM\/[A-Z]{2}\/\d{2,4}\b/u', $upper)) {
             return 'Internal Memo';
         }
+        // Project Award Notification / PAN — must win before Monthly Report / bare "REPORT".
+        if (preg_match('/PROJECT\s+AWARD\s+NOTIFICATION|\bPAN\s*REPORT\b|\bPANREPORT\b|\(\s*PAN\s*\)|(?:^|[^A-Z0-9])PAN(?:[^A-Z0-9]|$)/u', $upper)) {
+            return 'Project Award Notification';
+        }
         if (preg_match('/\bTENDER\b|\bTENDER\s+DOCUMENT/i', $upper)) {
             return 'Enquireis';
         }
@@ -1185,7 +1246,7 @@ class DocumentFilenameParser
         }
 
         $codeMatches = [];
-        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|EI|RFI|BOQ|MTS|MST|MSS|MOS|MT|SD|DS|DWG|ASB|ABS|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
+        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|EI|RFI|BOQ|MTS|MST|MSS|MOS|MT|SDR|SD|DS|DWG|ASB|ABS|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
         $codes = array_unique(array_map('strtoupper', $codeMatches[1] ?? []));
         $hasPrequalificationKeyword = (bool) preg_match('/PRE[\s\-]*QUALIF(?:ICATION|ICATIONS)?|\bPREQUAL\b|\bPREQ\b/i', $upper);
         $hasMethodKeyword = (bool) preg_match('/METHOD\s*STATEMENT|METHOD\s+OF\s+STATEMENT|METHOD\s*ST(?:\.|ATEMENT)?|STATEMENT\s+SUBMITTAL|\bMTS\b|\bMST\b|\bMSS\b|\bMOS\b/i', $upper);
@@ -1206,7 +1267,7 @@ class DocumentFilenameParser
         if (preg_match('/\bKPI\b|\bKEY\s*PERFORMANCE\s*INDICATOR\b/i', $upper)) {
             return 'KPI Report';
         }
-        if (preg_match('/(?:^|[^A-Z0-9])MPR(?:[^A-Z0-9]|$)|PAN\s*REPORT|PANREPORT|MONTHLY[\s\-_A-Z0-9]*REPORT|PROGRESS[\s\-_A-Z0-9]*REPORT|MAINTENANCE[\s\-_A-Z0-9]*REPORT/i', $upper)) {
+        if (preg_match('/(?:^|[^A-Z0-9])MPR(?:[^A-Z0-9]|$)|MONTHLY[\s\-_A-Z0-9]*REPORT|PROGRESS[\s\-_A-Z0-9]*REPORT|MAINTENANCE[\s\-_A-Z0-9]*REPORT/i', $upper)) {
             return 'Monthly Report';
         }
 
@@ -1251,7 +1312,7 @@ class DocumentFilenameParser
         if (in_array('ASB', $codes, true) || in_array('ABS', $codes, true)) {
             return 'As Built Drawing Submittal';
         }
-        if (in_array('SD', $codes, true)) {
+        if (in_array('SDR', $codes, true) || in_array('SD', $codes, true)) {
             return 'Shop Drawing';
         }
         if (in_array('DWG', $codes, true)) {
@@ -1285,7 +1346,7 @@ class DocumentFilenameParser
         if (preg_match('/AS\s*BUILT/i', $upper)) {
             return 'As Built Drawing Submittal';
         }
-        if (preg_match('/SHOP\s*DRAWING|\bDWG\b/i', $upper)) {
+        if (preg_match('/SHOP\s*DRAWING|\bDWG\b|(?:^|[^A-Z0-9])SDR(?:[^A-Z0-9]|$)/i', $upper)) {
             return 'Shop Drawing';
         }
         // "WORK INSPECTION REQUEST" contains INSPECTION+REQUEST — classify work before generic MIR phrase.
@@ -1344,15 +1405,15 @@ class DocumentFilenameParser
         if (preg_match('/MONTHLY\s*REPORT|PROGRESS\s*REPORT/i', $upper)) {
             return 'Monthly Report';
         }
-        // Fallback: when filename explicitly says "report" but no specialized report
-        // type was matched above, place under Monthly Report instead of Other.
-        if (preg_match('/\bREPORT\b/i', $upper)) {
+        // Fallback: generic "report" only when it is not a PAN / award notification.
+        if (preg_match('/\bREPORT\b/i', $upper)
+            && ! preg_match('/\bPAN\b|AWARD\s*NOTIFICATION/i', $upper)) {
             return 'Monthly Report';
         }
         if (preg_match('/PAYMENT\s*CERTI(?:FICATE|ACATE)|SUBCONTRACTOR\s*PAYMENT\s*CERTI|(?:^|[^A-Z0-9])PC[#\/\-\s]*\d{1,3}(?:[^A-Z0-9]|$)/i', $upper)) {
             return 'Payment Certificate';
         }
-        if (preg_match('/AWARD\s*NOTIFICATION/i', $upper)) {
+        if (preg_match('/AWARD\s*NOTIFICATION|\bPAN\b/i', $upper)) {
             return 'Project Award Notification';
         }
         if (preg_match('/SNAG/i', $upper)) {
