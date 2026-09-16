@@ -25,6 +25,7 @@ class TestAzureOcrCommand extends Command
 
         $this->info('Endpoint: '.rtrim((string) config('services.azure_ai.endpoint'), '/'));
         $this->info('Key configured: yes (length '.strlen((string) config('services.azure_ai.key')).')');
+        $this->info('Max bytes: '.(int) config('services.azure_ai.max_bytes'));
 
         $id = $this->option('id');
         $query = Document::query()->orderBy('id');
@@ -52,16 +53,23 @@ class TestAzureOcrCommand extends Command
             return self::FAILURE;
         }
 
-        $ext = strtolower(pathinfo((string) $document->file_name, PATHINFO_EXTENSION)) ?: 'pdf';
-        $tempPath = tempnam(sys_get_temp_dir(), 'dms_azure_test_').'.'.$ext;
-        file_put_contents($tempPath, Storage::disk($disk)->get($document->file_path));
-        $this->line('Downloaded bytes: '.filesize($tempPath));
+        $size = (int) Storage::disk($disk)->size($document->file_path);
+        $this->line('Storage bytes: '.$size);
 
         try {
-            $localText = $local->extractTextForSearch($tempPath);
-            $this->line('Local extractor chars: '.strlen(trim($localText)));
+            // Local extractor on a small sample only when file is manageable.
+            if ($size <= 25 * 1024 * 1024) {
+                $ext = strtolower(pathinfo((string) $document->file_name, PATHINFO_EXTENSION)) ?: 'pdf';
+                $tempPath = tempnam(sys_get_temp_dir(), 'dms_azure_test_').'.'.$ext;
+                file_put_contents($tempPath, Storage::disk($disk)->get($document->file_path));
+                $localText = $local->extractTextForSearch($tempPath);
+                @unlink($tempPath);
+                $this->line('Local extractor chars: '.strlen(trim($localText)));
+            } else {
+                $this->line('Local extractor skipped (file > 25MB).');
+            }
 
-            $azureText = $azure->extractTextFromFile($tempPath, 'application/pdf');
+            $azureText = $azure->extractTextFromStorage($disk, (string) $document->file_path, 'application/pdf');
             $this->line('Azure extractor chars: '.strlen(trim($azureText)));
 
             if (trim($azureText) !== '') {
@@ -79,8 +87,10 @@ class TestAzureOcrCommand extends Command
             $this->comment('If you see 401: regenerate the key and update AZURE_AI_KEY.');
 
             return self::FAILURE;
-        } finally {
-            @unlink($tempPath);
+        } catch (\Throwable $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
         }
     }
 }

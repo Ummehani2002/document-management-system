@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Azure Document Intelligence / Computer Vision Read for scanned PDFs.
@@ -32,6 +33,59 @@ class AzureDocumentIntelligenceService
     }
 
     /**
+     * Prefer a temporary storage URL for large cloud files; fall back to local bytes.
+     */
+    public function extractTextFromStorage(string $disk, string $path, string $mime = 'application/pdf'): string
+    {
+        $this->lastErrors = [];
+
+        if (! $this->enabled()) {
+            $this->lastErrors[] = 'Azure OCR not enabled.';
+
+            return '';
+        }
+
+        if (! Storage::disk($disk)->exists($path)) {
+            $this->lastErrors[] = 'Storage file missing: '.$path;
+
+            return '';
+        }
+
+        $size = (int) Storage::disk($disk)->size($path);
+        $maxBytes = (int) config('services.azure_ai.max_bytes', 100 * 1024 * 1024);
+        if ($size <= 0 || $size > $maxBytes) {
+            $msg = "Azure OCR skipped: file size {$size} exceeds max {$maxBytes}.";
+            $this->lastErrors[] = $msg;
+            Log::warning($msg, ['path' => $path]);
+
+            return '';
+        }
+
+        // Large PDFs: use urlSource (base64 JSON balloons memory and often fails above ~20MB).
+        $preferUrl = $size >= (int) config('services.azure_ai.url_min_bytes', 4 * 1024 * 1024);
+        if ($preferUrl) {
+            $url = $this->temporaryUrl($disk, $path);
+            if ($url !== null) {
+                $text = $this->analyzeViaUrl($url);
+                if (trim($text) !== '') {
+                    return $text;
+                }
+            } else {
+                $this->rememberError('Could not create temporary URL for large file; trying local upload.');
+            }
+        }
+
+        $binary = Storage::disk($disk)->get($path);
+        if (! is_string($binary) || $binary === '') {
+            $this->lastErrors[] = 'Could not read file bytes from storage.';
+
+            return '';
+        }
+
+        return $this->extractTextFromBinary($binary, $mime);
+    }
+
+    /**
      * Extract plain text from a local PDF/image file.
      */
     public function extractTextFromFile(string $path, string $mime = 'application/pdf'): string
@@ -45,7 +99,7 @@ class AzureDocumentIntelligenceService
         }
 
         $size = filesize($path) ?: 0;
-        $maxBytes = (int) config('services.azure_ai.max_bytes', 20 * 1024 * 1024);
+        $maxBytes = (int) config('services.azure_ai.max_bytes', 100 * 1024 * 1024);
         if ($size <= 0 || $size > $maxBytes) {
             $msg = "Azure OCR skipped: file size {$size} exceeds max {$maxBytes}.";
             $this->lastErrors[] = $msg;
@@ -61,16 +115,19 @@ class AzureDocumentIntelligenceService
             return '';
         }
 
+        return $this->extractTextFromBinary($binary, $mime);
+    }
+
+    protected function extractTextFromBinary(string $binary, string $mime): string
+    {
         $endpoint = rtrim((string) config('services.azure_ai.endpoint'), '/');
         $key = (string) config('services.azure_ai.key');
 
-        // 1) Document Intelligence v4 (preferred): JSON + base64Source
         $text = $this->analyzeDocumentIntelligenceBase64($endpoint, $key, $binary);
         if (trim($text) !== '') {
             return $text;
         }
 
-        // 2) Legacy Form Recognizer binary upload
         $text = $this->analyzeFormRecognizerBinary(
             $endpoint.'/formrecognizer/documentModels/prebuilt-read:analyze?api-version=2023-07-31',
             $key,
@@ -81,7 +138,6 @@ class AzureDocumentIntelligenceService
             return $text;
         }
 
-        // 3) Computer Vision Read API (often enabled on multi-service Cognitive resources)
         $text = $this->analyzeComputerVisionRead($endpoint, $key, $binary, $mime);
         if (trim($text) !== '') {
             return $text;
@@ -90,8 +146,64 @@ class AzureDocumentIntelligenceService
         return '';
     }
 
+    protected function temporaryUrl(string $disk, string $path): ?string
+    {
+        try {
+            $adapter = Storage::disk($disk);
+            if (! method_exists($adapter, 'temporaryUrl')) {
+                return null;
+            }
+
+            return $adapter->temporaryUrl($path, now()->addMinutes(45));
+        } catch (\Throwable $e) {
+            $this->rememberError('temporaryUrl failed: '.$e->getMessage());
+
+            return null;
+        }
+    }
+
+    protected function analyzeViaUrl(string $fileUrl): string
+    {
+        $endpoint = rtrim((string) config('services.azure_ai.endpoint'), '/');
+        $key = (string) config('services.azure_ai.key');
+        $payload = ['urlSource' => $fileUrl];
+
+        $apiVersions = [
+            (string) config('services.azure_ai.api_version', '2024-11-30'),
+            '2024-07-31-preview',
+            '2023-07-31',
+        ];
+
+        foreach ($apiVersions as $version) {
+            $urls = [
+                $endpoint.'/documentintelligence/documentModels/prebuilt-read:analyze?api-version='.$version,
+                $endpoint.'/formrecognizer/documentModels/prebuilt-read:analyze?api-version='.$version,
+            ];
+
+            foreach ($urls as $url) {
+                try {
+                    $text = $this->postJsonAnalyze($url, $key, $payload);
+                    if (trim($text) !== '') {
+                        return $text;
+                    }
+                } catch (\Throwable $e) {
+                    $this->rememberError('DI urlSource '.$version.': '.$e->getMessage());
+                }
+            }
+        }
+
+        return '';
+    }
+
     protected function analyzeDocumentIntelligenceBase64(string $endpoint, string $key, string $binary): string
     {
+        // Avoid huge base64 payloads in memory (roughly 4/3 of file size).
+        if (strlen($binary) > 15 * 1024 * 1024) {
+            $this->rememberError('Skipping base64 upload for file > 15MB; use urlSource.');
+
+            return '';
+        }
+
         $apiVersions = [
             (string) config('services.azure_ai.api_version', '2024-11-30'),
             '2024-07-31-preview',
@@ -138,6 +250,12 @@ class AzureDocumentIntelligenceService
 
     protected function analyzeFormRecognizerBinary(string $url, string $key, string $binary, string $mime): string
     {
+        if (strlen($binary) > 20 * 1024 * 1024) {
+            $this->rememberError('Skipping FormRecognizer binary upload for file > 20MB.');
+
+            return '';
+        }
+
         try {
             $start = Http::withHeaders([
                 'Ocp-Apim-Subscription-Key' => $key,
@@ -157,6 +275,12 @@ class AzureDocumentIntelligenceService
 
     protected function analyzeComputerVisionRead(string $endpoint, string $key, string $binary, string $mime): string
     {
+        if (strlen($binary) > 20 * 1024 * 1024) {
+            $this->rememberError('Skipping Vision binary upload for file > 20MB.');
+
+            return '';
+        }
+
         $urls = [
             $endpoint.'/vision/v3.2/read/analyze',
             $endpoint.'/computervision/imageanalysis:analyze?api-version=2023-02-01-preview&features=read',
@@ -183,7 +307,6 @@ class AzureDocumentIntelligenceService
                     return $this->pollVisionReadResult($operation, $key);
                 }
 
-                // Image Analysis sync-style response
                 if ($start->successful()) {
                     $text = $this->contentFromPayload($start->json() ?? []);
                     if ($text !== '') {
@@ -337,7 +460,6 @@ class AzureDocumentIntelligenceService
             }
         }
 
-        // Image Analysis read blocks
         foreach (data_get($payload, 'readResult.blocks', []) as $block) {
             foreach (($block['lines'] ?? []) as $line) {
                 if (! empty($line['text'])) {

@@ -48,7 +48,8 @@ return [
         'key' => env('AZURE_AI_KEY'),
         'ocr_enabled' => env('AZURE_AI_OCR_ENABLED', true),
         'api_version' => env('AZURE_AI_API_VERSION', '2024-11-30'),
-        'max_bytes' => env('AZURE_AI_MAX_BYTES', 20 * 1024 * 1024),
+        'max_bytes' => env('AZURE_AI_MAX_BYTES', 100 * 1024 * 1024),
+        'url_min_bytes' => env('AZURE_AI_URL_MIN_BYTES', 4 * 1024 * 1024),
     ],
 
     'onlyoffice' => [
