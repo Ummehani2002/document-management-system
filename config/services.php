@@ -42,6 +42,15 @@ return [
         'tenant' => env('AZURE_TENANT_ID', 'common'),
     ],
 
+    // Azure Cognitive Services / Document Intelligence (OCR for scanned PDFs)
+    'azure_ai' => [
+        'endpoint' => env('AZURE_AI_ENDPOINT'),
+        'key' => env('AZURE_AI_KEY'),
+        'ocr_enabled' => env('AZURE_AI_OCR_ENABLED', true),
+        'api_version' => env('AZURE_AI_API_VERSION', '2024-11-30'),
+        'max_bytes' => env('AZURE_AI_MAX_BYTES', 20 * 1024 * 1024),
+    ],
+
     'onlyoffice' => [
         'document_server_url' => env('ONLYOFFICE_DOCUMENT_SERVER_URL'),
         // Base URL OnlyOffice Document Server uses to fetch files and POST save callbacks.

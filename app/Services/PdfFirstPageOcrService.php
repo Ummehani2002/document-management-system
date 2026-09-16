@@ -15,6 +15,9 @@ class PdfFirstPageOcrService
 
     public const SEARCH_MAX_PAGES = 12;
 
+    /** Skip Smalot above this size — it loads the whole PDF and can OOM on Cloud. */
+    public const SMALOT_MAX_BYTES = 5_000_000;
+
     /**
      * Broader extraction for keyword search (more pages + PHP fallback).
      */
@@ -30,7 +33,7 @@ class PdfFirstPageOcrService
             return $this->limitText($text);
         }
 
-        // Last resort: first-page OCR for scanned PDFs.
+        // Last resort: first-page OCR for scanned PDFs (needs poppler + tesseract).
         return $this->limitText($this->extractFirstPageText($pdfPath));
     }
 
@@ -106,10 +109,24 @@ class PdfFirstPageOcrService
 
     /**
      * Pure-PHP fallback (works when pdftotext/poppler is not installed on the host).
+     * Skips large files to avoid exhausting memory on Laravel Cloud.
      */
     protected function extractWithSmalot(string $pdfPath, ?int $maxPages = null): string
     {
+        $size = is_file($pdfPath) ? (int) filesize($pdfPath) : 0;
+        if ($size <= 0 || $size > self::SMALOT_MAX_BYTES) {
+            \Log::debug('PdfFirstPageOcr: skipping smalot (file too large or missing)', [
+                'path' => $pdfPath,
+                'size' => $size,
+            ]);
+
+            return '';
+        }
+
+        $memoryLimit = ini_get('memory_limit');
         try {
+            @ini_set('memory_limit', '512M');
+
             $parser = new SmalotPdfParser();
             $pdf = $parser->parseFile($pdfPath);
             $pages = $pdf->getPages();
@@ -131,6 +148,11 @@ class PdfFirstPageOcrService
             ]);
 
             return '';
+        } finally {
+            if (is_string($memoryLimit) && $memoryLimit !== '') {
+                @ini_set('memory_limit', $memoryLimit);
+            }
+            gc_collect_cycles();
         }
     }
 

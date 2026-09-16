@@ -234,7 +234,7 @@
             position: absolute;
             top: calc(100% + 8px);
             right: 0;
-            min-width: 120px;
+            min-width: 140px;
             padding: 8px;
             border-radius: 8px;
             background: #fff;
@@ -243,23 +243,26 @@
             z-index: 120;
         }
 
+        button.dms-logout-btn,
         .dms-logout-btn {
-            background: transparent;
-            border: none;
-            color: var(--navy);
+            background: #fff !important;
+            border: 1px solid #cbd5e1 !important;
+            color: #0b1f3a !important;
             font-family: inherit;
-            font-size: 0.82rem;
+            font-size: 0.85rem;
             font-weight: 600;
             cursor: pointer;
-            padding: 8px 10px;
+            padding: 10px 12px !important;
             width: 100%;
             text-align: left;
             border-radius: 6px;
         }
 
+        button.dms-logout-btn:hover,
         .dms-logout-btn:hover {
-            background: #f1f5f9;
-            color: var(--accent-dark);
+            background: #eff6ff !important;
+            border-color: #93c5fd !important;
+            color: #1d4ed8 !important;
         }
 
         .dms-nav {

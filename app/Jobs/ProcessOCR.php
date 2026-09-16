@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Document;
+use App\Services\AzureDocumentIntelligenceService;
 use App\Services\DocumentReclassificationService;
 use App\Services\OfficeDocumentTextExtractionService;
 use App\Services\PdfFirstPageOcrService;
@@ -24,6 +25,8 @@ class ProcessOCR implements ShouldQueue
      */
     public bool $preserveFolder;
 
+    public $timeout = 300;
+
     public function __construct($documentId, bool $preserveFolder = false)
     {
         $this->documentId = $documentId;
@@ -33,6 +36,8 @@ class ProcessOCR implements ShouldQueue
     /** Extract searchable text and optionally auto-classify folder. */
     public function handle(): void
     {
+        @ini_set('memory_limit', '512M');
+
         $document = Document::find($this->documentId);
 
         if (! $document) {
@@ -62,11 +67,14 @@ class ProcessOCR implements ShouldQueue
 
                 $text = '';
                 if ($ext === 'pdf') {
-                    // Prefer broader extraction so keyword search finds body text
-                    // (e.g. material descriptions), not only the title block.
                     $text = app(PdfFirstPageOcrService::class)->extractTextForSearch($tempPath);
                     if (trim($text) === '') {
                         $text = app(PdfFirstPageOcrService::class)->extractTextForClassification($tempPath);
+                    }
+                    // Cloud hosts often lack poppler/tesseract — use Azure for scanned PDFs.
+                    if (trim($text) === '') {
+                        $text = app(AzureDocumentIntelligenceService::class)
+                            ->extractTextFromFile($tempPath, 'application/pdf');
                     }
                 } elseif (in_array($ext, ['docx', 'xlsx', 'doc', 'xls'], true)) {
                     $text = app(OfficeDocumentTextExtractionService::class)->extractText($tempPath, $ext);
@@ -96,6 +104,7 @@ class ProcessOCR implements ShouldQueue
             if ($tempPath && file_exists($tempPath)) {
                 @unlink($tempPath);
             }
+            gc_collect_cycles();
         }
     }
 }
