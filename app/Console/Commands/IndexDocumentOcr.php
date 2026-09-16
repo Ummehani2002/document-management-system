@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Jobs\ProcessOCR;
 use App\Models\Document;
-use App\Services\AzureDocumentIntelligenceService;
 use Illuminate\Console\Command;
 
 class IndexDocumentOcr extends Command
@@ -15,9 +14,9 @@ class IndexDocumentOcr extends Command
         {--project= : Limit to project_id}
         {--id=* : Limit to document id(s), repeatable}';
 
-    protected $description = 'Index PDF/Office text into ocr_text for keyword search. Uses local extractors, then Azure OCR when configured.';
+    protected $description = 'Index PDF/Office text into ocr_text for keyword search (pdftotext / Tesseract when available).';
 
-    public function handle(AzureDocumentIntelligenceService $azureOcr): int
+    public function handle(): int
     {
         @ini_set('memory_limit', '512M');
 
@@ -45,12 +44,6 @@ class IndexDocumentOcr extends Command
             return self::SUCCESS;
         }
 
-        if ($azureOcr->enabled()) {
-            $this->info('Azure Document Intelligence OCR is enabled (used when local extractors find no text).');
-        } else {
-            $this->warn('Azure OCR is not configured. Scanned PDFs need AZURE_AI_ENDPOINT + AZURE_AI_KEY (or poppler/tesseract on the host).');
-        }
-
         if ($this->option('sync')) {
             $this->info("Processing {$count} document(s) now (sync)...");
             $ok = 0;
@@ -67,14 +60,13 @@ class IndexDocumentOcr extends Command
                         $this->line("  Indexed document id: {$id}");
                     } else {
                         $empty++;
-                        $this->warn("  Document id: {$id} — no text extracted (scanned PDF / OCR unavailable).");
+                        $this->warn("  Document id: {$id} — no text extracted (scanned PDF / OCR tools unavailable).");
                     }
                 } catch (\Throwable $e) {
                     $failed++;
                     $this->warn("  Failed document id {$id}: ".$e->getMessage());
                 }
 
-                // Free memory between large PDFs so one heavy file cannot kill the batch.
                 gc_collect_cycles();
             }
 

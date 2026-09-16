@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\Document;
-use App\Services\AzureDocumentIntelligenceService;
 use App\Services\DocumentReclassificationService;
 use App\Services\OfficeDocumentTextExtractionService;
 use App\Services\PdfFirstPageOcrService;
@@ -53,10 +52,7 @@ class ProcessOCR implements ShouldQueue
 
         $tempPath = null;
         try {
-            // Best-effort text extraction. Classification must still run when this fails
-            // (e.g. Tesseract/poppler missing, image-only PDFs) so filename-based
-            // auto-classification can still move "SD-...", "DT-...", etc. into the
-            // correct folder instead of leaving every upload stuck in "Other".
+            // Best-effort text extraction (pdftotext / Smalot / Tesseract when available).
             try {
                 $ext = strtolower(pathinfo((string) $document->file_name, PATHINFO_EXTENSION));
                 if ($ext === '') {
@@ -70,21 +66,6 @@ class ProcessOCR implements ShouldQueue
                     $text = app(PdfFirstPageOcrService::class)->extractTextForSearch($tempPath);
                     if (trim($text) === '') {
                         $text = app(PdfFirstPageOcrService::class)->extractTextForClassification($tempPath);
-                    }
-                    // Cloud hosts often lack poppler/tesseract — use Azure for scanned PDFs.
-                    if (trim($text) === '') {
-                        $azure = app(AzureDocumentIntelligenceService::class);
-                        // Prefer storage URL for large S3/R2 objects (doc 24 is ~32MB).
-                        $text = $azure->extractTextFromStorage($disk, (string) $document->file_path, 'application/pdf');
-                        if (trim($text) === '') {
-                            $text = $azure->extractTextFromFile($tempPath, 'application/pdf');
-                        }
-                        if (trim($text) === '' && $azure->lastErrors() !== []) {
-                            \Log::warning('ProcessOCR Azure OCR empty', [
-                                'document_id' => $document->id,
-                                'errors' => $azure->lastErrors(),
-                            ]);
-                        }
                     }
                 } elseif (in_array($ext, ['docx', 'xlsx', 'doc', 'xls'], true)) {
                     $text = app(OfficeDocumentTextExtractionService::class)->extractText($tempPath, $ext);
