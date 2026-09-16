@@ -11,18 +11,25 @@ use Spatie\PdfToText\Pdf;
  */
 class PdfFirstPageOcrService
 {
-    public const SEARCH_MAX_CHARS = 200000;
+    public const SEARCH_MAX_CHARS = 500000;
 
-    public const SEARCH_MAX_PAGES = 12;
+    /** Pages for Smalot fallback (pdftotext uses the whole document when available). */
+    public const SEARCH_MAX_PAGES = 80;
 
     /** Skip Smalot above this size — it loads the whole PDF and can OOM on Cloud. */
     public const SMALOT_MAX_BYTES = 5_000_000;
 
     /**
-     * Broader extraction for keyword search (more pages + PHP fallback).
+     * Broader extraction for keyword search (full doc when pdftotext exists).
      */
     public function extractTextForSearch(string $pdfPath): string
     {
+        // Prefer full-document text so keywords deep in the PDF are searchable.
+        $text = $this->extractWithPdftotextAll($pdfPath);
+        if ($this->isUsableText($text)) {
+            return $this->limitText($text);
+        }
+
         $text = $this->extractWithPdftotextPageRange($pdfPath, 1, self::SEARCH_MAX_PAGES);
         if ($this->isUsableText($text)) {
             return $this->limitText($text);
@@ -33,8 +40,8 @@ class PdfFirstPageOcrService
             return $this->limitText($text);
         }
 
-        // Last resort: first-page OCR for scanned PDFs (needs poppler + tesseract).
-        return $this->limitText($this->extractFirstPageText($pdfPath));
+        // Last resort: multi-page OCR for scanned PDFs (needs poppler + tesseract).
+        return $this->limitText($this->extractWithTesseractPages($pdfPath, 5));
     }
 
     /**
@@ -88,6 +95,20 @@ class PdfFirstPageOcrService
                 ->text();
         } catch (\Throwable $e) {
             \Log::debug('PdfFirstPageOcr: page-range pdftotext failed', ['path' => $pdfPath, 'error' => $e->getMessage()]);
+
+            return '';
+        }
+    }
+
+    /** Extract all pages via pdftotext (best for keyword search). */
+    protected function extractWithPdftotextAll(string $pdfPath): string
+    {
+        try {
+            return (new Pdf())
+                ->setPdf($pdfPath)
+                ->text();
+        } catch (\Throwable $e) {
+            \Log::debug('PdfFirstPageOcr: full pdftotext failed', ['path' => $pdfPath, 'error' => $e->getMessage()]);
 
             return '';
         }
@@ -182,19 +203,23 @@ class PdfFirstPageOcrService
     }
 
     /**
-     * When pdftotext returns nothing, render first page to image and run Tesseract.
+     * When pdftotext returns nothing, render pages to images and run Tesseract.
      * Requires: pdftoppm (poppler-utils) and tesseract on PATH.
      */
     protected function extractWithTesseractFallback(string $pdfPath): string
     {
-        $tempDir = sys_get_temp_dir() . '/dms_ocr_' . substr(md5($pdfPath), 0, 8);
+        return $this->extractWithTesseractPages($pdfPath, 1);
+    }
+
+    protected function extractWithTesseractPages(string $pdfPath, int $maxPages): string
+    {
+        $tempDir = sys_get_temp_dir() . '/dms_ocr_' . substr(md5($pdfPath . microtime(true)), 0, 10);
         if (!@mkdir($tempDir, 0700, true) && !is_dir($tempDir)) {
             \Log::warning('PdfFirstPageOcr: could not create temp dir', ['dir' => $tempDir]);
 
             return '';
         }
 
-        $imagePath = $tempDir . '/page';
         $cleanup = function () use ($tempDir) {
             if (!is_dir($tempDir)) {
                 return;
@@ -206,12 +231,21 @@ class PdfFirstPageOcrService
         };
 
         try {
-            $png = $this->renderFirstPageToPng($pdfPath, $tempDir, $imagePath);
-            if (!$png) {
-                return '';
+            $pages = max(1, min(10, $maxPages));
+            $chunks = [];
+            for ($page = 1; $page <= $pages; $page++) {
+                $imageBase = $tempDir . '/page'.$page;
+                $png = $this->renderPageToPng($pdfPath, $tempDir, $imageBase, $page);
+                if (! $png) {
+                    break;
+                }
+                $text = $this->runTesseract($png);
+                if (trim($text) !== '') {
+                    $chunks[] = $text;
+                }
             }
 
-            return $this->runTesseract($png);
+            return trim(implode("\n\n", $chunks));
         } finally {
             $cleanup();
         }
@@ -219,17 +253,26 @@ class PdfFirstPageOcrService
 
     protected function renderFirstPageToPng(string $pdfPath, string $tempDir, string $imagePath): ?string
     {
+        return $this->renderPageToPng($pdfPath, $tempDir, $imagePath, 1);
+    }
+
+    protected function renderPageToPng(string $pdfPath, string $tempDir, string $imagePath, int $page): ?string
+    {
+        $page = max(1, $page);
+
         // 1) pdftoppm (poppler-utils)
         $cmd = sprintf(
-            'pdftoppm -png -f 1 -l 1 -r 300 %s %s 2>&1',
+            'pdftoppm -png -f %d -l %d -r 200 %s %s 2>&1',
+            $page,
+            $page,
             escapeshellarg($pdfPath),
             escapeshellarg($imagePath)
         );
         exec($cmd, $out, $ret);
         if ($ret === 0) {
-            $png = $imagePath . '-1.png';
+            $png = $imagePath . '-'.$page.'.png';
             if (!file_exists($png)) {
-                $png = $imagePath . '-01.png';
+                $png = $imagePath . '-'.sprintf('%02d', $page).'.png';
             }
             if (!file_exists($png)) {
                 $found = glob($tempDir . '/*.png');
@@ -241,18 +284,19 @@ class PdfFirstPageOcrService
         }
 
         // 2) ImageMagick: "convert" (ImageMagick 6) or "magick convert" (ImageMagick 7, e.g. Windows)
-        $png = $tempDir . '/page.png';
+        $png = $tempDir . '/page'.$page.'.png';
+        $pageIndex = $page - 1;
         foreach (['convert', 'magick'] as $magickCmd) {
             $cmd = $magickCmd === 'magick'
-                ? sprintf('magick %s[0] -density 300 %s 2>&1', escapeshellarg($pdfPath), escapeshellarg($png))
-                : sprintf('convert %s[0] -density 300 %s 2>&1', escapeshellarg($pdfPath), escapeshellarg($png));
+                ? sprintf('magick %s[%d] -density 200 %s 2>&1', escapeshellarg($pdfPath), $pageIndex, escapeshellarg($png))
+                : sprintf('convert %s[%d] -density 200 %s 2>&1', escapeshellarg($pdfPath), $pageIndex, escapeshellarg($png));
             exec($cmd, $out2, $ret2);
             if ($ret2 === 0 && file_exists($png)) {
                 return $png;
             }
         }
 
-        \Log::debug('PdfFirstPageOcr: could not render PDF to image (tried pdftoppm and ImageMagick)');
+        \Log::debug('PdfFirstPageOcr: could not render PDF page to image', ['page' => $page]);
 
         return null;
     }

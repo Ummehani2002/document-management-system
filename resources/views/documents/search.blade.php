@@ -485,14 +485,6 @@
 @else
     @if(!empty($fromSidebar) && request('project_id') && (request('document_type') || request('main_folder')))
     @else
-        @if(($documentsWithoutOcr ?? 0) > 0)
-            <div class="card" style="background:#eff6ff; border-color:#bfdbfe; margin-bottom:14px;">
-                <p style="margin:0; color:#1e3a8a; font-size:0.9rem;">
-                    {{ number_format($documentsWithoutOcr) }} document(s) are not text-indexed yet, so keyword search may miss words inside those PDFs.
-                    Ask an admin to run <code>php artisan documents:index-ocr --sync</code> (add <code>--force</code> to re-index).
-                </p>
-            </div>
-        @endif
         <form method="GET" action="{{ route('documents.search') }}" class="search-form">
             @if(!empty($fromSidebar))
                 <input type="hidden" name="from_sidebar" value="1">
