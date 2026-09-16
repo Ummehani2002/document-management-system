@@ -266,7 +266,7 @@ COMPOSER_DEV_MODE=0 composer install
 
 - **502 or blank page** — Check **Logs**; fix migrations or env and redeploy.
 - **"File not found" on download** — Ensure Object Storage bucket is attached and default; redeploy.
-- **Search only finds by file name, not by content** — First-page text is extracted during upload. Ensure the production environment has **pdftotext** (from Poppler or xpdf) available on the PATH so the app can extract text. If your PDFs are scanned/image-only, you also need **Tesseract** and **pdftoppm** or **ImageMagick** (see **OCR-SETUP.md**). After adding these, redeploy and run `php artisan documents:index-ocr --sync` from the **Commands** tab to index existing documents.
+- **Search only finds by file name, not by content** — First-page text is extracted during upload. On Laravel Cloud, set **`AZURE_AI_ENDPOINT`** and **`AZURE_AI_KEY`** (Document Intelligence / Cognitive Services) so scanned PDFs can be OCR’d. Then run `php artisan documents:index-ocr --sync` from the **Commands** tab. Locally you can also use **pdftotext** / **Tesseract** (see **OCR-SETUP.md**).
 - **OCR never runs** — New uploads are indexed synchronously; no queue worker is required for search-by-content. You can still add a queue worker for other jobs.
 - **Database errors** — MySQL must be in the **same region** as the app and attached.
 

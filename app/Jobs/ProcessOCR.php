@@ -73,8 +73,14 @@ class ProcessOCR implements ShouldQueue
                     }
                     // Cloud hosts often lack poppler/tesseract — use Azure for scanned PDFs.
                     if (trim($text) === '') {
-                        $text = app(AzureDocumentIntelligenceService::class)
-                            ->extractTextFromFile($tempPath, 'application/pdf');
+                        $azure = app(AzureDocumentIntelligenceService::class);
+                        $text = $azure->extractTextFromFile($tempPath, 'application/pdf');
+                        if (trim($text) === '' && $azure->lastErrors() !== []) {
+                            \Log::warning('ProcessOCR Azure OCR empty', [
+                                'document_id' => $document->id,
+                                'errors' => $azure->lastErrors(),
+                            ]);
+                        }
                     }
                 } elseif (in_array($ext, ['docx', 'xlsx', 'doc', 'xls'], true)) {
                     $text = app(OfficeDocumentTextExtractionService::class)->extractText($tempPath, $ext);
