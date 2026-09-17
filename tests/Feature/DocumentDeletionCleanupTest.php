@@ -87,6 +87,35 @@ test('admin project delete moves documents to trash for restore', function () {
     expect(Project::query()->whereKey($project->id)->exists())->toBeTrue();
 });
 
+test('recreating a soft-deleted project number restores it instead of 500', function () {
+    $admin = User::factory()->create(['username' => 'projectrestore']);
+    $admin->assignRole('Admin');
+    $this->actingAs($admin);
+
+    ['entity' => $entity, 'project' => $project, 'document' => $document] = makeProjectWithDocument($admin, 'restore-me.pdf');
+    $projectNumber = $project->project_number;
+
+    $this->delete(route('projects.destroy', $project))->assertRedirect();
+
+    expect(Project::query()->where('project_number', $projectNumber)->exists())->toBeFalse();
+    expect(Project::onlyTrashed()->where('project_number', $projectNumber)->exists())->toBeTrue();
+
+    $this->post(route('projects.store'), [
+        'entity_id' => $entity->id,
+        'project_number' => $projectNumber,
+        'project_name' => 'Restored Project Name',
+        'client_name' => 'New Client',
+        'consultant' => 'New Consultant',
+    ])->assertRedirect();
+
+    $restored = Project::query()->where('project_number', $projectNumber)->first();
+    expect($restored)->not->toBeNull();
+    expect($restored->id)->toBe($project->id);
+    expect($restored->project_name)->toBe('Restored Project Name');
+    // Documents deleted with the project stay in trash until restored separately.
+    expect(Document::onlyTrashed()->whereKey($document->id)->exists())->toBeTrue();
+});
+
 test('non admin cannot delete an entity', function () {
     $user = User::factory()->create();
     $this->actingAs($user);

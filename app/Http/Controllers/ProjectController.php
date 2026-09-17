@@ -94,11 +94,47 @@ class ProjectController extends Controller
             abort(403, 'You do not have access to this entity.');
         }
 
-        Project::create($request->only([
+        $payload = $request->only([
             'entity_id', 'project_number', 'project_name',
             'client_name', 'consultant', 'project_manager', 'project_manager_email',
             'document_controller', 'document_controller_email',
-        ]));
+        ]);
+
+        // Soft-deleted projects still occupy the DB unique index on project_number.
+        // Recreating the same number must restore that row instead of inserting a duplicate.
+        $trashed = Project::onlyTrashed()
+            ->where('project_number', $request->project_number)
+            ->first();
+
+        if ($trashed) {
+            $trashed->restore();
+            $trashed->update($payload);
+
+            return $this->projectRedirect(
+                'Project "'.$request->project_number.'" was restored (it was previously deleted). '
+                .'Any files that were deleted with it are still in Trash until you restore them.'
+            );
+        }
+
+        try {
+            Project::create($payload);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Race / leftover unique collision — try restore once more.
+            $trashed = Project::onlyTrashed()
+                ->where('project_number', $request->project_number)
+                ->first();
+            if ($trashed) {
+                $trashed->restore();
+                $trashed->update($payload);
+
+                return $this->projectRedirect(
+                    'Project "'.$request->project_number.'" was restored (it was previously deleted). '
+                    .'Any files that were deleted with it are still in Trash until you restore them.'
+                );
+            }
+
+            throw $e;
+        }
 
         return $this->projectRedirect(
             'Project created. You can now upload PDFs whose file name starts with "'.$request->project_number.'".'
