@@ -107,21 +107,33 @@ class DocumentFilenameParser
         if (self::textLooksLikeTestingAndCommissioningLoose($normalized)) {
             return 'Testing And Commissioning';
         }
-        // Title-style memo / award / shop-drawing must beat incidental BOQ / EI legend text in the body.
+        // Title-style memo / award / WIR / MOM must beat incidental shop-drawing / TOC mentions in the body.
         if (self::looksLikeInternalMemo($normalized)) {
             return 'Internal Memo';
         }
         if (preg_match('/PROJECT\s+AWARD\s+NOTIFICATION|\bPAN\s*REPORT\b|\bPANREPORT\b|\(\s*PAN\s*\)/iu', $normalized)) {
             return 'Project Award Notification';
         }
+        // Banner titles win before body mentions like "approved shop drawings" or checklist "TOC".
+        if (preg_match('/WORK\s*INSPECTION\s*REQUEST|(?:^|\n)\s*WIR\b/iu', $normalized)) {
+            return 'Work Inspection';
+        }
+        if (preg_match('/MATERIAL\s*INSPECTION\s*REQUEST|(?:^|\n)\s*MIR\b/iu', $normalized)) {
+            return 'Material Inspection Request';
+        }
+        if (preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/iu', $normalized)) {
+            return 'MOM';
+        }
         if (preg_match('/SHOP\s*DRAWING|(?:^|[^A-Z0-9])SDR(?:[^A-Z0-9]|$)|(?:^|[^A-Z0-9])SD(?:[^A-Z0-9]|$)/iu', $normalized)
             && ! preg_match('/SD\s*=\s*SHOP/iu', $normalized)) {
             // Prefer SD/SDR when it looks like a real drawing code, not a form legend.
-            if (preg_match('/SHOP\s*DRAWING|(?:^|[^A-Z0-9])SDR(?:[^A-Z0-9]|$)|(?:^|[^A-Z0-9])SD[-_]\d/iu', $normalized)) {
+            if (preg_match('/SHOP\s*DRAWING\s*SUBMITTAL|(?:^|[^A-Z0-9])SDR(?:[^A-Z0-9]|$)|(?:^|[^A-Z0-9])SD[-_]\d/iu', $normalized)) {
                 return 'Shop Drawing';
             }
         }
-        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $normalized)) {
+        // Only treat TOC as the document type when the phrase is near the top (not a mid-form checkbox).
+        $head = substr($normalized, 0, min(1200, strlen($normalized)));
+        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|(?:^|\n)\s*TOC\b/i', $head)) {
             return 'Taking Over Certificate';
         }
         // Require the phrase — bare "EI" / legend lines match drawings too often.
@@ -180,7 +192,7 @@ class DocumentFilenameParser
                 if (self::textLooksLikeTestingAndCommissioningLoose($normalized)) {
                     return 'Testing And Commissioning';
                 }
-                if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $normalized)) {
+                if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|(?:^|[^A-Z0-9])TOC(?:[^A-Z0-9]|$)/i', $normalized)) {
                     return 'Taking Over Certificate';
                 }
                 if (self::looksLikeEngineersInstructionDocument($normalized)) {
@@ -230,8 +242,18 @@ class DocumentFilenameParser
         if (self::textLooksLikeTestingAndCommissioningLoose($normalized)) {
             return 'Testing And Commissioning';
         }
-        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $normalized)) {
+        $head = substr($normalized, 0, min(1200, strlen($normalized)));
+        if (preg_match('/WORK\s*INSPECTION\s*REQUEST|(?:^|\n)\s*WIR\b/iu', $head)) {
+            return 'Work Inspection';
+        }
+        if (preg_match('/MATERIAL\s*INSPECTION\s*REQUEST|(?:^|\n)\s*MIR\b/iu', $head)) {
+            return 'Material Inspection Request';
+        }
+        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|(?:^|\n)\s*TOC\b/i', $head)) {
             return 'Taking Over Certificate';
+        }
+        if (preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/iu', $head)) {
+            return 'MOM';
         }
         if (self::looksLikeInternalMemo($normalized)) {
             return 'Internal Memo';
@@ -239,7 +261,9 @@ class DocumentFilenameParser
         if (preg_match('/PROJECT\s+AWARD\s+NOTIFICATION|\bPAN\s*REPORT\b|\bPANREPORT\b|\(\s*PAN\s*\)/iu', $normalized)) {
             return 'Project Award Notification';
         }
-        if (preg_match('/SHOP\s*DRAWING|(?:^|[^A-Z0-9])SDR(?:[^A-Z0-9]|$)|(?:^|[^A-Z0-9])SD[-_]\d/iu', $normalized)) {
+        // Headings-only: require a title-like shop drawing phrase, not body comments
+        // like "approved shop drawings shall be attached" on a WIR.
+        if (preg_match('/SHOP\s*DRAWING\s*SUBMITTAL|(?:^|\n)\s*SHOP\s*DRAWING\b|(?:^|[^A-Z0-9])SDR(?:[^A-Z0-9]|$)|(?:^|[^A-Z0-9])SD[-_]\d/iu', $head)) {
             return 'Shop Drawing';
         }
         // Require the phrase — bare "EI" matches drawing legends too often.
@@ -281,7 +305,10 @@ class DocumentFilenameParser
         if (self::textLooksLikeTestingAndCommissioningLoose($window)) {
             return 'Testing And Commissioning';
         }
-        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $window)) {
+        // Only treat TOC as a title when it appears near the top — form checklists lower
+        // on the page often list "Taking Over Certificate" as an option.
+        $titleHead = substr($window, 0, min(1200, strlen($window)));
+        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|(?:^|\n)\s*TOC\b/i', $titleHead)) {
             return 'Taking Over Certificate';
         }
         if (preg_match('/ENGINEER\S*\s*INSTRUCTION|(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)/i', $window)) {
@@ -371,7 +398,7 @@ class DocumentFilenameParser
                 if (preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $upper)) {
                     return 'BOQ Bill Of Quantities';
                 }
-                if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $upper)) {
+                if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|(?:^|\n)\s*TOC\b/i', $upper)) {
                     return 'Taking Over Certificate';
                 }
                 if (self::textLooksLikeTestingAndCommissioning($upper)) {
@@ -847,7 +874,7 @@ class DocumentFilenameParser
         $hasStrongQorSignal = (bool) preg_match('/(?:^|[^A-Z0-9])QOR(?:[^A-Z0-9]|$)/i', $upperName);
         $hasStrongSorSonSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:SOR|SON)(?:[^A-Z0-9]|$)/i', $upperName);
         $hasStrongSiteIncidentSignal = (bool) preg_match('/SITE[\s\-]*INCIDENT[\s\-]+REPORT|INCIDENT[\s\-]+(?:REPORT|RERPORT)/i', $upperName);
-        $hasStrongTocSignal = (bool) preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $upperName);
+        $hasStrongTocSignal = (bool) preg_match('/TAKING\s*OVER\s*CERTIFICATE|(?:^|[^A-Z0-9])TOC(?:[^A-Z0-9]|$)/i', $upperName);
         $hasStrongOperationAndMaintenanceSignal = (bool) preg_match(
             '/OPERATION\s*AND\s*MAINTENANCE|\bO&M\b|(?:^|[^A-Z0-9])OMM(?:[^A-Z0-9]|$)/iu',
             $upperName
@@ -905,9 +932,9 @@ class DocumentFilenameParser
         // Register filenames often embed WIR/MIR/SD/MAT/MST/DTF codes that do not match the
         // document body. Prefer OCR when (a) headline lines disagree, or (b) headline matches the
         // register code but full-window classification still finds a stronger type (e.g. T&C in body).
+        // Work Inspection / MIR are NOT overridable: WIR forms often mention "shop drawings" or TOC
+        // in comments/checklists, which must not move the file out of Work Inspection.
         static $filenameCodesOverridableByOcr = [
-            'Work Inspection',
-            'Material Inspection Request',
             'Shop Drawing',
             'Material Submittal',
             'Method Statement',
@@ -919,7 +946,6 @@ class DocumentFilenameParser
         static $fullBodyOcrWinsWhenFilenameCodeMatches = [
             'Testing And Commissioning',
             'Site Incident Report',
-            'Taking Over Certificate',
             'Material Submittal',
             'Payment Application',
         ];
@@ -942,7 +968,14 @@ class DocumentFilenameParser
             if ($fileCategory === 'Material Submittal'
                 && ($hasStrongMaterialSignal || self::textLooksLikeMaterialSubmittal($ocr))
                 && $ocrOverride === 'BOQ Bill Of Quantities'
-                && !$hasStrongBoqSignal) {
+                && ! $hasStrongBoqSignal) {
+                $ocrOverride = 'Other';
+            }
+            // Minutes title in filename or OCR beats an -SD- register code.
+            if (preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upperName."\n".$ocr)) {
+                $category = 'MOM';
+                $source = 'filename';
+                $confidence = max($confidence, 0.90);
                 $ocrOverride = 'Other';
             }
             if ($ocrOverride !== 'Other') {
@@ -950,6 +983,25 @@ class DocumentFilenameParser
                 $source = 'ocr';
                 $confidence = max($confidence, 0.84);
             }
+        }
+
+        // Hard locks: clear WIR / MIR / MOM signals always win over incidental TOC / shop-drawing text.
+        if ($hasStrongWirSignal
+            || preg_match('/WORK\s*INSPECTION\s*REQUEST/i', $ocr)
+            || preg_match('/WORK\s*INSPECTION\s*REQUEST|(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)/i', $upperName)) {
+            $category = 'Work Inspection';
+            $source = $hasStrongWirSignal ? 'filename' : 'ocr';
+            $confidence = max($confidence, 0.92);
+        } elseif ($hasStrongMirSignal
+            || preg_match('/MATERIAL\s*INSPECTION\s*REQUEST/i', $ocr)) {
+            $category = 'Material Inspection Request';
+            $source = $hasStrongMirSignal ? 'filename' : 'ocr';
+            $confidence = max($confidence, 0.92);
+        } elseif (preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upperName)
+            || preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', substr($ocr, 0, 1500))) {
+            $category = 'MOM';
+            $source = preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upperName) ? 'filename' : 'ocr';
+            $confidence = max($confidence, 0.92);
         }
 
         if ($ocr !== ''
@@ -1028,6 +1080,7 @@ class DocumentFilenameParser
             'Payment Application' => $hasStrongPaymentApplicationSignal,
             'Document Transmittal' => $hasStrongTransmittalSignal,
             'Incoming Or Outgoing Letter' => $hasStrongLetterRefSignal,
+            'MOM' => (bool) preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upperName),
         ];
         if ($source === 'filename'
             && isset($strongSignalForCategory[$category])
@@ -1213,7 +1266,19 @@ class DocumentFilenameParser
         if (preg_match('/SITE[\s\-]*INCIDENT[\s\-]+REPORT|INCIDENT[\s\-]+(?:REPORT|RERPORT)/i', $upper)) {
             return 'Site Incident Report';
         }
-        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|\bTOC\b/i', $upper)) {
+        // Explicit minutes titles must beat short register codes like -SD- in the same filename
+        // (e.g. "AWAJ-SD-802-... -Minutes of Progress Meeting - 059.pdf").
+        if (preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upper)) {
+            return 'MOM';
+        }
+        if (preg_match('/WORK\s*INSPECTION\s*REQUEST|(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)/i', $upper)) {
+            return 'Work Inspection';
+        }
+        if (preg_match('/MATERIAL\s*INSPECTION\s*REQUEST|(?:^|[^A-Z0-9])MIR(?:[^A-Z0-9]|$)/i', $upper)) {
+            return 'Material Inspection Request';
+        }
+        // Require a real TOC title or -TOC- register segment — bare "TOC" in OCR checklists is too noisy.
+        if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|(?:^|[^A-Z0-9])TOC(?:[^A-Z0-9]|$)/i', $upper)) {
             return 'Taking Over Certificate';
         }
         if (self::textLooksLikeTestingAndCommissioning($upper)) {
@@ -1437,7 +1502,7 @@ class DocumentFilenameParser
         if (preg_match('/ENGINEER\S*\s*INSTRUCTION/i', $upper)) {
             return 'Engineers Instruction';
         }
-        if (preg_match('/\bMOM\b|MINUTES\s*OF\s*MEETING/i', $upper)) {
+        if (preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upper)) {
             return 'MOM';
         }
         if (preg_match('/\bNCR\b|NON\s*CONFORMANCE/i', $upper)) {

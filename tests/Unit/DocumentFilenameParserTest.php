@@ -57,3 +57,33 @@ test('internal memo ocr wins over incidental boq mention', function () {
 
     expect($result['document_category'])->toBe('Internal Memo');
 });
+
+test('wir filename stays work inspection even when ocr mentions taking over certificate', function () {
+    $filename = 'CMO-PSP-DS21-WIR-000003_00_B.pdf';
+    $ocr = "WORK INSPECTION REQUEST\nSubmittal Ref: CMO-PSP-DS21-WIR-000003\nArea: Tower\n"
+        ."The Contractor hereby confirms items Comply to Contract Documents.\n"
+        ."Sleeve size shall be approved shop drawings.\nApproved irrigation shop drawings shall be attached.\n"
+        ."Checklist option: Taking Over Certificate TOC";
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+
+    expect($result['document_category'])->toBe('Work Inspection');
+});
+
+test('minutes of progress meeting beats sd code in filename', function () {
+    $filename = 'AWAJ-SD-802-190-25 -Minutes of Progress Meeting - 059.pdf';
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, null);
+
+    expect($result['document_category'])->toBe('MOM');
+    expect($result['confidence'])->toBeGreaterThanOrEqual(0.70);
+});
+
+test('minutes ocr title beats sd code even without minutes words in filename stem alone', function () {
+    $filename = 'AWAJ-SD-802-190-25-059.pdf';
+    $ocr = "MINUTES OF PROGRESS MEETING # 059\nGolf Residence Fortimo\nPage 1 of 9";
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+
+    expect($result['document_category'])->toBe('MOM');
+});
