@@ -14,11 +14,20 @@ class IndexDocumentOcr extends Command
         {--project= : Limit to project_id}
         {--id=* : Limit to document id(s), repeatable}';
 
-    protected $description = 'Index PDF/Office text into ocr_text for keyword search (pdftotext / Tesseract when available).';
+    protected $description = 'Index PDF/Office text into ocr_text so keyword search can match words inside the file.';
 
     public function handle(): int
     {
-        @ini_set('memory_limit', '512M');
+        @ini_set('memory_limit', '1024M');
+
+        $ocr = app(\App\Services\PdfFirstPageOcrService::class);
+        $status = $ocr->toolStatus();
+        if ($ocr->canOcrImages()) {
+            $engine = $status['tesseract'] ? 'Tesseract' : 'tesseract.js';
+            $this->info("OCR engine ready ({$engine}). Scanned PDFs will be read for keyword search.");
+        } else {
+            $this->warn('No OCR engine found. Selectable-text PDFs will still be indexed; scanned PDFs need Tesseract or `npm install`.');
+        }
 
         $query = Document::query();
 

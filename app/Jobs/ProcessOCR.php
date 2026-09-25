@@ -24,7 +24,7 @@ class ProcessOCR implements ShouldQueue
      */
     public bool $preserveFolder;
 
-    public $timeout = 300;
+    public $timeout = 600;
 
     public function __construct($documentId, bool $preserveFolder = false)
     {
@@ -35,7 +35,7 @@ class ProcessOCR implements ShouldQueue
     /** Extract searchable text and optionally auto-classify folder. */
     public function handle(): void
     {
-        @ini_set('memory_limit', '512M');
+        @ini_set('memory_limit', '1024M');
 
         $document = Document::find($this->documentId);
 

@@ -4,10 +4,13 @@ namespace App\Services;
 
 use Smalot\PdfParser\Parser as SmalotPdfParser;
 use Spatie\PdfToText\Pdf;
+use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\Process;
 
 /**
  * Extract searchable / classification text from PDFs.
- * Prefers pdftotext; falls back to PHP PdfParser, then Tesseract for image-only pages.
+ * Prefers pdftotext; falls back to PHP PdfParser, then local OCR
+ * (Tesseract binary or Node tesseract.js) for image-only pages.
  */
 class PdfFirstPageOcrService
 {
@@ -20,28 +23,20 @@ class PdfFirstPageOcrService
     public const SMALOT_MAX_BYTES = 5_000_000;
 
     /**
-     * Broader extraction for keyword search (full doc when pdftotext exists).
+     * Broader extraction for keyword search (full doc + OCR when the text layer is thin).
      */
     public function extractTextForSearch(string $pdfPath): string
     {
-        // Prefer full-document text so keywords deep in the PDF are searchable.
-        $text = $this->extractWithPdftotextAll($pdfPath);
-        if ($this->isUsableText($text)) {
-            return $this->limitText($text);
+        $layer = $this->extractEmbeddedText($pdfPath);
+
+        if ($this->isUsableText($layer) && ! $this->shouldSupplementWithOcr($layer)) {
+            return $this->limitText($layer);
         }
 
-        $text = $this->extractWithPdftotextPageRange($pdfPath, 1, self::SEARCH_MAX_PAGES);
-        if ($this->isUsableText($text)) {
-            return $this->limitText($text);
-        }
+        $ocrPages = max(1, (int) config('ocr.search_pages', 10));
+        $ocr = $this->extractWithLocalOcr($pdfPath, $ocrPages);
 
-        $text = $this->extractWithSmalot($pdfPath);
-        if ($this->isUsableText($text)) {
-            return $this->limitText($text);
-        }
-
-        // Last resort: multi-page OCR for scanned PDFs (needs poppler + tesseract).
-        return $this->limitText($this->extractWithTesseractPages($pdfPath, 5));
+        return $this->limitText($this->mergeText($layer, $ocr));
     }
 
     /**
@@ -50,8 +45,6 @@ class PdfFirstPageOcrService
      */
     public function extractTextForClassification(string $pdfPath): string
     {
-        // Prefer pages 1–2 together: many forms put the logo on page 1 and the real
-        // title block on page 2; page 1 alone is often too short for classification.
         $text = $this->extractWithPdftotextPageRange($pdfPath, 1, 2);
         if (trim($text) !== '') {
             return $text;
@@ -67,13 +60,11 @@ class PdfFirstPageOcrService
             return $this->limitText($text, 20000);
         }
 
-        // Scanned / image-only: render first page and run Tesseract (unchanged).
         return $this->extractFirstPageText($pdfPath);
     }
 
     /**
      * Extract text from the first page of the PDF at $pdfPath (local file path).
-     * Returns the extracted text, or empty string if none could be extracted.
      */
     public function extractFirstPageText(string $pdfPath): string
     {
@@ -83,15 +74,170 @@ class PdfFirstPageOcrService
             return $text;
         }
 
-        return $this->extractWithTesseractFallback($pdfPath);
+        return $this->extractWithLocalOcr($pdfPath, 1);
+    }
+
+    /**
+     * True when a thin/junk text layer should not block real OCR of the scan.
+     */
+    public function shouldSupplementWithOcr(string $text): bool
+    {
+        $trimmed = trim($text);
+        if ($trimmed === '') {
+            return true;
+        }
+
+        $minChars = max(50, (int) config('ocr.min_text_layer_chars', 400));
+        $compact = preg_replace('/\s+/', '', $trimmed) ?? '';
+        if (mb_strlen($compact) < $minChars) {
+            return true;
+        }
+
+        preg_match_all('/[A-Za-z]{3,}/u', $trimmed, $words);
+
+        return count($words[0] ?? []) < 12;
+    }
+
+    /**
+     * @return array{pdftotext: bool, pdftoppm: bool, tesseract: bool, node: bool, tesseract_js: bool, imagick: bool}
+     */
+    public function toolStatus(): array
+    {
+        return [
+            'pdftotext' => $this->binary('pdftotext', 'OCR_PDFTOTEXT_BINARY', 'pdftotext_binary') !== null,
+            'pdftoppm' => $this->binary('pdftoppm', 'OCR_PDFTOPPM_BINARY', 'pdftoppm_binary') !== null,
+            'tesseract' => $this->tesseractBinary() !== null,
+            'node' => $this->nodeBinary() !== null,
+            'tesseract_js' => is_file(base_path('node_modules/tesseract.js/package.json')),
+            'imagick' => class_exists(\Imagick::class),
+        ];
+    }
+
+    public function canOcrImages(): bool
+    {
+        if ($this->tesseractBinary() !== null) {
+            return true;
+        }
+
+        return $this->nodeBinary() !== null
+            && is_file(base_path('node_modules/tesseract.js/package.json'));
+    }
+
+    protected function extractEmbeddedText(string $pdfPath): string
+    {
+        $text = $this->extractWithPdftotextAll($pdfPath);
+        if ($this->isUsableText($text) && ! $this->shouldSupplementWithOcr($text)) {
+            return $text;
+        }
+
+        $range = $this->extractWithPdftotextPageRange($pdfPath, 1, self::SEARCH_MAX_PAGES);
+        if ($this->isUsableText($range) && mb_strlen($range) > mb_strlen($text)) {
+            $text = $range;
+        }
+
+        $smalot = $this->extractWithSmalot($pdfPath);
+        if ($this->isUsableText($smalot) && mb_strlen($smalot) > mb_strlen($text)) {
+            $text = $smalot;
+        }
+
+        return $text;
+    }
+
+    protected function extractWithLocalOcr(string $pdfPath, int $maxPages): string
+    {
+        if (! $this->canOcrImages()) {
+            \Log::info('PdfOcr: no local OCR engine (install tesseract or npm tesseract.js)');
+
+            return '';
+        }
+
+        $tempDir = sys_get_temp_dir().'/dms_ocr_'.substr(md5($pdfPath.microtime(true)), 0, 10);
+        if (! @mkdir($tempDir, 0700, true) && ! is_dir($tempDir)) {
+            return '';
+        }
+
+        $cleanup = function () use ($tempDir) {
+            if (! is_dir($tempDir)) {
+                return;
+            }
+            foreach (glob($tempDir.'/*') ?: [] as $f) {
+                @unlink($f);
+            }
+            @rmdir($tempDir);
+        };
+
+        try {
+            $pages = max(1, min(20, $maxPages));
+            $chunks = [];
+
+            for ($page = 1; $page <= $pages; $page++) {
+                $imageBase = $tempDir.'/page'.$page;
+                $png = $this->renderPageToPng($pdfPath, $tempDir, $imageBase, $page);
+                if (! $png) {
+                    break;
+                }
+                $text = $this->ocrImage($png);
+                if (trim($text) !== '') {
+                    $chunks[] = $text;
+                }
+            }
+
+            if ($chunks !== []) {
+                return trim(implode("\n\n", $chunks));
+            }
+
+            // Scanned PDFs often embed one JPEG per page — OCR those without pdftoppm/Ghostscript.
+            foreach ($this->extractEmbeddedJpegs($pdfPath, $tempDir, $pages) as $jpeg) {
+                $text = $this->ocrImage($jpeg);
+                if (trim($text) !== '') {
+                    $chunks[] = $text;
+                }
+            }
+
+            return trim(implode("\n\n", $chunks));
+        } finally {
+            $cleanup();
+        }
+    }
+
+    protected function ocrImage(string $imagePath): string
+    {
+        $tesseract = $this->tesseractBinary();
+        if ($tesseract) {
+            $out = $imagePath.'_out';
+            $process = new Process([$tesseract, $imagePath, $out, '-l', 'eng']);
+            $process->setTimeout(120);
+            $process->run();
+            $txtFile = $out.'.txt';
+            if ($process->isSuccessful() && is_file($txtFile)) {
+                $text = (string) file_get_contents($txtFile);
+                @unlink($txtFile);
+
+                return $text;
+            }
+        }
+
+        $node = $this->nodeBinary();
+        $script = base_path('scripts/ocr-image.mjs');
+        if ($node && is_file($script) && is_file(base_path('node_modules/tesseract.js/package.json'))) {
+            $process = new Process([$node, $script, $imagePath], base_path());
+            $process->setTimeout(180);
+            $process->run();
+            if ($process->isSuccessful()) {
+                return $process->getOutput();
+            }
+            \Log::debug('PdfOcr: tesseract.js failed', ['err' => $process->getErrorOutput()]);
+        }
+
+        return '';
     }
 
     protected function extractWithPdftotextPageRange(string $pdfPath, int $fromPage, int $toPage): string
     {
         try {
-            return (new Pdf())
+            return $this->makePdfToText()
                 ->setPdf($pdfPath)
-                ->setOptions(['-f ' . max(1, $fromPage), '-l ' . max($fromPage, $toPage)])
+                ->setOptions(['-f '.max(1, $fromPage), '-l '.max($fromPage, $toPage)])
                 ->text();
         } catch (\Throwable $e) {
             \Log::debug('PdfFirstPageOcr: page-range pdftotext failed', ['path' => $pdfPath, 'error' => $e->getMessage()]);
@@ -100,18 +246,22 @@ class PdfFirstPageOcrService
         }
     }
 
-    /** Extract all pages via pdftotext (best for keyword search). */
     protected function extractWithPdftotextAll(string $pdfPath): string
     {
         try {
-            return (new Pdf())
-                ->setPdf($pdfPath)
-                ->text();
+            return $this->makePdfToText()->setPdf($pdfPath)->text();
         } catch (\Throwable $e) {
             \Log::debug('PdfFirstPageOcr: full pdftotext failed', ['path' => $pdfPath, 'error' => $e->getMessage()]);
 
             return '';
         }
+    }
+
+    protected function makePdfToText(): Pdf
+    {
+        $binary = $this->binary('pdftotext', 'OCR_PDFTOTEXT_BINARY', 'pdftotext_binary');
+
+        return $binary ? new Pdf($binary) : new Pdf();
     }
 
     protected function extractWithPdftotext(string $pdfPath): string
@@ -184,8 +334,24 @@ class PdfFirstPageOcrService
             return false;
         }
 
-        // Ignore tiny junk extractions.
         return mb_strlen(preg_replace('/\s+/', '', $trimmed) ?? '') >= 12;
+    }
+
+    protected function mergeText(string $layer, string $ocr): string
+    {
+        $layer = trim($layer);
+        $ocr = trim($ocr);
+        if ($layer === '') {
+            return $ocr;
+        }
+        if ($ocr === '') {
+            return $layer;
+        }
+        if (mb_stripos($ocr, $layer) !== false) {
+            return $ocr;
+        }
+
+        return $layer."\n\n".$ocr;
     }
 
     protected function limitText(string $text, int $max = self::SEARCH_MAX_CHARS): string
@@ -202,123 +368,153 @@ class PdfFirstPageOcrService
         return mb_substr($text, 0, $max);
     }
 
-    /**
-     * When pdftotext returns nothing, render pages to images and run Tesseract.
-     * Requires: pdftoppm (poppler-utils) and tesseract on PATH.
-     */
-    protected function extractWithTesseractFallback(string $pdfPath): string
-    {
-        return $this->extractWithTesseractPages($pdfPath, 1);
-    }
-
-    protected function extractWithTesseractPages(string $pdfPath, int $maxPages): string
-    {
-        $tempDir = sys_get_temp_dir() . '/dms_ocr_' . substr(md5($pdfPath . microtime(true)), 0, 10);
-        if (!@mkdir($tempDir, 0700, true) && !is_dir($tempDir)) {
-            \Log::warning('PdfFirstPageOcr: could not create temp dir', ['dir' => $tempDir]);
-
-            return '';
-        }
-
-        $cleanup = function () use ($tempDir) {
-            if (!is_dir($tempDir)) {
-                return;
-            }
-            foreach (glob($tempDir . '/*') ?: [] as $f) {
-                @unlink($f);
-            }
-            @rmdir($tempDir);
-        };
-
-        try {
-            $pages = max(1, min(10, $maxPages));
-            $chunks = [];
-            for ($page = 1; $page <= $pages; $page++) {
-                $imageBase = $tempDir . '/page'.$page;
-                $png = $this->renderPageToPng($pdfPath, $tempDir, $imageBase, $page);
-                if (! $png) {
-                    break;
-                }
-                $text = $this->runTesseract($png);
-                if (trim($text) !== '') {
-                    $chunks[] = $text;
-                }
-            }
-
-            return trim(implode("\n\n", $chunks));
-        } finally {
-            $cleanup();
-        }
-    }
-
-    protected function renderFirstPageToPng(string $pdfPath, string $tempDir, string $imagePath): ?string
-    {
-        return $this->renderPageToPng($pdfPath, $tempDir, $imagePath, 1);
-    }
-
     protected function renderPageToPng(string $pdfPath, string $tempDir, string $imagePath, int $page): ?string
     {
         $page = max(1, $page);
 
-        // 1) pdftoppm (poppler-utils)
-        $cmd = sprintf(
-            'pdftoppm -png -f %d -l %d -r 200 %s %s 2>&1',
-            $page,
-            $page,
-            escapeshellarg($pdfPath),
-            escapeshellarg($imagePath)
-        );
-        exec($cmd, $out, $ret);
-        if ($ret === 0) {
-            $png = $imagePath . '-'.$page.'.png';
-            if (!file_exists($png)) {
-                $png = $imagePath . '-'.sprintf('%02d', $page).'.png';
-            }
-            if (!file_exists($png)) {
-                $found = glob($tempDir . '/*.png');
-                $png = isset($found[0]) ? $found[0] : null;
-            }
-            if ($png && file_exists($png)) {
-                return $png;
-            }
-        }
-
-        // 2) ImageMagick: "convert" (ImageMagick 6) or "magick convert" (ImageMagick 7, e.g. Windows)
-        $png = $tempDir . '/page'.$page.'.png';
-        $pageIndex = $page - 1;
-        foreach (['convert', 'magick'] as $magickCmd) {
-            $cmd = $magickCmd === 'magick'
-                ? sprintf('magick %s[%d] -density 200 %s 2>&1', escapeshellarg($pdfPath), $pageIndex, escapeshellarg($png))
-                : sprintf('convert %s[%d] -density 200 %s 2>&1', escapeshellarg($pdfPath), $pageIndex, escapeshellarg($png));
-            exec($cmd, $out2, $ret2);
-            if ($ret2 === 0 && file_exists($png)) {
-                return $png;
+        $pdftoppm = $this->binary('pdftoppm', 'OCR_PDFTOPPM_BINARY', 'pdftoppm_binary');
+        if ($pdftoppm) {
+            $process = new Process([
+                $pdftoppm, '-png', '-f', (string) $page, '-l', (string) $page, '-r', '200',
+                $pdfPath, $imagePath,
+            ]);
+            $process->setTimeout(60);
+            $process->run();
+            if ($process->isSuccessful()) {
+                foreach ([
+                    $imagePath.'-'.$page.'.png',
+                    $imagePath.'-'.sprintf('%02d', $page).'.png',
+                ] as $png) {
+                    if (is_file($png)) {
+                        return $png;
+                    }
+                }
+                $found = glob($tempDir.'/*.png');
+                if (! empty($found[0])) {
+                    return $found[0];
+                }
             }
         }
 
-        \Log::debug('PdfFirstPageOcr: could not render PDF page to image', ['page' => $page]);
+        if (class_exists(\Imagick::class)) {
+            try {
+                $png = $tempDir.'/imagick-'.$page.'.png';
+                $im = new \Imagick();
+                $im->setResolution(160, 160);
+                $im->readImage($pdfPath.'['.($page - 1).']');
+                $im->setImageFormat('png');
+                $im->writeImage($png);
+                $im->clear();
+                $im->destroy();
+                if (is_file($png)) {
+                    return $png;
+                }
+            } catch (\Throwable $e) {
+                \Log::debug('PdfOcr: Imagick render failed', ['page' => $page, 'error' => $e->getMessage()]);
+            }
+        }
+
+        foreach (['magick', 'convert'] as $magickCmd) {
+            $bin = $this->findOnPath($magickCmd);
+            if (! $bin) {
+                continue;
+            }
+            $png = $tempDir.'/magick-'.$page.'.png';
+            $process = new Process([$bin, $pdfPath.'['.($page - 1).']', '-density', '160', $png]);
+            $process->setTimeout(60);
+            $process->run();
+            if ($process->isSuccessful() && is_file($png)) {
+                return $png;
+            }
+        }
 
         return null;
     }
 
-    protected function runTesseract(string $imagePath): string
+    /**
+     * @return list<string>
+     */
+    protected function extractEmbeddedJpegs(string $pdfPath, string $tempDir, int $max): array
     {
-        $out = $imagePath . '_out';
-        $cmd = sprintf(
-            'tesseract %s %s -l eng 2>&1',
-            escapeshellarg($imagePath),
-            escapeshellarg($out)
-        );
-        exec($cmd, $output, $ret);
-        $txtFile = $out . '.txt';
-        if ($ret === 0 && file_exists($txtFile)) {
-            $text = file_get_contents($txtFile);
-            @unlink($txtFile);
-
-            return $text ?: '';
+        $size = is_file($pdfPath) ? (int) filesize($pdfPath) : 0;
+        if ($size <= 0 || $size > 40 * 1024 * 1024) {
+            return [];
         }
-        \Log::debug('PdfFirstPageOcr: tesseract failed', ['return' => $ret, 'output' => implode("\n", $output ?? [])]);
 
-        return '';
+        $binary = file_get_contents($pdfPath);
+        if (! is_string($binary) || $binary === '') {
+            return [];
+        }
+
+        $paths = [];
+        $offset = 0;
+        $length = strlen($binary);
+        while (count($paths) < $max && $offset < $length) {
+            $start = strpos($binary, "\xFF\xD8\xFF", $offset);
+            if ($start === false) {
+                break;
+            }
+            $end = strpos($binary, "\xFF\xD9", $start + 3);
+            if ($end === false) {
+                break;
+            }
+            $jpeg = substr($binary, $start, $end - $start + 2);
+            $offset = $end + 2;
+            if (strlen($jpeg) < 20000) {
+                continue;
+            }
+            $path = $tempDir.'/embed-'.count($paths).'.jpg';
+            file_put_contents($path, $jpeg);
+            $paths[] = $path;
+        }
+
+        return $paths;
+    }
+
+    protected function tesseractBinary(): ?string
+    {
+        return $this->binary('tesseract', 'OCR_TESSERACT_BINARY', 'tesseract_binary', [
+            'C:\\Program Files\\Tesseract-OCR\\tesseract.exe',
+            'C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe',
+        ]);
+    }
+
+    protected function nodeBinary(): ?string
+    {
+        $configured = $this->binary('node', 'OCR_NODE_BINARY', 'node_binary', [
+            base_path('bin/runtime-node'),
+            base_path('bin/runtime-node.exe'),
+        ]);
+        if ($configured) {
+            return $configured;
+        }
+
+        return $this->findOnPath('node') ?: $this->findOnPath('node.exe');
+    }
+
+    /**
+     * @param  list<string>  $extraPaths
+     */
+    protected function binary(string $name, string $envKey, string $configKey, array $extraPaths = []): ?string
+    {
+        $configured = trim((string) (config('ocr.'.$configKey) ?: env($envKey, '')));
+        if ($configured !== '' && is_file($configured)) {
+            return $configured;
+        }
+
+        foreach ($extraPaths as $path) {
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+
+        return $this->findOnPath($name);
+    }
+
+    protected function findOnPath(string $name): ?string
+    {
+        $finder = new ExecutableFinder();
+
+        return $finder->find($name);
     }
 }
