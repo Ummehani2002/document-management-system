@@ -87,3 +87,63 @@ test('minutes ocr title beats sd code even without minutes words in filename ste
 
     expect($result['document_category'])->toBe('MOM');
 });
+
+test('prequalification for laboratory testing is not testing and commissioning', function () {
+    $filename = 'DXB2-PSP-LS-SCAR-000001-02_A.pdf';
+    $ocr = "Subject: Pre-qualification Document for Laboratory Testing (Independent Laboratory L.L.C)\n"
+        ."Document Type: Pre-Qualification\nDescription: Pre-qualification Document for Laboratory Testing\n"
+        ."For GHD/RED Engineering COMMENTS\nNo Objection.";
+
+    expect(DocumentFilenameParser::guessSubfolderFromDocumentText($ocr))->toBe('Prequalification');
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+
+    expect($result['document_category'])->toBe('Prequalification');
+});
+
+test('preq filename code goes to prequalification', function () {
+    $result = DocumentFilenameParser::classifyForAutomation('PSE20231011-PRS-PREQ-00001 R.00.pdf', null);
+
+    expect($result['document_category'])->toBe('Prequalification');
+});
+
+test('sample register filenames map to the sharepoint folders', function (string $filename, string $folder) {
+    $result = DocumentFilenameParser::classifyForAutomation($filename, null);
+
+    expect($result['document_category'])->toBe($folder);
+})->with([
+    ['AB-0003-R000-Staircase-ST-PO-01-Plan.pdf', 'As Built Drawing Submittal'],
+    ['RYM-PRO-POL-DT-0003 R.00 - Health.pdf', 'Document Transmittal'],
+    ['DXB2-LOR-PSP-LTR-00001_Programme.pdf', 'Incoming Or Outgoing Letter'],
+    ['PSE2024-10111-PRS-PAR-MIR-HLS-00001.pdf', 'Material Inspection Request'],
+    ['PSE20241019-WG-PRO-MAS-0001 - Code.pdf', 'Material Sample'],
+    ['P158.01_MAT_INFRA2_CIV-0003-R1.pdf', 'Material Submittal'],
+    ['1TB02012-012C20-PIC-MTS-0001[C4].pdf', 'Method Statement'],
+    ['C1-C2-CSCEE-XLN-MEST-0055_R00.pdf', 'Method Statement'],
+    ['UNEC-PJA-SDS-INF-FRN-001-R1-Sewer.pdf', 'Shop Drawing'],
+    ['Al Jada BOQ.pdf', 'BOQ Bill Of Quantities'],
+    ['PJE20231001-BK-CVI-0050 Bench.pdf', 'Confirmation Of Verbal Instruction'],
+    ['QOR-PRO-BK-0001_Closed.pdf', 'Quality Observation Report'],
+    ['NCR 0003.pdf', 'NCR'],
+    ['NCR-CIVIL-002 Rev02 AAN.pdf', 'NCR'],
+    ['PJE20231001-BK-O&M-0004 Rev01.pdf', 'Operation And Maintenance Manual'],
+    ['Coordination MOM No. 008.pdf', 'MOM'],
+    ['202406192329 Minutes Of Meeting - PJE2.pdf', 'MOM'],
+    ['211106-LWWN-UA-EI-002.pdf', 'Engineers Instruction'],
+    ['0009.Engineer\'s Instruction No.002.pdf', 'Engineers Instruction'],
+    ['P158.01_RFI_Morocco_CIV-0002-R0.pdf', 'Request For Information'],
+    ['F1004_SON_010 - Closed.pdf', 'Site Observation Report'],
+    ['PJE20231001-AV-L0039-23 - Cost Variation.pdf', 'Variation'],
+    ['MASAS-P2-LSC-WAR-HLS-PSC-PA.pdf', 'Warranty By Us'],
+    ['LTR-0174 Section Taking Over Certificate.pdf', 'Taking Over Certificate'],
+    ['PSE20231015-F1004-DS-0009 Rev00 AAN.pdf', 'Design Calculation'],
+]);
+
+test('shop drawing sketch submittal form goes to shop drawing', function () {
+    $filename = 'PIE20241002-7622-PSC-N-SR-0012-REV-01_AAN.pdf';
+    $ocr = "SHOP DRAWING / SKETCH SUBMITTAL\nSubmittal No: PIE20241002-7622-PSC-FFN-SR-0012";
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+
+    expect($result['document_category'])->toBe('Shop Drawing');
+});

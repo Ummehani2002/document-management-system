@@ -100,6 +100,10 @@ class DocumentFilenameParser
         }
 
         $normalized = self::normalizeOcrText($text);
+        // Pre-qualification forms often say "laboratory testing" — that is not T&C.
+        if (self::textLooksLikePrequalification($normalized)) {
+            return 'Prequalification';
+        }
         // T&C often appears late ("Content of Request"); scan full OCR, not only first 14k chars.
         if (self::textLooksLikeTestingAndCommissioning($normalized)) {
             return 'Testing And Commissioning';
@@ -120,6 +124,9 @@ class DocumentFilenameParser
         }
         if (preg_match('/MATERIAL\s*INSPECTION\s*REQUEST|(?:^|\n)\s*MIR\b/iu', $normalized)) {
             return 'Material Inspection Request';
+        }
+        if (preg_match('/SHOP\s*DRAWING\s*(?:\/\s*)?(?:SKETCH\s*)?SUBMITTAL|SKETCH\s*SUBMITTAL/iu', $normalized)) {
+            return 'Shop Drawing';
         }
         if (preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/iu', $normalized)) {
             return 'MOM';
@@ -236,6 +243,9 @@ class DocumentFilenameParser
     protected static function guessSubfolderFromOcrHeadingsOnly(string $text): string
     {
         $normalized = self::normalizeOcrText($text);
+        if (self::textLooksLikePrequalification($normalized)) {
+            return 'Prequalification';
+        }
         if (self::textLooksLikeTestingAndCommissioning($normalized)) {
             return 'Testing And Commissioning';
         }
@@ -302,6 +312,9 @@ class DocumentFilenameParser
 
     protected static function detectCategoryFromTitle(string $window): string
     {
+        if (self::textLooksLikePrequalification($window)) {
+            return 'Prequalification';
+        }
         if (self::textLooksLikeTestingAndCommissioningLoose($window)) {
             return 'Testing And Commissioning';
         }
@@ -573,8 +586,28 @@ class DocumentFilenameParser
     /**
      * Detect "Testing and Commissioning" including common OCR garble (e.g. AND→AS, COMMISSIONING split/jumbled).
      */
+    /**
+     * Pre-qualification / PQ / PREQ — including "Pre-qualification Document for Laboratory Testing".
+     */
+    protected static function textLooksLikePrequalification(string $text): bool
+    {
+        $u = strtoupper($text);
+
+        return (bool) preg_match(
+            '/PRE[\s\-]*QUALIF(?:ICATION|ICATIONS)?'
+            . '|\bPREQUAL(?:IFICATION)?\b'
+            . '|\bPRE[\s\-]*Q\b'
+            . '|(?:^|[^A-Z0-9])(?:PREQ|PREQUL)(?:[^A-Z0-9]|$)'
+            . '|(?:^|[^A-Z0-9])PQ[\s\-_]*\d+/u',
+            $u
+        );
+    }
+
     protected static function textLooksLikeTestingAndCommissioning(string $upper): bool
     {
+        if (self::textLooksLikePrequalification($upper)) {
+            return false;
+        }
         if (preg_match('/TESTING\s+AND\s+COMMISS?IO?N[I1]?(?:ING)?/i', $upper)) {
             return true;
         }
@@ -602,19 +635,23 @@ class DocumentFilenameParser
      */
     protected static function textLooksLikeTestingAndCommissioningLoose(string $text): bool
     {
+        if (self::textLooksLikePrequalification($text)) {
+            return false;
+        }
         if (self::textLooksLikeTestingAndCommissioning(strtoupper($text))) {
             return true;
         }
         $u = strtoupper($text);
-        if (!preg_match('/TESTIN/', $u)) {
+        // "Laboratory Testing" alone is not T&C — require TESTING near COMMISSIONING.
+        if (! preg_match('/TESTIN(?:G)?/i', $u)) {
             return false;
         }
-        if (preg_match('/\bCOMM(?:ERCIAL|ITTEE|UNICATION)\b/', $u)) {
-            return false;
+        if (preg_match('/\bCOMM(?:ERCIAL|ITTEE|UNICATION|ENTS?)\b/', $u)) {
+            // Still allow a real T&C phrase elsewhere on the page.
         }
 
         return (bool) preg_match(
-            '/COM(?:MISS?IO?N(?:ING)?|M+I+S+S+I+O+N(?:I+NG)?|I{1,2}SSIONING|I{1,2}S+I+O+N+I+NG|MISSION(?:ING)?|MISS?ION|COMI{1,2}SSION(?:ING)?)/',
+            '/TESTIN(?:G)?[\s\S]{0,80}COM(?:MISS?IO?N(?:ING)?|M+I+S+S+I+O+N(?:I+NG)?|I{1,2}SSIONING|MISSION(?:ING)?)/',
             $u
         );
     }
@@ -985,10 +1022,16 @@ class DocumentFilenameParser
             }
         }
 
-        // Hard locks: clear WIR / MIR / MOM signals always win over incidental TOC / shop-drawing text.
-        if ($hasStrongWirSignal
-            || preg_match('/WORK\s*INSPECTION\s*REQUEST/i', $ocr)
-            || preg_match('/WORK\s*INSPECTION\s*REQUEST|(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)/i', $upperName)) {
+        // Hard locks: WIR / MIR win over incidental TOC / shop-drawing text, but not over
+        // a real T&C / prequal / payment title (sample T&C files still use a WIR register code).
+        $ocrBeatsWir = in_array($contentCategory, ['Testing And Commissioning', 'Prequalification', 'Payment Application', 'Variation'], true)
+            || in_array($ocrHeadlineCategory, ['Testing And Commissioning', 'Prequalification', 'Payment Application', 'Variation'], true);
+        if (! $ocrBeatsWir
+            && (
+                $hasStrongWirSignal
+                || preg_match('/WORK\s*INSPECTION\s*REQUEST/i', $ocr)
+                || preg_match('/WORK\s*INSPECTION\s*REQUEST|(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)/i', $upperName)
+            )) {
             $category = 'Work Inspection';
             $source = $hasStrongWirSignal ? 'filename' : 'ocr';
             $confidence = max($confidence, 0.92);
@@ -1212,9 +1255,44 @@ class DocumentFilenameParser
             $upper
         );
 
+        // Register prefixes used in the sample set (AB-0003, AB-INFRA, …-AB-RW-…).
+        if (preg_match('/(?:^|[^A-Z0-9])AB[-_]\d|(?:^|[^A-Z0-9])AB-INFRA|(?:^|-)AB[-_][A-Z]{2,}/i', $upper)
+            && ! preg_match('/(?:^|[^A-Z0-9])AB[-_]?(?:SOR|SENCE)/i', $upper)) {
+            return 'As Built Drawing Submittal';
+        }
         // Keep As-Built docs out of Method Statement even if code contains "-MS-".
         if (preg_match('/\bAS[\s\-]*BUILT\b|\bASBUILT\b/i', $upper) && !$hasLetterToken) {
             return 'As Built Drawing Submittal';
+        }
+        if (preg_match('/SHOP\s*DRAWING\s*(?:\/\s*)?(?:SKETCH\s*)?SUBMITTAL|SKETCH\s*SUBMITTAL|(?:^|[^A-Z0-9])SDS(?:[^A-Z0-9]|$)/i', $upper)) {
+            return 'Shop Drawing';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])BOQ\b|\bBOQ\b|BILL\s+OF\s+QUANTIT/i', $upper)) {
+            return 'BOQ Bill Of Quantities';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])(?:NCR)(?:[^A-Z0-9]|$)|NON[\s\-]*CONFORMANCE/i', $upper)) {
+            return 'NCR';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])WAR(?:[^A-Z0-9]|$)|\bWARRANTY\b/i', $upper)) {
+            return 'Warranty By Us';
+        }
+        if (preg_match('/DESIGN\s*CALCULATION|STRUCTURAL\s+DES(?:IGN)?/i', $upper)) {
+            return 'Design Calculation';
+        }
+        if (preg_match('/ENGINEER\S{0,3}\s*INSTRUCTION|ENGINEER\s+INSTRUCTION/i', $upper)) {
+            return 'Engineers Instruction';
+        }
+        if (preg_match('/(?:^|[^A-Z0-9])MEST(?:[^A-Z0-9]|$)/i', $upper)) {
+            return 'Method Statement';
+        }
+        if (preg_match('/RE\.?\s*ENGINE|ENGINEER\S*\s*CORRESPONDENCE/i', $upper)) {
+            return 'Engineers Correspondences';
+        }
+        // Letter-style ref + "Payment" in the title (not a payment certificate).
+        if (preg_match('/\bPAYMENT\b/i', $upper)
+            && ! preg_match('/PAYMENT\s*CERTI/i', $upper)
+            && (self::textLooksLikePaymentApplication($upper) || preg_match('/L\d{3,4}[-_\/]\d{2,4}/i', $upper))) {
+            return 'Payment Application';
         }
 
         if (preg_match('/INTERNAL\s*MEMO|MEMORANDUM|\b[A-Z]{2,}(?:-[A-Z]{2,})*-MEM-\d+/u', $upper)) {
@@ -1268,8 +1346,14 @@ class DocumentFilenameParser
         }
         // Explicit minutes titles must beat short register codes like -SD- in the same filename
         // (e.g. "AWAJ-SD-802-... -Minutes of Progress Meeting - 059.pdf").
-        if (preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upper)) {
+        if (preg_match('/\bMOM\b|MINUTES\s*OF\s*(?:PROGRESS\s+)?MEETING|MINUTESOFMEETING/i', $upper)) {
             return 'MOM';
+        }
+        if (self::textLooksLikePrequalification($upper)) {
+            return 'Prequalification';
+        }
+        if (self::textLooksLikeTestingAndCommissioning($upper)) {
+            return 'Testing And Commissioning';
         }
         if (preg_match('/WORK\s*INSPECTION\s*REQUEST|(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)/i', $upper)) {
             return 'Work Inspection';
@@ -1280,9 +1364,6 @@ class DocumentFilenameParser
         // Require a real TOC title or -TOC- register segment — bare "TOC" in OCR checklists is too noisy.
         if (preg_match('/TAKING\s*OVER\s*CERTIFICATE|(?:^|[^A-Z0-9])TOC(?:[^A-Z0-9]|$)/i', $upper)) {
             return 'Taking Over Certificate';
-        }
-        if (self::textLooksLikeTestingAndCommissioning($upper)) {
-            return 'Testing And Commissioning';
         }
 
         // Register "OMM" / "O&M" (and spelled-out title) must win over material codes like "MAS" in the same path.
@@ -1311,7 +1392,7 @@ class DocumentFilenameParser
         }
 
         $codeMatches = [];
-        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|EI|RFI|BOQ|MTS|MST|MSS|MOS|MT|SDR|SD|DS|DWG|ASB|ABS|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
+        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|EI|RFI|BOQ|MTS|MST|MEST|MSS|MOS|MT|SDR|SDS|SD|DS|DWG|ASB|ABS|AB|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
         $codes = array_unique(array_map('strtoupper', $codeMatches[1] ?? []));
         $hasPrequalificationKeyword = (bool) preg_match('/PRE[\s\-]*QUALIF(?:ICATION|ICATIONS)?|\bPREQUAL\b|\bPREQ\b/i', $upper);
         $hasMethodKeyword = (bool) preg_match('/METHOD\s*STATEMENT|METHOD\s+OF\s+STATEMENT|METHOD\s*ST(?:\.|ATEMENT)?|STATEMENT\s+SUBMITTAL|\bMTS\b|\bMST\b|\bMSS\b|\bMOS\b/i', $upper);
@@ -1352,8 +1433,15 @@ class DocumentFilenameParser
         // Drawing sheet index only when it looks like a sheet trail (e.g. ...-DS-058-01-Code A.pdf),
         // not bare ...-DS-009 Rev... (often document / transmittal register).
         if (in_array('DS', $codes, true)) {
+            if (preg_match('/DESIGN\s*CALC|STRUCTURAL\s+DES/i', $upper)) {
+                return 'Design Calculation';
+            }
             if (preg_match('/SHOP|DRAWING|\bDWG\b|CODE\s+[A-Z0-9]|DS[-_]\d{2,}[-_]\d{2,}/i', $upper)) {
                 return 'Shop Drawing';
+            }
+            // …-DS-0009 Rev00 is usually a design calculation, not a drawing sheet.
+            if (preg_match('/DS[-_]\d{3,4}\b/i', $upper)) {
+                return 'Design Calculation';
             }
             if (preg_match('/\bREV\d/i', $upper)) {
                 return 'Document Transmittal';
@@ -1374,25 +1462,25 @@ class DocumentFilenameParser
         if (in_array('WIR', $codes, true)) {
             return 'Work Inspection';
         }
-        if (in_array('ASB', $codes, true) || in_array('ABS', $codes, true)) {
+        if (in_array('ASB', $codes, true) || in_array('ABS', $codes, true) || in_array('AB', $codes, true)) {
             return 'As Built Drawing Submittal';
         }
-        if (in_array('SDR', $codes, true) || in_array('SD', $codes, true)) {
+        if (in_array('SDR', $codes, true) || in_array('SDS', $codes, true) || in_array('SD', $codes, true)) {
             return 'Shop Drawing';
         }
         if (in_array('DWG', $codes, true)) {
             return 'Shop Drawing';
         }
-        if (in_array('MST', $codes, true) || in_array('MSS', $codes, true) || in_array('MOS', $codes, true)) {
+        if (in_array('MST', $codes, true) || in_array('MEST', $codes, true) || in_array('MSS', $codes, true) || in_array('MOS', $codes, true)) {
             return 'Method Statement';
         }
         if (in_array('MTS', $codes, true) || in_array('MT', $codes, true)) {
             return 'Method Statement';
         }
-        if (in_array('MAT', $codes, true) || in_array('MAS', $codes, true)) {
+        if (in_array('MAT', $codes, true)) {
             return 'Material Submittal';
         }
-        if (in_array('MSA', $codes, true)) {
+        if (in_array('MSA', $codes, true) || in_array('MAS', $codes, true)) {
             return 'Material Sample';
         }
         if (in_array('MB', $codes, true)) {
