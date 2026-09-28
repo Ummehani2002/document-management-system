@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Document Management System — Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy: #0b1f3a;
+            --navy-soft: #1e4d7b;
+            --accent: #3b82f6;
+            --bg: #0b1f3a;
+            --card: #ffffff;
+            --muted: #64748b;
+            --line: #e2e8f0;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            height: 100%;
+            font-family: Montserrat, "Segoe UI", sans-serif;
+            background: #0a1628;
+            color: var(--navy);
+        }
+        .deck {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .slides {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        .slide {
+            display: none;
+            height: 100%;
+            padding: 48px 64px 88px;
+            background: #f1f5f9;
+        }
+        .slide.is-on { display: flex; flex-direction: column; }
+        .slide.cover, .slide.end {
+            background: linear-gradient(160deg, #0b1f3a 0%, #163a66 55%, #1e4d7b 100%);
+            color: #fff;
+        }
+        .kicker {
+            font-size: 13px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--accent);
+            font-weight: 600;
+            margin: 0 0 12px;
+        }
+        .cover .kicker, .end .kicker { color: #93c5fd; }
+        h1 {
+            font-size: clamp(32px, 4.4vw, 52px);
+            font-weight: 600;
+            line-height: 1.15;
+            margin: 0 0 16px;
+        }
+        h2 {
+            font-size: clamp(26px, 3.2vw, 40px);
+            font-weight: 600;
+            margin: 0 0 28px;
+        }
+        .lead {
+            font-size: 20px;
+            line-height: 1.5;
+            max-width: 820px;
+            color: #334155;
+        }
+        .cover .lead, .end .lead { color: #e2e8f0; }
+        .grow { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 22px 22px 20px;
+            box-shadow: 0 8px 24px rgba(11, 31, 58, 0.06);
+        }
+        .card strong {
+            display: block;
+            font-size: 18px;
+            margin-bottom: 8px;
+            color: var(--navy);
+        }
+        .card p, .list li {
+            margin: 0;
+            color: #475569;
+            line-height: 1.45;
+            font-size: 16px;
+        }
+        .list {
+            margin: 0;
+            padding-left: 22px;
+        }
+        .list li + li { margin-top: 12px; }
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+        .step {
+            background: #fff;
+            border-radius: 14px;
+            padding: 22px;
+            border-top: 4px solid var(--accent);
+        }
+        .num {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--navy);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .step h3 { margin: 0 0 8px; font-size: 18px; }
+        .step p { margin: 0; color: #475569; font-size: 15px; line-height: 1.45; }
+        .footer-bar {
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            background: var(--navy);
+            color: #cbd5e1;
+            font-size: 13px;
+        }
+        .nav {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        button {
+            border: 0;
+            background: #1e4d7b;
+            color: #fff;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover { background: #2563a8; }
+        .dots { display: flex; gap: 6px; margin: 0 10px; }
+        .dots span {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #64748b;
+        }
+        .dots span.on { background: #93c5fd; }
+        .hint { color: #94a3b8; }
+        @page {
+            size: 13.333in 7.5in;
+            margin: 0;
+        }
+        @media print {
+            html, body, .deck, .slides {
+                height: auto !important;
+                overflow: visible !important;
+                background: #fff !important;
+            }
+            .footer-bar { display: none !important; }
+            .slide {
+                display: flex !important;
+                page-break-after: always;
+                break-after: page;
+                height: 7.5in;
+                width: 13.333in;
+            }
+            .slide:last-child { page-break-after: auto; }
+            .nav, .hint { display: none !important; }
+        }
+        @media (max-width: 900px) {
+            .slide { padding: 28px 22px 80px; }
+            .grid, .steps { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="deck">
+    <div class="slides" id="slides">
+
+        <section class="slide cover is-on">
+            <div class="grow">
+                <p class="kicker">Internal demo</p>
+                <h1>Document Management System</h1>
+                <p class="lead">One place for company project files — filed in the right folder, easy to find, and safe if something is deleted by mistake.</p>
+            </div>
+        </section>
+
+        <section class="slide">
+            <p class="kicker">What this is</p>
+            <h2>Stop hunting through email and shared folders</h2>
+            <div class="grid">
+                <div class="card">
+                    <strong>For document controllers</strong>
+                    <p>Upload once. The system places the file in the correct folder from the file name and the title on the document.</p>
+                </div>
+                <div class="card">
+                    <strong>For the project team</strong>
+                    <p>Open your company, then search or browse folders. You only see what you are allowed to see.</p>
+                </div>
+                <div class="card">
+                    <strong>For managers</strong>
+                    <p>Each company and project stays separate. Construction and trading are not mixed.</p>
+                </div>
+                <div class="card">
+                    <strong>For everyone</strong>
+                    <p>View or download the PDF. The original stays in the system.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide">
+            <p class="kicker">How you enter</p>
+            <h2>Three simple steps</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="num">1</div>
+                    <h3>Business type</h3>
+                    <p>Choose <strong>Trading</strong> or <strong>Construction</strong> on the home page.</p>
+                </div>
+                <div class="step">
+                    <div class="num">2</div>
+                    <h3>Company</h3>
+                    <p>Open your company. After that, everything is only for that company.</p>
+                </div>
+                <div class="step">
+                    <div class="num">3</div>
+                    <h3>Project</h3>
+                    <p>Work inside the project number (for example PSE20251015).</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide">
+            <p class="kicker">Auto filing</p>
+            <h2>The file name and title choose the folder</h2>
+            <ul class="list">
+                <li><strong>WIR</strong> → Work Inspection &nbsp;·&nbsp; <strong>MIR</strong> → Material Inspection Request</li>
+                <li><strong>Minutes / MOM</strong> → MOM &nbsp;·&nbsp; <strong>PREQ / PQ</strong> → Prequalification</li>
+                <li><strong>SD / shop drawing submittal</strong> → Shop Drawing &nbsp;·&nbsp; <strong>MAT / MB</strong> → Material Submittal</li>
+                <li><strong>DT</strong> → Transmittal &nbsp;·&nbsp; <strong>LTR / LOR</strong> → Letters</li>
+                <li>Also: Method Statement, BOQ, NCR, CVI, RFI, TOC, Variation, O&amp;M, and the other folders you already use.</li>
+            </ul>
+            <p class="lead" style="margin-top:28px;font-size:17px;">If the name is not clear, you can still pick the folder when you upload.</p>
+        </section>
+
+        <section class="slide">
+            <p class="kicker">Finding files</p>
+            <h2>Folders or Search</h2>
+            <div class="grid">
+                <div class="card">
+                    <strong>Left-side folders</strong>
+                    <p>Browse like a filing cabinet. Open Work Inspection, MOM, Shop Drawing, and so on for this company and project.</p>
+                </div>
+                <div class="card">
+                    <strong>Search</strong>
+                    <p>Type part of the file name (WIR, MIR, 00015). After a file is indexed, you can also search a word that appears <em>inside</em> the PDF.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide">
+            <p class="kicker">Safety and access</p>
+            <h2>Nothing disappears by accident</h2>
+            <div class="grid">
+                <div class="card">
+                    <strong>Trash</strong>
+                    <p>Delete moves the file to Trash. An admin can restore it.</p>
+                </div>
+                <div class="card">
+                    <strong>Projects</strong>
+                    <p>If a project number is deleted by mistake, creating the same number brings that project back. Files stay in Trash until you restore them.</p>
+                </div>
+                <div class="card">
+                    <strong>User access</strong>
+                    <p>People only see the companies, projects, and folders they are given.</p>
+                </div>
+                <div class="card">
+                    <strong>Activity log</strong>
+                    <p>We can see who uploaded or deleted a file, and when.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide">
+            <p class="kicker">Live walkthrough</p>
+            <h2>What we will show now</h2>
+            <ul class="list">
+                <li>Open Construction → a company</li>
+                <li>Upload a <strong>WIR</strong> — it should go to Work Inspection</li>
+                <li>Upload <strong>Minutes of Meeting</strong> — it should go to MOM</li>
+                <li>Open the folder on the left and confirm the file is there</li>
+                <li>Search by file name, then download or view the PDF</li>
+            </ul>
+        </section>
+
+        <section class="slide end">
+            <div class="grow">
+                <p class="kicker">Thank you</p>
+                <h1>Questions?</h1>
+                <p class="lead">We can open the live system next and walk through upload, folders, and search together.</p>
+            </div>
+        </section>
+
+    </div>
+    <div class="footer-bar">
+        <span>Document Management System</span>
+        <div class="nav">
+            <button type="button" id="prev">Back</button>
+            <div class="dots" id="dots"></div>
+            <button type="button" id="next">Next</button>
+        </div>
+        <span class="hint">Arrow keys · F11 for full screen</span>
+    </div>
+</div>
+<script>
+    const slides = [...document.querySelectorAll('.slide')];
+    const dots = document.getElementById('dots');
+    let i = 0;
+    slides.forEach((_, n) => {
+        const d = document.createElement('span');
+        if (n === 0) d.classList.add('on');
+        dots.appendChild(d);
+    });
+    function show(n) {
+        i = Math.max(0, Math.min(slides.length - 1, n));
+        slides.forEach((s, idx) => s.classList.toggle('is-on', idx === i));
+        [...dots.children].forEach((d, idx) => d.classList.toggle('on', idx === i));
+    }
+    document.getElementById('prev').onclick = () => show(i - 1);
+    document.getElementById('next').onclick = () => show(i + 1);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); show(i + 1); }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); show(i - 1); }
+        if (e.key === 'Home') show(0);
+        if (e.key === 'End') show(slides.length - 1);
+    });
+</script>
+</body>
+</html>
