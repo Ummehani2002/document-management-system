@@ -114,6 +114,67 @@ class OnlyOfficeService
     }
 
     /**
+     * OnlyOffice often returns an internal/localhost download URL in the callback.
+     * Rewrite it to the configured public Document Server base so Laravel can fetch it.
+     */
+    public function resolveCallbackDownloadUrl(string $callbackUrl): string
+    {
+        $callbackUrl = trim($callbackUrl);
+        $server = $this->serverUrl();
+        if ($callbackUrl === '' || $server === '') {
+            return $callbackUrl;
+        }
+
+        $parts = parse_url($callbackUrl);
+        $serverParts = parse_url($server);
+        if (! is_array($parts) || ! is_array($serverParts) || empty($parts['path'])) {
+            return $callbackUrl;
+        }
+
+        $path = $parts['path'];
+        if (! empty($parts['query'])) {
+            $path .= '?'.$parts['query'];
+        }
+
+        return rtrim($server, '/').$path;
+    }
+
+    /**
+     * Download the compiled file OnlyOffice prepared for saving.
+     *
+     * @throws \RuntimeException
+     */
+    public function downloadEditedFile(string $callbackUrl): string
+    {
+        $candidates = array_values(array_unique(array_filter([
+            $callbackUrl,
+            $this->resolveCallbackDownloadUrl($callbackUrl),
+        ])));
+
+        $errors = [];
+        foreach ($candidates as $url) {
+            try {
+                $response = Http::timeout(120)
+                    ->withHeaders(['Accept' => '*/*'])
+                    ->get($url);
+                if ($response->successful()) {
+                    $body = $response->body();
+                    if ($body !== '') {
+                        return $body;
+                    }
+                    $errors[] = $url.' returned empty body';
+                    continue;
+                }
+                $errors[] = $url.' HTTP '.$response->status();
+            } catch (\Throwable $e) {
+                $errors[] = $url.' '.$e->getMessage();
+            }
+        }
+
+        throw new \RuntimeException('OnlyOffice download failed: '.implode(' | ', $errors));
+    }
+
+    /**
      * Ask Document Server to push the current edit to our callback without closing the editor.
      *
      * @return array{ok: bool, error: int|null, message: string}
@@ -137,41 +198,49 @@ class OnlyOfficeService
             $body['token'] = $this->jwtEncode($payload, $secret);
         }
 
-        try {
-            $response = Http::timeout(30)
-                ->acceptJson()
-                ->asJson()
-                ->post($server.'/coauthoring/CommandService.ashx', $body);
-        } catch (\Throwable $e) {
-            return [
-                'ok' => false,
-                'error' => null,
-                'message' => 'Could not reach OnlyOffice Command Service: '.$e->getMessage(),
-            ];
-        }
+        $endpoints = [
+            $server.'/coauthoring/CommandService.ashx',
+            $server.'/command',
+        ];
 
-        if (! $response->successful()) {
-            return [
-                'ok' => false,
-                'error' => null,
-                'message' => 'OnlyOffice Command Service HTTP '.$response->status(),
-            ];
-        }
+        $lastMessage = 'Could not reach OnlyOffice Command Service.';
+        foreach ($endpoints as $endpoint) {
+            try {
+                $response = Http::timeout(30)
+                    ->acceptJson()
+                    ->asJson()
+                    ->post($endpoint, $body);
+            } catch (\Throwable $e) {
+                $lastMessage = 'Could not reach OnlyOffice Command Service: '.$e->getMessage();
+                continue;
+            }
 
-        $error = (int) ($response->json('error') ?? -1);
-        // 0 = ok, 4 = no changes since last save (treat as success for the user)
-        if (! in_array($error, [0, 4], true)) {
+            if (! $response->successful()) {
+                $lastMessage = 'OnlyOffice Command Service HTTP '.$response->status();
+                continue;
+            }
+
+            $error = (int) ($response->json('error') ?? -1);
+            // 0 = ok, 4 = no changes since last save (treat as success for the user)
+            if (! in_array($error, [0, 4], true)) {
+                return [
+                    'ok' => false,
+                    'error' => $error,
+                    'message' => 'OnlyOffice force save failed (error '.$error.').',
+                ];
+            }
+
             return [
-                'ok' => false,
+                'ok' => true,
                 'error' => $error,
-                'message' => 'OnlyOffice force save failed (error '.$error.').',
+                'message' => $error === 4 ? 'No new changes to save.' : 'Force save requested.',
             ];
         }
 
         return [
-            'ok' => true,
-            'error' => $error,
-            'message' => $error === 4 ? 'No new changes to save.' : 'Force save requested.',
+            'ok' => false,
+            'error' => null,
+            'message' => $lastMessage,
         ];
     }
 

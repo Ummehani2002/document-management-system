@@ -57,6 +57,7 @@ class OnlyOfficeSaveOverwriteTest extends TestCase
     public function test_onlyoffice_callback_overwrites_file_on_force_save_status(): void
     {
         Storage::fake(config('filesystems.default'));
+        config(['services.onlyoffice.document_server_url' => 'https://onlyoffice.test']);
 
         $user = User::factory()->create();
         $entity = Entity::create(['name' => 'Acme']);
@@ -78,12 +79,13 @@ class OnlyOfficeSaveOverwriteTest extends TestCase
         ]);
 
         Http::fake([
+            'http://127.0.0.1/cache/files/edited.xlsx' => Http::response('should-not-use', 500),
             'https://onlyoffice.test/cache/files/edited.xlsx' => Http::response('edited-xlsx-content', 200),
         ]);
 
         $this->postJson(route('onlyoffice.callback', ['id' => $document->id]), [
             'status' => 6,
-            'url' => 'https://onlyoffice.test/cache/files/edited.xlsx',
+            'url' => 'http://127.0.0.1/cache/files/edited.xlsx',
             'actions' => [['type' => 2, 'userid' => (string) $user->id]],
         ])
             ->assertOk()
@@ -93,6 +95,42 @@ class OnlyOfficeSaveOverwriteTest extends TestCase
         $this->assertSame(1, Document::count());
         $this->assertSame('edited-xlsx-content', Storage::disk(config('filesystems.default'))->get($path));
         $this->assertSame($user->id, $document->modified_by_user_id);
+    }
+
+    public function test_overwrite_upload_replaces_excel_in_place(): void
+    {
+        Storage::fake(config('filesystems.default'));
+
+        $user = User::factory()->create();
+        $user->assignRole('Admin');
+        $entity = Entity::create(['name' => 'Acme']);
+        $project = Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => 'P1',
+            'project_name' => 'Test',
+        ]);
+
+        $path = 'documents/acme/p1/other/sheet.xlsx';
+        Storage::disk(config('filesystems.default'))->put($path, 'old');
+
+        $document = Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'document_type' => 'Other',
+            'file_name' => 'sheet.xlsx',
+            'file_path' => $path,
+        ]);
+
+        $file = \Illuminate\Http\UploadedFile::fake()->create('sheet.xlsx', 20, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $this->actingAs($user)
+            ->post(route('documents.overwrite', ['id' => $document->id]), [
+                'file' => $file,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(1, Document::count());
+        $this->assertNotSame('old', Storage::disk(config('filesystems.default'))->get($path));
     }
 
     public function test_force_save_endpoint_calls_onlyoffice_command_service(): void

@@ -725,9 +725,9 @@
                                                 <button type="button" class="doc-older-versions-btn" data-versions-id="{{ $doc->id }}" data-versions-file="{{ $doc->file_name }}">Older versions{{ !empty($doc->older_versions_count) ? ' ('.$doc->older_versions_count.')' : '' }}</button>
                                                 @if(!empty($doc->file_available))
                                                     <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>
-                                                    <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open in new tab</a>
+                                                    <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open</a>
                                                     <button type="button" onclick="closeDocActionsMenu('{{ $doc->id }}'); toggleInlinePreview('{{ $doc->id }}')">View</button>
-                                                    <a href="{{ route('documents.edit', ['id' => $doc->id, 'return_url' => request()->fullUrl()]) }}">Edit</a>
+                                                    <a href="{{ route('documents.edit', ['id' => $doc->id, 'return_url' => request()->fullUrl()]) }}">Edit in DMS</a>
                                                     <button type="button" class="doc-share-btn" data-share-id="{{ $doc->id }}" data-share-file="{{ $doc->file_name }}" data-share-project="{{ $doc->project?->project_number ?? '' }}">Share</button>
                                                     <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" onsubmit="return confirm('Move this file to Trash? You can restore it later.');">
                                                         @csrf
@@ -868,9 +868,9 @@
                                         <button type="button" class="doc-older-versions-btn" data-versions-id="{{ $doc->id }}" data-versions-file="{{ $doc->file_name }}">Older versions{{ !empty($doc->older_versions_count) ? ' ('.$doc->older_versions_count.')' : '' }}</button>
                                         @if(!empty($doc->file_available))
                                             <a href="{{ route('documents.download', ['id' => $doc->id]) }}">Download</a>
-                                            <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open in new tab</a>
+                                            <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">Open</a>
                                             <button type="button" onclick="closeDocActionsMenu('{{ $doc->id }}'); toggleInlinePreview('{{ $doc->id }}')">View</button>
-                                            <a href="{{ route('documents.edit', ['id' => $doc->id, 'return_url' => request()->fullUrl()]) }}">Edit</a>
+                                            <a href="{{ route('documents.edit', ['id' => $doc->id, 'return_url' => request()->fullUrl()]) }}">Edit in DMS</a>
                                             <button type="button" class="doc-share-btn" data-share-id="{{ $doc->id }}" data-share-file="{{ $doc->file_name }}" data-share-project="{{ $doc->project?->project_number ?? '' }}">Share</button>
                                             <form action="{{ route('documents.destroy', ['id' => $doc->id]) }}" method="POST" onsubmit="return confirm('Move this file to Trash? You can restore it later.');">
                                                 @csrf

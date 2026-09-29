@@ -103,6 +103,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/documents/{id}/version-save-status', [DocumentController::class, 'versionSaveStatus'])->name('documents.version-save-status')->where('id', '[0-9]+');
     Route::post('/documents/{id}/office-forcesave', [OnlyOfficeController::class, 'forceSave'])->name('documents.office-forcesave')->where('id', '[0-9]+');
     Route::get('/documents/{id}/edit', [DocumentController::class, 'edit'])->name('documents.edit')->where('id', '[0-9]+');
+    Route::post('/documents/{id}/overwrite', [DocumentController::class, 'overwrite'])->name('documents.overwrite')->where('id', '[0-9]+');
     Route::post('/documents/{id}/replace', [DocumentController::class, 'replace'])->name('documents.replace')->where('id', '[0-9]+');
     Route::middleware('entity.require')->group(function () {
         Route::get('/upload', [DocumentController::class, 'create'])->name('documents.upload');

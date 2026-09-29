@@ -939,6 +939,100 @@ class DocumentController extends Controller
     }
 
     /**
+     * Overwrite the stored file in place (same document row). Used when OnlyOffice
+     * auto-save is unavailable or the user uploads an edited Excel/Word file.
+     */
+    public function overwrite(Request $request, int $id, DocumentFileReplacer $replacer)
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+
+        $document = Document::find($id);
+
+        if (! $document) {
+            abort(404, 'Document not found.');
+        }
+
+        $this->authorizeDocument($document);
+
+        $maxFileMb = max(1, (int) env('DOC_UPLOAD_MAX_FILE_MB', 1024));
+        $maxFileKb = $maxFileMb * 1024;
+
+        $request->validate([
+            'file' => [
+                'required',
+                'file',
+                'max:'.$maxFileKb,
+                function (string $attribute, mixed $value, \Closure $fail) use ($document): void {
+                    if (! $value instanceof UploadedFile) {
+                        $fail('Invalid file upload.');
+
+                        return;
+                    }
+
+                    $allowed = ['pdf', 'doc', 'docx', 'xls', 'xlsx'];
+                    $originalExt = strtolower((string) $value->getClientOriginalExtension());
+                    $guessedExt = strtolower((string) $value->guessExtension());
+                    $currentExt = strtolower(pathinfo((string) $document->file_name, PATHINFO_EXTENSION));
+
+                    if (! in_array($originalExt, $allowed, true) && ! in_array($guessedExt, $allowed, true)) {
+                        $fail('The file must be one of: pdf, doc, docx, xls, xlsx.');
+
+                        return;
+                    }
+
+                    if ($currentExt !== '' && $originalExt !== '' && $originalExt !== $currentExt) {
+                        $fail('Please upload a .'.$currentExt.' file to replace this document.');
+                    }
+                },
+            ],
+        ]);
+
+        /** @var UploadedFile $file */
+        $file = $request->file('file');
+
+        try {
+            $replacer->replace($document, $file);
+            $document->refresh();
+        } catch (\Throwable $e) {
+            Log::warning('Document overwrite failed', [
+                'document_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+
+            return back()
+                ->withErrors(['file' => $e->getMessage()])
+                ->withInput();
+        }
+
+        $returnUrl = $request->input('return_url');
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'document_id' => $document->id,
+                'file_name' => $document->file_name,
+                'message' => 'Changes saved to '.$document->file_name,
+            ]);
+        }
+
+        if (is_string($returnUrl) && $returnUrl !== '' && str_starts_with($returnUrl, url('/'))) {
+            return redirect($returnUrl)->with('success', 'Changes saved to '.$document->file_name);
+        }
+
+        return redirect()
+            ->route('documents.edit', ['id' => $document->id])
+            ->with('success', 'Changes saved to '.$document->file_name);
+    }
+
+    /**
      * Save uploaded edits as a new version (V1, V2, …). Prior versions are kept.
      */
     public function replace(Request $request, int $id)
@@ -1091,7 +1185,7 @@ class DocumentController extends Controller
     /** Serve file with inline disposition where browser supports preview. */
     public function viewPdf(int $id)
     {
-        $document = Document::find($id);
+        $document = Document::with(['entity', 'project'])->find($id);
 
         if (!$document) {
             Log::warning('Document view failed: missing database row', [
@@ -1115,6 +1209,26 @@ class DocumentController extends Controller
                 'host' => request()->getHost(),
             ]);
             abort(404, 'File not found on disk: ' . $path);
+        }
+
+        // Excel/Word: never redirect to a raw R2 URL. Edge opens Office Online, and
+        // "Edit a copy" saves to OneDrive/SharePoint — not the DMS.
+        if (
+            DocumentPreviewUrl::isOfficeFile((string) $document->file_name)
+            && ! request()->boolean('raw')
+            && ! request()->boolean('download')
+        ) {
+            $readOnlyViewerUrl = DocumentPreviewUrl::microsoftReadOnlyViewerUrl($document);
+
+            return view('documents.office-open', [
+                'document' => $document,
+                'readOnlyViewerUrl' => $readOnlyViewerUrl,
+                'editUrl' => route('documents.edit', [
+                    'id' => $document->id,
+                    'return_url' => request()->headers->get('referer') ?: route('documents.search'),
+                ]),
+                'downloadUrl' => route('documents.download', ['id' => $document->id]),
+            ]);
         }
 
         $presigned = DocumentPreviewUrl::presignedRedirectUrl($document);

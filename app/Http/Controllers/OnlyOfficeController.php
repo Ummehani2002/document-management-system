@@ -9,7 +9,6 @@ use App\Services\DocumentVersionSaver;
 use App\Services\OnlyOfficeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -121,15 +120,12 @@ class OnlyOfficeController extends Controller
         }
 
         try {
-            $response = Http::timeout(120)->get($downloadUrl);
-            if (! $response->successful()) {
-                throw new \RuntimeException('OnlyOffice download failed: HTTP '.$response->status());
-            }
+            $contents = $this->onlyOffice->downloadEditedFile($downloadUrl);
 
             $modifiedBy = $this->editorUserIdFromPayload($payload);
             $saved = (new DocumentVersionSaver)->overwriteFromContents(
                 $document,
-                $response->body(),
+                $contents,
                 $modifiedBy
             );
 
@@ -148,11 +144,15 @@ class OnlyOfficeController extends Controller
                 'document_id' => $document->id,
                 'status' => $status,
                 'file_name' => $saved->file_name,
+                'bytes' => strlen($contents),
+                'callback_host' => parse_url($downloadUrl, PHP_URL_HOST),
+                'fetch_host' => parse_url($this->onlyOffice->resolveCallbackDownloadUrl($downloadUrl), PHP_URL_HOST),
             ]);
         } catch (\Throwable $e) {
             Log::warning('OnlyOffice callback save failed', [
                 'document_id' => $id,
                 'status' => $status,
+                'callback_url' => $downloadUrl,
                 'error' => $e->getMessage(),
             ]);
 

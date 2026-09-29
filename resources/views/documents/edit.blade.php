@@ -315,17 +315,21 @@
         </script>
     @elseif($onlyOfficeEnabled && !empty($onlyOfficeConfig))
         <div class="card" style="margin-bottom: 12px; padding: 12px 16px; background: #f0f9ff; border: 1px solid #bae6fd;">
-            <p style="margin: 0; color: #0c4a6e; font-size: 0.9rem;">
-                Edit the file below, then click <strong>Save to DMS</strong> (or press <strong>Ctrl+S</strong> and wait for confirmation).
-                Your changes are written into this same document in the DMS.
+            <p style="margin: 0 0 8px; color: #0c4a6e; font-size: 0.9rem;">
+                Edit in the viewer below, then click <strong>Save to DMS</strong> and wait for the green confirmation.
+                The OnlyOffice floppy / Ctrl+S alone does <strong>not</strong> update the portal file.
+            </p>
+            <p style="margin: 0; color: #0369a1; font-size: 0.85rem;">
+                If Save to DMS fails, download the file, edit in Excel on your PC, then use <strong>Upload edited file</strong> below.
             </p>
         </div>
         <div class="card" style="padding: 0; overflow: hidden;">
             <div style="padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                 <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                     <button type="button" id="office-save-dms" class="btn-primary" style="padding: 8px 16px;">Save to DMS</button>
+                    <a href="{{ route('documents.download', ['id' => $document->id]) }}" style="padding: 8px 14px; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; text-decoration: none; font-size: 0.9rem;">Download</a>
                     <span style="color: #64748b; font-size: 0.88rem;">
-                        Click <strong>Save to DMS</strong> after editing — Ctrl+S alone is not enough.
+                        Always use <strong>Save to DMS</strong> after editing.
                     </span>
                 </div>
                 <a href="{{ request('return_url', route('documents.search')) }}" style="color: #334155; font-size: 0.88rem;">Back to search</a>
@@ -333,7 +337,17 @@
             <div id="editor-loading" style="padding: 48px 20px; text-align: center; color: #64748b;">
                 Loading editor… first open can take up to a minute while OnlyOffice starts.
             </div>
-            <div id="onlyoffice-editor" style="width: 100%; height: calc(100vh - 220px); min-height: 520px; display: none;"></div>
+            <div id="onlyoffice-editor" style="width: 100%; height: calc(100vh - 280px); min-height: 480px; display: none;"></div>
+            <div style="padding: 14px 16px; border-top: 1px solid #e2e8f0; background: #fff;">
+                <form id="office-overwrite-form" method="POST" action="{{ route('documents.overwrite', ['id' => $document->id]) }}" enctype="multipart/form-data" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+                    @csrf
+                    <input type="hidden" name="return_url" value="{{ request('return_url', route('documents.search')) }}">
+                    <label for="office-overwrite-file" style="font-size:0.88rem; color:#334155; font-weight:600;">Upload edited file</label>
+                    <input type="file" id="office-overwrite-file" name="file" accept=".xls,.xlsx,.doc,.docx,.pdf" required style="font-size:0.88rem;">
+                    <button type="submit" class="btn-primary" style="padding:8px 14px;">Replace in DMS</button>
+                    <span style="color:#64748b; font-size:0.82rem;">Use this if online Save to DMS does not stick.</span>
+                </form>
+            </div>
         </div>
         <script>
             document.addEventListener('DOMContentLoaded', function () {
@@ -345,11 +359,9 @@
                 var saveBtn = document.getElementById('office-save-dms');
                 var statusUrl = @json(route('documents.version-save-status', ['id' => $document->id]));
                 var forceSaveUrl = @json(route('documents.office-forcesave', ['id' => $document->id]));
-                var returnUrl = @json(request('return_url', route('documents.search')));
                 var csrf = @json(csrf_token());
                 var pollTimer = null;
                 var saving = false;
-                var wasEdited = false;
                 var documentKey = @json($onlyOfficeConfig['document']['key'] ?? '');
 
                 function showError(message) {
@@ -387,17 +399,16 @@
                                 window.clearInterval(pollTimer);
                                 pollTimer = null;
                                 setSavingUi(false);
-                                wasEdited = false;
-                                showStatus('Saved to DMS. Your Excel changes are now in the portal.', false);
-                            } else if (attempts >= 40) {
+                                showStatus('Saved to DMS. Close this page and reopen the file from Search to confirm.', false);
+                            } else if (attempts >= 45) {
                                 window.clearInterval(pollTimer);
                                 pollTimer = null;
                                 setSavingUi(false);
-                                showStatus('Save is taking longer than expected. Click Save to DMS again, or close the editor tab and reopen the file from Search.', true);
+                                showStatus('Online save did not finish. Download the file, edit in Excel, then use Upload edited file → Replace in DMS.', true);
                             }
                         })
                         .catch(function () {
-                            if (attempts >= 40) {
+                            if (attempts >= 45) {
                                 window.clearInterval(pollTimer);
                                 pollTimer = null;
                                 setSavingUi(false);
@@ -413,7 +424,7 @@
                         return;
                     }
                     setSavingUi(true);
-                    showStatus('Saving to DMS…', false);
+                    showStatus('Saving to DMS… please wait.', false);
 
                     fetch(forceSaveUrl, {
                         method: 'POST',
@@ -434,25 +445,32 @@
                     .then(function (result) {
                         if (!result.ok || !result.data || !result.data.success) {
                             setSavingUi(false);
-                            showStatus((result.data && result.data.message) || 'Could not save to DMS.', true);
+                            showStatus((result.data && result.data.message) || 'Could not save to DMS. Use Upload edited file below.', true);
                             return;
                         }
                         if (result.data.no_changes) {
                             setSavingUi(false);
-                            showStatus('No new changes to save. Edit the file, then click Save to DMS again.', false);
+                            showStatus('No new changes to save. Edit a cell first, then click Save to DMS again.', false);
                             return;
                         }
                         pollSaveStatus();
                     })
                     .catch(function () {
                         setSavingUi(false);
-                        showStatus('Could not reach the server to save. Please try again.', true);
+                        showStatus('Could not reach the server. Use Upload edited file → Replace in DMS.', true);
                     });
                 }
 
                 if (saveBtn) {
                     saveBtn.addEventListener('click', function () {
                         requestForceSaveToDms();
+                    });
+                }
+
+                var overwriteForm = document.getElementById('office-overwrite-form');
+                if (overwriteForm) {
+                    overwriteForm.addEventListener('submit', function () {
+                        showStatus('Uploading edited file to DMS…', false);
                     });
                 }
 
@@ -467,11 +485,6 @@
                         onAppReady: function () {
                             if (loadingEl) loadingEl.style.display = 'none';
                             if (editorEl) editorEl.style.display = 'block';
-                        },
-                        onDocumentStateChange: function (event) {
-                            if (event && event.data) {
-                                wasEdited = true;
-                            }
                         },
                         onError: function () {
                             showError('OnlyOffice error. Check that Docker is running and the document server is up.');
@@ -498,25 +511,52 @@
             });
         </script>
     @else
-        <div class="card" style="padding: 16px;">
-            <p style="margin: 0 0 10px; color: #b91c1c;"><strong>Document editor is not running.</strong></p>
-            @if(!empty($onlyOfficeConfigured) && empty($onlyOfficeReachable))
+        <div class="card" style="padding: 16px; margin-bottom: 16px;">
+            @if(!empty($isPdf))
+                <p style="margin: 0 0 10px; color: #b91c1c;"><strong>Document editor is not running.</strong></p>
+            @else
+                <p style="margin: 0 0 10px; color: #0c4a6e; font-weight: 600;">Save Excel/Word changes into the DMS</p>
+                <p style="margin: 0 0 12px; color: #334155; line-height: 1.6;">
+                    Do <strong>not</strong> use Microsoft Office Online “Edit a copy” — that saves to OneDrive/SharePoint only.
+                    Use this page: download the file, edit it in Excel/Word on your PC, then upload it back here.
+                </p>
+            @endif
+            @if(!empty($onlyOfficeConfigured) && empty($onlyOfficeReachable) && empty($isPdf))
+                <p style="margin: 0 0 12px; color: #64748b; line-height: 1.6;">
+                    Online editor (OnlyOffice) is configured at <code>{{ $onlyOfficeServerUrl }}</code> but is not reachable right now.
+                    You can still update the DMS file with the upload below.
+                </p>
+            @elseif(!empty($onlyOfficeConfigured) && empty($onlyOfficeReachable))
                 <p style="margin: 0 0 12px; color: #64748b; line-height: 1.6;">
                     OnlyOffice is configured at <code>{{ $onlyOfficeServerUrl }}</code> but it is not reachable.
-                    The editor cannot open until it is started.
                 </p>
-                <ol style="margin: 0; padding-left: 1.25rem; color: #334155; line-height: 1.7;">
+                <ol style="margin: 0 0 12px; padding-left: 1.25rem; color: #334155; line-height: 1.7;">
                     <li>Open <strong>Docker Desktop</strong> and wait until it says running.</li>
                     <li>In your project folder run:<br>
                         <code style="display:inline-block;margin-top:6px;padding:6px 10px;background:#f1f5f9;border-radius:6px;">docker compose -f docker-compose.onlyoffice.yml up -d</code>
                     </li>
                     <li>Wait 1–2 minutes, then refresh this page.</li>
                 </ol>
-            @else
+            @elseif(empty($onlyOfficeConfigured) && !empty($isPdf))
                 <p style="margin: 0; color: #64748b; line-height: 1.6;">
                     Set <code>ONLYOFFICE_DOCUMENT_SERVER_URL</code> in <code>.env</code> (for example <code>http://localhost:8082</code>).
                 </p>
             @endif
+
+            @if(empty($isPdf) && !empty($fileAvailable))
+                <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top: 8px;">
+                    <a href="{{ $downloadUrl }}" class="btn-primary" style="padding: 10px 16px; text-decoration: none; display: inline-block;">1. Download file</a>
+                    <span style="color:#64748b; font-size:0.9rem;">2. Edit in Excel/Word on your PC</span>
+                </div>
+                <form method="POST" action="{{ route('documents.overwrite', ['id' => $document->id]) }}" enctype="multipart/form-data" style="margin-top: 16px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+                    @csrf
+                    <input type="hidden" name="return_url" value="{{ request('return_url', route('documents.search')) }}">
+                    <label for="office-overwrite-file-fallback" style="font-size:0.9rem; font-weight:600; color:#334155;">3. Upload edited file</label>
+                    <input type="file" id="office-overwrite-file-fallback" name="file" accept=".xls,.xlsx,.doc,.docx" required>
+                    <button type="submit" class="btn-primary" style="padding:10px 16px;">Replace in DMS</button>
+                </form>
+            @endif
+
             <p style="margin: 14px 0 0;">
                 <a href="{{ request('return_url', route('documents.search')) }}">Back to search</a>
             </p>
