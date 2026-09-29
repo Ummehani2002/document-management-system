@@ -106,7 +106,17 @@ class OnlyOfficeController extends Controller
             return response()->json(['error' => 1]);
         }
 
-        $payload = $request->all();
+        try {
+            $payload = $this->onlyOffice->unwrapPayload($request->all());
+        } catch (\Throwable $e) {
+            Log::warning('OnlyOffice callback JWT rejected', [
+                'document_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['error' => 1]);
+        }
+
         $status = (int) ($payload['status'] ?? 0);
 
         // 2 = ready for saving after all users closed; 6 = force save while still editing

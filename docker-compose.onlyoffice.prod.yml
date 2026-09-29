@@ -1,0 +1,29 @@
+# Production-oriented OnlyOffice Document Server
+# Use on a VM with HTTPS reverse proxy (see ONLYOFFICE-PRODUCTION.md).
+#
+#   JWT_SECRET=... docker compose -f docker-compose.onlyoffice.prod.yml up -d
+#
+services:
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    container_name: dms-onlyoffice
+    ports:
+      - "80:80"
+    environment:
+      - JWT_ENABLED=true
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET to the same value as ONLYOFFICE_JWT_SECRET in Laravel Cloud}
+      - JWT_HEADER=Authorization
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_logs:/var/log/onlyoffice
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+volumes:
+  onlyoffice_data:
+  onlyoffice_logs:

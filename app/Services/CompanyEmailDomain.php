@@ -11,7 +11,7 @@ class CompanyEmailDomain
     {
         $domains = config('dms.allowed_email_domains', []);
         if (! is_array($domains) || $domains === []) {
-            $domains = ['tanseeqllc.com', 'tanseeqprojects.com', 'tanseeqinvestment.com'];
+            $domains = ['tanseeqllc.com', 'tanseeqprojects.com', 'tanseeqinvestment.com', 'proscapeuae.com'];
         }
 
         $normalized = [];

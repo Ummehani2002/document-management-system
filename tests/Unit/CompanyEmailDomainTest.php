@@ -13,6 +13,7 @@ class CompanyEmailDomainTest extends TestCase
         $this->assertTrue(CompanyEmailDomain::allows('user@tanseeqprojects.com'));
         $this->assertTrue(CompanyEmailDomain::allows('User@TanseeqLLC.com'));
         $this->assertTrue(CompanyEmailDomain::allows('user@tanseeqinvestment.com'));
+        $this->assertTrue(CompanyEmailDomain::allows('mammadhukani.s@proscapeuae.com'));
         $this->assertFalse(CompanyEmailDomain::allows('user@gmail.com'));
         $this->assertFalse(CompanyEmailDomain::allows('not-an-email'));
     }
@@ -23,5 +24,6 @@ class CompanyEmailDomainTest extends TestCase
 
         $this->assertStringContainsString('@tanseeqllc.com', $hint);
         $this->assertStringContainsString('@tanseeqprojects.com', $hint);
+        $this->assertStringContainsString('@proscapeuae.com', $hint);
     }
 }

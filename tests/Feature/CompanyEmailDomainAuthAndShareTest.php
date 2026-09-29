@@ -18,7 +18,8 @@ class CompanyEmailDomainAuthAndShareTest extends TestCase
         $this->get(route('login'))
             ->assertOk()
             ->assertSee('tanseeqllc.com', false)
-            ->assertSee('tanseeqprojects.com', false);
+            ->assertSee('tanseeqprojects.com', false)
+            ->assertSee('proscapeuae.com', false);
     }
 
     public function test_microsoft_login_rejects_non_company_email(): void
@@ -31,7 +32,7 @@ class CompanyEmailDomainAuthAndShareTest extends TestCase
             ->assertSessionHasErrors('microsoft');
     }
 
-    public function test_microsoft_login_accepts_llc_and_projects_emails(): void
+    public function test_microsoft_login_accepts_company_emails(): void
     {
         $this->from(route('login'))
             ->post(route('login.microsoft'), [
@@ -43,6 +44,13 @@ class CompanyEmailDomainAuthAndShareTest extends TestCase
         $this->from(route('login'))
             ->post(route('login.microsoft'), [
                 'email' => 'hani@tanseeqprojects.com',
+            ])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors('microsoft');
+
+        $this->from(route('login'))
+            ->post(route('login.microsoft'), [
+                'email' => 'mammadhukani.s@proscapeuae.com',
             ])
             ->assertRedirect(route('login'))
             ->assertSessionHasErrors('microsoft');

@@ -266,6 +266,83 @@ class OnlyOfficeService
         return $header.'.'.$body.'.'.$signature;
     }
 
+    /**
+     * Decode OnlyOffice callback / editor payload when JWT is enabled.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function unwrapPayload(array $payload): array
+    {
+        $secret = trim((string) config('services.onlyoffice.jwt_secret', ''));
+        if ($secret === '') {
+            return $payload;
+        }
+
+        $token = (string) ($payload['token'] ?? '');
+        if ($token === '' && isset($payload['status'])) {
+            // Mixed mode: body already has fields (some proxies unwrap).
+            return $payload;
+        }
+        if ($token === '') {
+            return $payload;
+        }
+
+        $decoded = $this->jwtDecode($token, $secret);
+        if (! is_array($decoded)) {
+            throw new \RuntimeException('Invalid OnlyOffice JWT token.');
+        }
+
+        // Token may wrap the whole callback body under "payload".
+        if (isset($decoded['payload']) && is_array($decoded['payload'])) {
+            return $decoded['payload'];
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function jwtDecode(string $jwt, string $secret): ?array
+    {
+        $parts = explode('.', $jwt);
+        if (count($parts) !== 3) {
+            return null;
+        }
+
+        [$header, $body, $signature] = $parts;
+        $expected = $this->base64UrlEncode(hash_hmac('sha256', $header.'.'.$body, $secret, true));
+        if (! hash_equals($expected, $signature)) {
+            return null;
+        }
+
+        $json = $this->base64UrlDecode($body);
+        if ($json === null) {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    protected function base64UrlDecode(string $value): ?string
+    {
+        $remainder = strlen($value) % 4;
+        if ($remainder > 0) {
+            $value .= str_repeat('=', 4 - $remainder);
+        }
+
+        $decoded = base64_decode(strtr($value, '-_', '+/'), true);
+
+        return $decoded === false ? null : $decoded;
+    }
+
     protected function base64UrlEncode(string $value): string
     {
         return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');

@@ -208,6 +208,22 @@ php artisan db:seed --force
 
 ---
 
+## Step 11: Excel / Word edit & save in DMS (OnlyOffice)
+
+Laravel Cloud does **not** run OnlyOffice inside the app. You need a separate Document Server with HTTPS.
+
+1. Follow **[ONLYOFFICE-PRODUCTION.md](ONLYOFFICE-PRODUCTION.md)** (VM + Docker + DNS + env vars).
+2. In Laravel Cloud set:
+   - `ONLYOFFICE_DOCUMENT_SERVER_URL=https://office.yourdomain.com`
+   - `ONLYOFFICE_APP_URL=` same as `APP_URL`
+   - `ONLYOFFICE_JWT_SECRET=` same secret as on the Document Server
+3. Redeploy, then run: `php artisan onlyoffice:status`
+4. Test: **Edit in DMS** → change a cell → **Save to DMS** → reopen from Search
+
+Until OnlyOffice is live, users should **Download → edit → Upload → Replace in DMS**.
+
+---
+
 ## Checklist (GitHub → Deployed)
 
 - [ ] **Step 1** — Code pushed to GitHub.
@@ -220,6 +236,7 @@ php artisan db:seed --force
 - [ ] **Step 8** — Build and deploy commands set (**without** `--optimize-autoloader`).
 - [ ] **Step 9** — First deploy successful; optional seed run.
 - [ ] **Step 10** — Login, upload, search, and download work.
+- [ ] **Step 11** — OnlyOffice Document Server live + Laravel Cloud env vars; `php artisan onlyoffice:status` OK; Excel Save to DMS works.
 
 ---
 
