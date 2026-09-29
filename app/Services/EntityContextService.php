@@ -150,13 +150,19 @@ class EntityContextService
             ->with(['project'])
             ->where('entity_id', $entityId)
             ->latest()
-            ->limit($limit);
+            ->limit(max($limit * 8, 40));
 
         if ($user !== null) {
             $this->access->scopeAccessible($query, $user);
         }
 
-        return $query->get();
+        $documents = $query->get();
+        $latestIds = array_flip(DocumentFileVersioning::pickLatestDocumentIds($documents));
+
+        return $documents
+            ->filter(static fn (Document $document) => isset($latestIds[$document->id]))
+            ->take($limit)
+            ->values();
     }
 
     /**

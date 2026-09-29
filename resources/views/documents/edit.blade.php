@@ -17,7 +17,11 @@
         <p style="margin: 0 0 4px;"><strong>{{ $document->file_name }}</strong></p>
         <p style="margin: 0; color: #64748b; font-size: 0.88rem;">
             {{ $document->entity?->name ?? '—' }} · {{ $document->project?->project_number ?? '—' }} · {{ $document->display_folder }}
-            · Next save: <strong>{{ $nextVersionName }}</strong>
+            @if(!empty($onlyOfficeEnabled))
+                · Edits save back to this file in DMS
+            @else
+                · Next save: <strong>{{ $nextVersionName }}</strong>
+            @endif
         </p>
     </div>
 
@@ -312,14 +316,18 @@
     @elseif($onlyOfficeEnabled && !empty($onlyOfficeConfig))
         <div class="card" style="margin-bottom: 12px; padding: 12px 16px; background: #f0f9ff; border: 1px solid #bae6fd;">
             <p style="margin: 0; color: #0c4a6e; font-size: 0.9rem;">
-                Edit below, then press <strong>Ctrl+S</strong>. The system auto-saves as <strong>{{ $nextVersionName }}</strong> and keeps the original.
+                Edit the file below, then click <strong>Save to DMS</strong> (or press <strong>Ctrl+S</strong> and wait for confirmation).
+                Your changes are written into this same document in the DMS.
             </p>
         </div>
         <div class="card" style="padding: 0; overflow: hidden;">
             <div style="padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                <span style="color: #64748b; font-size: 0.88rem;">
-                    Press <strong>Ctrl+S</strong> when finished.
-                </span>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <button type="button" id="office-save-dms" class="btn-primary" style="padding: 8px 16px;">Save to DMS</button>
+                    <span style="color: #64748b; font-size: 0.88rem;">
+                        Click <strong>Save to DMS</strong> after editing — Ctrl+S alone is not enough.
+                    </span>
+                </div>
                 <a href="{{ request('return_url', route('documents.search')) }}" style="color: #334155; font-size: 0.88rem;">Back to search</a>
             </div>
             <div id="editor-loading" style="padding: 48px 20px; text-align: center; color: #64748b;">
@@ -334,12 +342,15 @@
                 var loadingEl = document.getElementById('editor-loading');
                 var editorEl = document.getElementById('onlyoffice-editor');
                 var saveStatus = document.getElementById('save-status');
+                var saveBtn = document.getElementById('office-save-dms');
                 var statusUrl = @json(route('documents.version-save-status', ['id' => $document->id]));
-                var editBaseUrl = @json(url('/documents'));
+                var forceSaveUrl = @json(route('documents.office-forcesave', ['id' => $document->id]));
                 var returnUrl = @json(request('return_url', route('documents.search')));
+                var csrf = @json(csrf_token());
                 var pollTimer = null;
                 var saving = false;
                 var wasEdited = false;
+                var documentKey = @json($onlyOfficeConfig['document']['key'] ?? '');
 
                 function showError(message) {
                     if (loadingEl) {
@@ -347,25 +358,23 @@
                     }
                 }
 
-                function showSaved(fileName, newId) {
-                    if (saveStatus) {
-                        saveStatus.style.display = 'block';
-                        saveStatus.textContent = 'Saved as ' + fileName + '. Opening latest version…';
-                    }
-                    window.setTimeout(function () {
-                        window.location.href = editBaseUrl + '/' + newId + '/edit?return_url=' + encodeURIComponent(returnUrl);
-                    }, 1200);
+                function showStatus(message, isError) {
+                    if (!saveStatus) return;
+                    saveStatus.style.display = 'block';
+                    saveStatus.style.background = isError ? '#fef2f2' : '#e8f4ec';
+                    saveStatus.style.borderColor = isError ? '#fecaca' : 'rgba(35,134,81,0.2)';
+                    saveStatus.style.color = isError ? '#b91c1c' : '#1a5c38';
+                    saveStatus.textContent = message;
+                }
+
+                function setSavingUi(active) {
+                    saving = active;
+                    if (saveBtn) saveBtn.disabled = active;
                 }
 
                 function pollSaveStatus() {
-                    if (saving) return;
-                    saving = true;
-                    if (saveStatus) {
-                        saveStatus.style.display = 'block';
-                        saveStatus.textContent = 'Saving {{ $nextVersionName }}…';
-                    }
-
                     var attempts = 0;
+                    if (pollTimer) window.clearInterval(pollTimer);
                     pollTimer = window.setInterval(function () {
                         attempts++;
                         fetch(statusUrl, {
@@ -374,24 +383,77 @@
                         })
                         .then(function (res) { return res.json(); })
                         .then(function (data) {
-                            if (data && data.saved && data.new_document_id) {
+                            if (data && data.saved) {
                                 window.clearInterval(pollTimer);
-                                showSaved(data.new_file_name || '{{ $nextVersionName }}', data.new_document_id);
-                            } else if (attempts >= 30) {
+                                pollTimer = null;
+                                setSavingUi(false);
+                                wasEdited = false;
+                                showStatus('Saved to DMS. Your Excel changes are now in the portal.', false);
+                            } else if (attempts >= 40) {
                                 window.clearInterval(pollTimer);
-                                saving = false;
-                                if (saveStatus) {
-                                    saveStatus.textContent = 'Save is taking longer than expected. Check Search for {{ $nextVersionName }}.';
-                                }
+                                pollTimer = null;
+                                setSavingUi(false);
+                                showStatus('Save is taking longer than expected. Click Save to DMS again, or close the editor tab and reopen the file from Search.', true);
                             }
                         })
                         .catch(function () {
-                            if (attempts >= 30) {
+                            if (attempts >= 40) {
                                 window.clearInterval(pollTimer);
-                                saving = false;
+                                pollTimer = null;
+                                setSavingUi(false);
                             }
                         });
                     }, 1000);
+                }
+
+                function requestForceSaveToDms() {
+                    if (saving) return;
+                    if (!documentKey) {
+                        showStatus('Editor is not ready yet. Wait for it to finish loading.', true);
+                        return;
+                    }
+                    setSavingUi(true);
+                    showStatus('Saving to DMS…', false);
+
+                    fetch(forceSaveUrl, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': csrf
+                        },
+                        body: JSON.stringify({ key: documentKey })
+                    })
+                    .then(function (res) {
+                        return res.json().then(function (data) {
+                            return { ok: res.ok, data: data };
+                        });
+                    })
+                    .then(function (result) {
+                        if (!result.ok || !result.data || !result.data.success) {
+                            setSavingUi(false);
+                            showStatus((result.data && result.data.message) || 'Could not save to DMS.', true);
+                            return;
+                        }
+                        if (result.data.no_changes) {
+                            setSavingUi(false);
+                            showStatus('No new changes to save. Edit the file, then click Save to DMS again.', false);
+                            return;
+                        }
+                        pollSaveStatus();
+                    })
+                    .catch(function () {
+                        setSavingUi(false);
+                        showStatus('Could not reach the server to save. Please try again.', true);
+                    });
+                }
+
+                if (saveBtn) {
+                    saveBtn.addEventListener('click', function () {
+                        requestForceSaveToDms();
+                    });
                 }
 
                 function initEditor() {
@@ -409,17 +471,7 @@
                         onDocumentStateChange: function (event) {
                             if (event && event.data) {
                                 wasEdited = true;
-                                return;
                             }
-                            if (wasEdited && event && event.data === false) {
-                                pollSaveStatus();
-                            }
-                        },
-                        onRequestSave: function () {
-                            pollSaveStatus();
-                        },
-                        onRequestSaveAs: function () {
-                            pollSaveStatus();
                         },
                         onError: function () {
                             showError('OnlyOffice error. Check that Docker is running and the document server is up.');

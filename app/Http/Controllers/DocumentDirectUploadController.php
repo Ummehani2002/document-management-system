@@ -9,6 +9,7 @@ use App\Models\Entity;
 use App\Models\Project;
 use App\Services\DocumentAccessService;
 use App\Services\DocumentFilenameParser;
+use App\Services\DocumentFileReplacer;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
 use App\Services\UserActivityLogger;
@@ -188,7 +189,7 @@ class DocumentDirectUploadController extends Controller
             $orphanDocumentId = (int) $orphanCandidate->id;
             $storageKey = $reattachFolder.'/'.$objectBaseName;
         } else {
-            $storedFileNameForDb = DocumentFileVersioning::buildVersionedFilename($filename, $project->id, $category);
+            $storedFileNameForDb = $filename;
             $storageKey = $folderPath.'/'.$objectBaseName;
         }
 
@@ -706,12 +707,38 @@ class DocumentDirectUploadController extends Controller
             }
         }
 
+        $displayName = $storedFileName !== '' ? $storedFileName : $originalName;
+        $family = DocumentFileVersioning::existingFamilyInProject((int) $project->id, $displayName);
+        if ($family->isNotEmpty()) {
+            $survivor = DocumentFileVersioning::pickFamilySurvivor($family);
+            if ($survivor !== null) {
+                app(DocumentFileReplacer::class)->adoptStoredPath(
+                    $survivor,
+                    $key,
+                    $displayName,
+                    [
+                        'entity_id' => $entity->id,
+                        'project_id' => $project->id,
+                        'discipline' => $disciplineName,
+                        'document_type' => $category,
+                    ],
+                    (string) ($payload['upload_mode'] ?? 'auto') === 'manual'
+                );
+
+                return response()->json([
+                    'message' => 'Existing document in this project was updated (same file is only kept once).',
+                    'document_id' => $survivor->id,
+                    'replaced' => true,
+                ]);
+            }
+        }
+
         $document = Document::create([
             'entity_id' => $entity->id,
             'project_id' => $project->id,
             'discipline' => $disciplineName,
             'document_type' => $category,
-            'file_name' => $storedFileName,
+            'file_name' => $displayName,
             'file_path' => $key,
             'modified_by_user_id' => Auth::id(),
         ]);

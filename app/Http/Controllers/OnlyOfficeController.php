@@ -3,15 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
+use App\Services\DocumentAccessService;
 use App\Services\DocumentLocationResolver;
 use App\Services\DocumentVersionSaver;
+use App\Services\OnlyOfficeService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class OnlyOfficeController extends Controller
 {
+    public function __construct(
+        protected DocumentAccessService $access,
+        protected OnlyOfficeService $onlyOffice
+    ) {}
+
     /**
      * Signed download URL for OnlyOffice Document Server (no session cookie).
      */
@@ -53,7 +61,44 @@ class OnlyOfficeController extends Controller
     }
 
     /**
-     * OnlyOffice save callback — creates V1, V2, … instead of overwriting.
+     * Ask OnlyOffice to send the current edited file to the callback (status 6).
+     */
+    public function forceSave(Request $request, int $id)
+    {
+        $document = Document::find($id);
+        if ($document === null) {
+            abort(404);
+        }
+
+        if (! $this->access->canAccessDocument($request->user(), $document)) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'key' => ['required', 'string', 'max:128'],
+        ]);
+
+        Cache::forget('doc_version_saved_from_'.$document->id);
+
+        $result = $this->onlyOffice->forceSave((string) $validated['key']);
+
+        if (! $result['ok']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'],
+                'error' => $result['error'],
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['message'],
+            'no_changes' => ((int) ($result['error'] ?? 0)) === 4,
+        ]);
+    }
+
+    /**
+     * OnlyOffice save callback — overwrites the same DMS file (Excel/Word edits persist).
      */
     public function callback(Request $request, int $id)
     {
@@ -65,6 +110,7 @@ class OnlyOfficeController extends Controller
         $payload = $request->all();
         $status = (int) ($payload['status'] ?? 0);
 
+        // 2 = ready for saving after all users closed; 6 = force save while still editing
         if (! in_array($status, [2, 6], true)) {
             return response()->json(['error' => 0]);
         }
@@ -80,25 +126,33 @@ class OnlyOfficeController extends Controller
                 throw new \RuntimeException('OnlyOffice download failed: HTTP '.$response->status());
             }
 
-            $newDocument = (new DocumentVersionSaver)->saveFromContents($document, $response->body());
+            $modifiedBy = $this->editorUserIdFromPayload($payload);
+            $saved = (new DocumentVersionSaver)->overwriteFromContents(
+                $document,
+                $response->body(),
+                $modifiedBy
+            );
 
-            \Illuminate\Support\Facades\Cache::put(
+            Cache::put(
                 'doc_version_saved_from_'.$document->id,
                 [
-                    'new_document_id' => $newDocument->id,
-                    'new_file_name' => $newDocument->file_name,
+                    'new_document_id' => $saved->id,
+                    'new_file_name' => $saved->file_name,
+                    'overwritten' => true,
+                    'saved_at' => now()->toIso8601String(),
                 ],
                 now()->addMinutes(15)
             );
 
-            Log::info('OnlyOffice version saved', [
-                'source_id' => $document->id,
-                'new_id' => $newDocument->id,
-                'new_file' => $newDocument->file_name,
+            Log::info('OnlyOffice document overwritten in DMS', [
+                'document_id' => $document->id,
+                'status' => $status,
+                'file_name' => $saved->file_name,
             ]);
         } catch (\Throwable $e) {
             Log::warning('OnlyOffice callback save failed', [
                 'document_id' => $id,
+                'status' => $status,
                 'error' => $e->getMessage(),
             ]);
 
@@ -106,5 +160,27 @@ class OnlyOfficeController extends Controller
         }
 
         return response()->json(['error' => 0]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected function editorUserIdFromPayload(array $payload): ?int
+    {
+        $actions = $payload['actions'] ?? null;
+        if (is_array($actions) && isset($actions[0]['userid'])) {
+            $id = (int) $actions[0]['userid'];
+
+            return $id > 0 ? $id : null;
+        }
+
+        $users = $payload['users'] ?? null;
+        if (is_array($users) && isset($users[0])) {
+            $id = (int) $users[0];
+
+            return $id > 0 ? $id : null;
+        }
+
+        return null;
     }
 }

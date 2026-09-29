@@ -113,6 +113,68 @@ class OnlyOfficeService
         return hash('sha256', $document->id.'|'.$document->file_path.'|'.$document->updated_at?->timestamp);
     }
 
+    /**
+     * Ask Document Server to push the current edit to our callback without closing the editor.
+     *
+     * @return array{ok: bool, error: int|null, message: string}
+     */
+    public function forceSave(string $documentKey): array
+    {
+        $server = $this->serverUrl();
+        if ($server === '') {
+            return ['ok' => false, 'error' => null, 'message' => 'OnlyOffice is not configured.'];
+        }
+
+        $payload = [
+            'c' => 'forcesave',
+            'key' => $documentKey,
+            'userdata' => 'dms-editor-save',
+        ];
+
+        $secret = trim((string) config('services.onlyoffice.jwt_secret', ''));
+        $body = $payload;
+        if ($secret !== '') {
+            $body['token'] = $this->jwtEncode($payload, $secret);
+        }
+
+        try {
+            $response = Http::timeout(30)
+                ->acceptJson()
+                ->asJson()
+                ->post($server.'/coauthoring/CommandService.ashx', $body);
+        } catch (\Throwable $e) {
+            return [
+                'ok' => false,
+                'error' => null,
+                'message' => 'Could not reach OnlyOffice Command Service: '.$e->getMessage(),
+            ];
+        }
+
+        if (! $response->successful()) {
+            return [
+                'ok' => false,
+                'error' => null,
+                'message' => 'OnlyOffice Command Service HTTP '.$response->status(),
+            ];
+        }
+
+        $error = (int) ($response->json('error') ?? -1);
+        // 0 = ok, 4 = no changes since last save (treat as success for the user)
+        if (! in_array($error, [0, 4], true)) {
+            return [
+                'ok' => false,
+                'error' => $error,
+                'message' => 'OnlyOffice force save failed (error '.$error.').',
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'error' => $error,
+            'message' => $error === 4 ? 'No new changes to save.' : 'Force save requested.',
+        ];
+    }
+
     protected function documentType(string $ext): string
     {
         return match ($ext) {

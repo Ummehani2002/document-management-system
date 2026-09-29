@@ -948,7 +948,7 @@
                         type="text"
                         id="share-modal-email"
                         name="email"
-                        placeholder="Start typing a name or email..."
+                        placeholder="name@tanseeqllc.com or name@tanseeqprojects.com"
                         value="{{ old('email') }}"
                         required
                         autocomplete="off"
@@ -973,6 +973,7 @@
                 >{{ old('message') }}</textarea>
             </div>
             <p class="share-modal-from">
+                Share to {{ \App\Services\CompanyEmailDomain::hint() }}.
                 This email will be sent from <strong>{{ auth()->user()?->email }}</strong>
                 with the document attached.
             </p>

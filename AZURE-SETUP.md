@@ -16,6 +16,13 @@ AZURE_REDIRECT_URI="${APP_URL}/login/microsoft/callback"
 AZURE_TENANT_ID=your-tenant-id
 ```
 
+Login and document sharing accept `@tanseeqllc.com` and `@tanseeqprojects.com` (and `@tanseeqinvestment.com` if used). If those domains live in **different** Microsoft tenants, set:
+
+```env
+AZURE_TENANT_ID=organizations
+DMS_ALLOWED_EMAIL_DOMAINS=tanseeqllc.com,tanseeqprojects.com,tanseeqinvestment.com
+```
+
 
 ## 6. Run migration
 
@@ -27,7 +34,7 @@ This adds the `azure_id` column to the `users` table.
 
 ## Flow
 
-1. User opens `/login` and clicks **Sign in with Microsoft**.
+1. User opens `/login`, enters their `@tanseeqllc.com` or `@tanseeqprojects.com` email, and clicks **Sign in with Microsoft**.
 2. They enter their work email and password on Microsoft’s page (MFA/code if your tenant requires it).
 3. After authentication and consent, Microsoft redirects to `/login/microsoft/callback`.
 4. The app finds or creates a user by Azure ID or email, stores Microsoft mail permissions, logs them in, and redirects to the **dashboard**.

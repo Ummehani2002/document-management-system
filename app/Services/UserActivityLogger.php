@@ -35,12 +35,15 @@ class UserActivityLogger
 
     public static function log(string $action, ?Document $document = null, array $extra = []): void
     {
+        $actingUserId = $extra['acting_user_id'] ?? null;
+        unset($extra['acting_user_id']);
+
         $properties = $document !== null
             ? array_merge(self::documentPayload($document), $extra)
             : $extra;
 
         UserActivity::create([
-            'user_id' => Auth::id(),
+            'user_id' => $actingUserId ?? Auth::id(),
             'action' => $action,
             'document_id' => $document?->id,
             'properties' => $properties !== [] ? $properties : null,

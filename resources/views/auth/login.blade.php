@@ -187,6 +187,7 @@
             color: #fff;
             border: none;
             border-radius: 10px;
+            font-family: inherit;
             font-size: 0.98rem;
             font-weight: 500;
             text-decoration: none;
@@ -263,13 +264,32 @@
                 </div>
             @endif
 
-            <a href="{{ route('login.microsoft') }}" class="microsoft-btn">
-                <span class="ms-logo">
-                    <span class="s1"></span><span class="s2"></span>
-                    <span class="s3"></span><span class="s4"></span>
-                </span>
-                <span>Sign in with Microsoft</span>
-            </a>
+            <form method="POST" action="{{ route('login.microsoft') }}">
+                @csrf
+                <label for="login-email" style="display:block; font-size:0.82rem; font-weight:600; color:#334155; margin-bottom:8px;">
+                    Company email
+                </label>
+                <input
+                    id="login-email"
+                    type="email"
+                    name="email"
+                    value="{{ old('email') }}"
+                    required
+                    autocomplete="username"
+                    placeholder="you@tanseeqllc.com or you@tanseeqprojects.com"
+                    style="width:100%; padding:13px 14px; margin-bottom:16px; border:1px solid var(--border); border-radius:10px; font-size:0.95rem; font-family:inherit; color:var(--text);"
+                >
+                <button type="submit" class="microsoft-btn">
+                    <span class="ms-logo">
+                        <span class="s1"></span><span class="s2"></span>
+                        <span class="s3"></span><span class="s4"></span>
+                    </span>
+                    <span>Sign in with Microsoft</span>
+                </button>
+            </form>
+            <p class="form-footer" style="margin-top:14px; margin-bottom:0;">
+                Use {{ \App\Services\CompanyEmailDomain::hint() }}
+            </p>
 
             <div class="form-footer">
                 &copy; {{ date('Y') }} Tanseeq Investment · Document Management System

@@ -74,6 +74,49 @@ class DocumentVersionSaver
         return $newDocument;
     }
 
+    /**
+     * Overwrite the existing document file in place (same DB row and storage path).
+     * Used by OnlyOffice so Excel/Word edits land in DMS without creating a second copy.
+     */
+    public function overwriteFromContents(Document $document, string $contents, ?int $modifiedByUserId = null): Document
+    {
+        $path = (string) $document->file_path;
+        $location = DocumentLocationResolver::resolve($path);
+
+        if ($location === null) {
+            $stored = ltrim(str_replace('\\', '/', $path), '/');
+            if ($stored === '' || ! str_starts_with($stored, 'documents/')) {
+                throw new \RuntimeException('File not found in storage and no valid path on record.');
+            }
+            $disk = (string) config('filesystems.default', 'local');
+            $location = ['source' => 'disk', 'disk' => $disk, 'path' => $stored];
+        }
+
+        if (($location['source'] ?? '') === 'disk') {
+            $written = Storage::disk($location['disk'])->put($location['path'], $contents);
+            if ($written === false) {
+                throw new \RuntimeException('Could not write the edited file to storage.');
+            }
+        } else {
+            if (@file_put_contents($location['path'], $contents) === false) {
+                throw new \RuntimeException('Could not overwrite the edited file on disk.');
+            }
+        }
+
+        $document->ocr_text = null;
+        $document->modified_by_user_id = $modifiedByUserId ?? Auth::id();
+        $document->save();
+
+        UserActivityLogger::replaced($document, array_filter([
+            'saved_from_editor' => true,
+            'overwrite' => true,
+            'acting_user_id' => $modifiedByUserId,
+        ], static fn ($value) => $value !== null));
+        $this->dispatchProcessOcr($document->id);
+
+        return $document->fresh() ?? $document;
+    }
+
     protected function folderPath(Entity $entity, Project $project, string $category): string
     {
         return 'documents/'

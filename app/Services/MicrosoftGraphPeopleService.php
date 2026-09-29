@@ -60,7 +60,7 @@ class MicrosoftGraphPeopleService
 
         foreach ($this->recentMicrosoftPeople($user, $query) as $item) {
             $email = strtolower($item['email']);
-            if ($email === '' || isset($seen[$email])) {
+            if ($email === '' || isset($seen[$email]) || ! CompanyEmailDomain::allows($email)) {
                 continue;
             }
             $seen[$email] = true;
@@ -73,7 +73,7 @@ class MicrosoftGraphPeopleService
 
         foreach ($this->searchMicrosoftPeople($user, $query) as $item) {
             $email = strtolower($item['email']);
-            if ($email === '' || isset($seen[$email])) {
+            if ($email === '' || isset($seen[$email]) || ! CompanyEmailDomain::allows($email)) {
                 continue;
             }
             $seen[$email] = true;
@@ -86,7 +86,7 @@ class MicrosoftGraphPeopleService
 
         foreach ($this->searchDirectoryUsers($user, $query) as $item) {
             $email = strtolower($item['email']);
-            if ($email === '' || isset($seen[$email])) {
+            if ($email === '' || isset($seen[$email]) || ! CompanyEmailDomain::allows($email)) {
                 continue;
             }
             $seen[$email] = true;
@@ -99,7 +99,7 @@ class MicrosoftGraphPeopleService
 
         foreach ($this->searchLocalUsers($query) as $item) {
             $email = strtolower($item['email']);
-            if ($email === '' || isset($seen[$email])) {
+            if ($email === '' || isset($seen[$email]) || ! CompanyEmailDomain::allows($email)) {
                 continue;
             }
             $seen[$email] = true;

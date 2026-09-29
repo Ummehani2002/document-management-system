@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\CompanyEmailDomain;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -38,18 +39,37 @@ class MicrosoftAuthController extends Controller
         'User.ReadBasic.All',
     ];
 
-    public function redirect(): RedirectResponse
+    public function redirect(Request $request): RedirectResponse
     {
+        $email = strtolower(trim((string) $request->input('email', '')));
+        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return redirect()->route('login')->withErrors([
+                'microsoft' => 'Enter your company email ('.CompanyEmailDomain::hint().'), then sign in with Microsoft.',
+            ])->withInput();
+        }
+
+        if (! CompanyEmailDomain::allows($email)) {
+            return redirect()->route('login')->withErrors([
+                'microsoft' => CompanyEmailDomain::loginMessage(),
+            ])->withInput();
+        }
+
         if (! $this->azureConfigured()) {
             return redirect()->route('login')->withErrors([
                 'microsoft' => 'Microsoft sign-in is not configured yet. Ask your administrator to set AZURE_CLIENT_ID and related settings.',
-            ]);
+            ])->withInput();
         }
 
-        session(['microsoft_auth_intent' => 'login']);
+        session([
+            'microsoft_auth_intent' => 'login',
+            'microsoft_login_email' => $email,
+        ]);
 
         return $this->azureDriver($this->loginScopes)
-            ->with(['prompt' => 'login'])
+            ->with([
+                'prompt' => 'login',
+                'login_hint' => $email,
+            ])
             ->redirect();
     }
 
@@ -145,6 +165,12 @@ class MicrosoftAuthController extends Controller
         if ($email === '') {
             return redirect()->route('login')->withErrors([
                 'microsoft' => 'Your Microsoft account did not return an email address.',
+            ]);
+        }
+
+        if (! CompanyEmailDomain::allows($email)) {
+            return redirect()->route('login')->withErrors([
+                'microsoft' => CompanyEmailDomain::loginMessage(),
             ]);
         }
 

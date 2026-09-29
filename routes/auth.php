@@ -20,7 +20,7 @@ Route::middleware('guest')->group(function () {
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
 
-    Route::get('login/microsoft', [MicrosoftAuthController::class, 'redirect'])
+    Route::match(['get', 'post'], 'login/microsoft', [MicrosoftAuthController::class, 'redirect'])
         ->name('login.microsoft');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])

@@ -11,6 +11,7 @@ use App\Jobs\ProcessOCR;
 use App\Jobs\SendSharedDocumentEmail;
 use App\Services\DocumentAccessService;
 use App\Services\EntityContextService;
+use App\Services\CompanyEmailDomain;
 use App\Services\DocumentDeletionService;
 use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileReplacer;
@@ -231,6 +232,7 @@ class DocumentController extends Controller
         }
 
         $uploaded = 0;
+        $replacedExisting = 0;
         $skippedDuplicates = 0;
         $failedUploads = 0;
         $detectedFolders = [];
@@ -271,7 +273,8 @@ class DocumentController extends Controller
             // - existing file with same content (anywhere in the project) => skip as already uploaded
             // - existing row whose stored file is MISSING and same version number => re-attach to
             //   that row using the orphan's existing folder so search keeps finding the same record
-            // - same logical filename + different content => create next version in current folder
+            // - same logical file already in this project => replace that row (one entity + one
+            //   project keeps a single copy; Rev01 / REV-02 do not create a second document)
             $uploadedBase = pathinfo($originalName, PATHINFO_FILENAME);
             $targetKey = DocumentFileVersioning::versionKey($uploadedBase);
             $uploadedVersion = DocumentFileVersioning::extractVersionNumber($uploadedBase);
@@ -377,7 +380,50 @@ class DocumentController extends Controller
                 continue;
             }
 
-            $storedFileName = DocumentFileVersioning::buildVersionedFilename($originalName, $targetProject->id, $category);
+            $familyMembers = $candidates->filter(
+                static fn ($candidate) => DocumentFileVersioning::logicalFamilyKey((string) $candidate->file_name)
+                    === DocumentFileVersioning::logicalFamilyKey($originalName)
+            );
+            if ($familyMembers->isNotEmpty()) {
+                $survivorId = (int) ($familyMembers
+                    ->sort(fn ($left, $right) => DocumentFileVersioning::compareFilenames(
+                        (string) $right->file_name,
+                        (string) $left->file_name
+                    ))
+                    ->first()
+                    ->id);
+                $survivor = Document::find($survivorId);
+                if ($survivor === null) {
+                    $failedUploads++;
+                    continue;
+                }
+
+                $replaced = app(DocumentFileReplacer::class)->replaceIncomingUpload(
+                    $survivor,
+                    $file,
+                    $originalName,
+                    $folderPath,
+                    $disk,
+                    [
+                        'entity_id' => $targetEntity->id,
+                        'project_id' => $targetProject->id,
+                        'discipline' => $disciplineName,
+                        'document_type' => $category,
+                    ],
+                    $uploadMode === 'manual'
+                );
+                if (! $replaced) {
+                    $failedUploads++;
+                    continue;
+                }
+
+                $replacedExisting++;
+                $detectedFolders[$category] = true;
+                $detectedProjects[$targetProject->project_number] = true;
+                continue;
+            }
+
+            $storedFileName = $originalName;
             try {
                 $path = $file->storeAs($folderPath, $storedFileName, $disk);
             } catch (\Throwable $e) {
@@ -422,9 +468,18 @@ class DocumentController extends Controller
             $detectedProjects[$targetProject->project_number] = true;
         }
 
-        $msg = $uploaded === 1
-            ? '1 file uploaded successfully.'
-            : $uploaded.' files uploaded successfully.';
+        $parts = [];
+        if ($uploaded > 0) {
+            $parts[] = $uploaded === 1
+                ? '1 file uploaded successfully.'
+                : $uploaded.' files uploaded successfully.';
+        }
+        if ($replacedExisting > 0) {
+            $parts[] = $replacedExisting === 1
+                ? '1 existing document in this project was updated instead of creating a second copy.'
+                : $replacedExisting.' existing documents in this project were updated instead of creating second copies.';
+        }
+        $msg = $parts !== [] ? implode(' ', $parts) : 'No new files were added.';
         if ($skippedDuplicates > 0) {
             $msg .= ' '.$skippedDuplicates.' duplicate file(s) were already uploaded and skipped.';
         }
@@ -1146,8 +1201,16 @@ class DocumentController extends Controller
             'message' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $email = trim((string) $validated['email']);
+        $email = strtolower(trim((string) $validated['email']));
         $personalMessage = trim((string) ($validated['message'] ?? ''));
+
+        if (! CompanyEmailDomain::allows($email)) {
+            return $this->shareErrorResponse(
+                $request,
+                $id,
+                CompanyEmailDomain::shareMessage()
+            );
+        }
 
         $sender = $request->user();
         if ($sender === null) {

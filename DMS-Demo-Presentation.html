@@ -74,6 +74,39 @@
         }
         .cover .lead, .end .lead { color: #e2e8f0; }
         .grow { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .presenter {
+            display: inline-flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 36px;
+            padding: 16px 20px;
+            border-left: 3px solid #93c5fd;
+            background: rgba(255,255,255,0.08);
+            border-radius: 0 12px 12px 0;
+            max-width: 420px;
+        }
+        .presenter .name {
+            font-size: 20px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .presenter .dept {
+            font-size: 14px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #93c5fd;
+            font-weight: 500;
+        }
+        .slide-brand {
+            margin-top: auto;
+            padding-top: 22px;
+            font-size: 13px;
+            color: #64748b;
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .cover .slide-brand, .end .slide-brand { color: #94a3b8; }
         .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -198,6 +231,14 @@
                 <p class="kicker">Internal demo</p>
                 <h1>Document Management System</h1>
                 <p class="lead">One place for company project files — filed in the right folder, easy to find, and safe if something is deleted by mistake.</p>
+                <div class="presenter">
+                    <span class="name">Umme Hani</span>
+                    <span class="dept">IT Department</span>
+                </div>
+            </div>
+            <div class="slide-brand">
+                <span>Presented by Umme Hani</span>
+                <span>IT Department</span>
             </div>
         </section>
 
@@ -222,6 +263,7 @@
                     <p>View or download the PDF. The original stays in the system.</p>
                 </div>
             </div>
+            <div class="slide-brand"><span>Umme Hani</span><span>IT Department</span></div>
         </section>
 
         <section class="slide">
@@ -244,6 +286,7 @@
                     <p>Work inside the project number (for example PSE20251015).</p>
                 </div>
             </div>
+            <div class="slide-brand"><span>Umme Hani</span><span>IT Department</span></div>
         </section>
 
         <section class="slide">
@@ -257,6 +300,7 @@
                 <li>Also: Method Statement, BOQ, NCR, CVI, RFI, TOC, Variation, O&amp;M, and the other folders you already use.</li>
             </ul>
             <p class="lead" style="margin-top:28px;font-size:17px;">If the name is not clear, you can still pick the folder when you upload.</p>
+            <div class="slide-brand"><span>Umme Hani</span><span>IT Department</span></div>
         </section>
 
         <section class="slide">
@@ -272,6 +316,7 @@
                     <p>Type part of the file name (WIR, MIR, 00015). After a file is indexed, you can also search a word that appears <em>inside</em> the PDF.</p>
                 </div>
             </div>
+            <div class="slide-brand"><span>Umme Hani</span><span>IT Department</span></div>
         </section>
 
         <section class="slide">
@@ -295,6 +340,7 @@
                     <p>We can see who uploaded or deleted a file, and when.</p>
                 </div>
             </div>
+            <div class="slide-brand"><span>Umme Hani</span><span>IT Department</span></div>
         </section>
 
         <section class="slide">
@@ -307,6 +353,7 @@
                 <li>Open the folder on the left and confirm the file is there</li>
                 <li>Search by file name, then download or view the PDF</li>
             </ul>
+            <div class="slide-brand"><span>Umme Hani</span><span>IT Department</span></div>
         </section>
 
         <section class="slide end">
@@ -314,12 +361,20 @@
                 <p class="kicker">Thank you</p>
                 <h1>Questions?</h1>
                 <p class="lead">We can open the live system next and walk through upload, folders, and search together.</p>
+                <div class="presenter">
+                    <span class="name">Umme Hani</span>
+                    <span class="dept">IT Department</span>
+                </div>
+            </div>
+            <div class="slide-brand">
+                <span>Presented by Umme Hani</span>
+                <span>IT Department</span>
             </div>
         </section>
 
     </div>
     <div class="footer-bar">
-        <span>Document Management System</span>
+        <span>Umme Hani · IT Department</span>
         <div class="nav">
             <button type="button" id="prev">Back</button>
             <div class="dots" id="dots"></div>

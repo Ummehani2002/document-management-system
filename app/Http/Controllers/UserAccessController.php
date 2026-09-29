@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Entity;
 use App\Models\User;
+use App\Services\CompanyEmailDomain;
 use App\Services\DocumentAccessService;
 use App\Services\DocumentFilenameParser;
 use Illuminate\Http\Request;
@@ -50,7 +51,19 @@ class UserAccessController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
+            'email' => [
+                'required',
+                'string',
+                'lowercase',
+                'email',
+                'max:255',
+                'unique:users,email',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! CompanyEmailDomain::allows((string) $value)) {
+                        $fail(CompanyEmailDomain::loginMessage());
+                    }
+                },
+            ],
             'role' => ['nullable', 'string', 'in:'.implode(',', $validRoles)],
             'project_ids' => ['nullable', 'array'],
             'project_ids.*' => ['integer', 'exists:projects,id'],

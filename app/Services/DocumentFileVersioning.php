@@ -283,13 +283,48 @@ class DocumentFileVersioning
      */
     public static function versionFamilyDocuments(Document $document): \Illuminate\Support\Collection
     {
-        $familyKey = self::logicalFamilyKey((string) $document->file_name);
+        return self::existingFamilyInProject(
+            (int) $document->project_id,
+            (string) $document->file_name
+        );
+    }
+
+    /**
+     * Documents in one project that are the same logical file (rev/R01/REV-02, edit Vn).
+     *
+     * @return \Illuminate\Support\Collection<int, Document>
+     */
+    public static function existingFamilyInProject(int $projectId, string $fileName): \Illuminate\Support\Collection
+    {
+        $familyKey = self::logicalFamilyKey($fileName);
 
         return Document::query()
-            ->where('project_id', $document->project_id)
+            ->where('project_id', $projectId)
             ->orderByDesc('updated_at')
             ->get()
             ->filter(static fn (Document $row) => self::logicalFamilyKey((string) $row->file_name) === $familyKey)
             ->values();
+    }
+
+    /**
+     * @param  iterable<int, Document>  $family
+     */
+    public static function pickFamilySurvivor(iterable $family): ?Document
+    {
+        $best = null;
+
+        foreach ($family as $document) {
+            if (! $document instanceof Document) {
+                continue;
+            }
+            if (
+                $best === null
+                || self::isNewerFilename((string) $document->file_name, (string) $best->file_name)
+            ) {
+                $best = $document;
+            }
+        }
+
+        return $best;
     }
 }

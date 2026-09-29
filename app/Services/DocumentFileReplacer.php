@@ -64,18 +64,133 @@ class DocumentFileReplacer
         $this->dispatchProcessOcr($document->id);
     }
 
-    protected function dispatchProcessOcr(int $documentId): void
+    /**
+     * Store an uploaded revision onto the existing project row (same logical file).
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function replaceIncomingUpload(
+        Document $document,
+        UploadedFile $file,
+        string $storedFileName,
+        string $folderPath,
+        string $disk,
+        array $attributes = [],
+        bool $preserveFolder = false
+    ): bool {
+        try {
+            $path = $file->storeAs($folderPath, $storedFileName, $disk);
+        } catch (\Throwable $e) {
+            Log::warning('Document family replace failed: storage write exception', [
+                'disk' => $disk,
+                'document_id' => $document->id,
+                'stored_file_name' => $storedFileName,
+                'target_path' => $folderPath.'/'.$storedFileName,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+
+        if (! is_string($path) || trim($path) === '') {
+            Log::warning('Document family replace failed: empty storage path returned', [
+                'disk' => $disk,
+                'document_id' => $document->id,
+                'stored_file_name' => $storedFileName,
+                'target_path' => $folderPath.'/'.$storedFileName,
+            ]);
+
+            return false;
+        }
+
+        $this->adoptStoredPath($document, $path, $storedFileName, $attributes, $preserveFolder);
+
+        return true;
+    }
+
+    /**
+     * Point an existing row at a file already written to storage, then drop extra family copies.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function adoptStoredPath(
+        Document $document,
+        string $path,
+        string $storedFileName,
+        array $attributes = [],
+        bool $preserveFolder = false
+    ): void {
+        $oldPath = (string) $document->file_path;
+
+        foreach (['entity_id', 'project_id', 'discipline', 'document_type'] as $field) {
+            if (array_key_exists($field, $attributes) && $attributes[$field] !== null) {
+                $document->{$field} = $attributes[$field];
+            }
+        }
+
+        $document->file_name = $storedFileName;
+        $document->file_path = $path;
+        $document->ocr_text = null;
+        $document->modified_by_user_id = Auth::id();
+        $document->save();
+
+        if ($oldPath !== '' && $oldPath !== $path) {
+            $this->deleteStoredPath($oldPath);
+        }
+
+        $this->retireOtherFamilyMembers($document);
+
+        UserActivityLogger::replaced($document, [
+            'replaced_same_project_file' => true,
+        ]);
+
+        $this->dispatchProcessOcr($document->id, $preserveFolder);
+    }
+
+    public function retireOtherFamilyMembers(Document $survivor): int
+    {
+        $removed = 0;
+        $deletions = app(DocumentDeletionService::class);
+
+        foreach (DocumentFileVersioning::versionFamilyDocuments($survivor) as $row) {
+            if ((int) $row->id === (int) $survivor->id) {
+                continue;
+            }
+            $deletions->delete($row, ['reason' => 'replaced_by_same_document']);
+            $removed++;
+        }
+
+        return $removed;
+    }
+
+    protected function deleteStoredPath(string $path): void
+    {
+        $location = DocumentLocationResolver::resolve($path);
+        if ($location === null) {
+            return;
+        }
+
+        if (($location['source'] ?? '') === 'disk') {
+            Storage::disk($location['disk'])->delete($location['path']);
+
+            return;
+        }
+
+        @unlink($location['path']);
+    }
+
+    protected function dispatchProcessOcr(int $documentId, bool $preserveFolder = false): void
     {
         $inline = config('queue.default') === 'sync'
             || filter_var(env('DMS_OCR_SYNC_ON_UPLOAD', false), FILTER_VALIDATE_BOOL);
 
         try {
             if ($inline) {
-                (new ProcessOCR($documentId))->handle();
+                (new ProcessOCR($documentId, $preserveFolder))->handle();
 
                 return;
             }
-            ProcessOCR::dispatch($documentId)->afterResponse();
+            ProcessOCR::dispatch($documentId, $preserveFolder)->afterResponse();
         } catch (\Throwable $e) {
             Log::warning('ProcessOCR after file replace failed', [
                 'document_id' => $documentId,

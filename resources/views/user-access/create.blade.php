@@ -33,7 +33,7 @@
                 <input type="email" name="email" id="email" value="{{ old('email') }}" required style="width:100%; padding:8px; margin-top:6px;">
             </div>
         </div>
-        <p style="color:#64748b; margin:12px 0 0;">They sign in with <strong>Microsoft</strong> using this email (no password needed).</p>
+        <p style="color:#64748b; margin:12px 0 0;">They sign in with <strong>Microsoft</strong> using this email ({{ \App\Services\CompanyEmailDomain::hint() }} — no password needed).</p>
     </div>
 
     @include('user-access._access-form', [
