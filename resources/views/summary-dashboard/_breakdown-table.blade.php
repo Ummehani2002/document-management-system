@@ -26,27 +26,35 @@
     @if($normalizedRows->isEmpty())
         <p style="margin:0; padding:16px; color:#64748b;">No documents for the selected filters.</p>
     @else
-        <table class="dms-grid-table">
+        <table class="dms-grid-table breakdown-table">
             <thead>
                 <tr>
                     <th>Name</th>
-                    <th class="text-right">Documents</th>
+                    <th class="text-right breakdown-num">Documents</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($normalizedRows as $row)
                     <tr>
                         <td>{{ $row['label'] }}</td>
-                        <td class="text-right">{{ number_format($row['total']) }}</td>
+                        <td class="text-right breakdown-num">{{ number_format($row['total']) }}</td>
                     </tr>
                 @endforeach
             </tbody>
             <tfoot>
                 <tr style="background:#f8fafc; font-weight:600;">
                     <td>{{ $totalLabel }}</td>
-                    <td class="text-right">{{ number_format($documentsTotal) }}</td>
+                    <td class="text-right breakdown-num">{{ number_format($documentsTotal) }}</td>
                 </tr>
             </tfoot>
         </table>
+        <style>
+            .breakdown-table .breakdown-num {
+                width: 7.5rem;
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+        </style>
     @endif
 </div>

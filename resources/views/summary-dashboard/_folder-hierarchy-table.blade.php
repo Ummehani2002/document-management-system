@@ -18,7 +18,7 @@
             <thead>
                 <tr>
                     <th>Name</th>
-                    <th class="text-right">Documents</th>
+                    <th class="text-right breakdown-num">Documents</th>
                 </tr>
             </thead>
             <tbody>
@@ -29,12 +29,12 @@
                             <strong>{{ $group['label'] }}</strong>
                             <span class="folder-child-count">{{ count($group['children'] ?? []) }} folder{{ count($group['children'] ?? []) === 1 ? '' : 's' }}</span>
                         </td>
-                        <td class="text-right"><strong>{{ number_format((int) $group['total']) }}</strong></td>
+                        <td class="text-right breakdown-num"><strong>{{ number_format((int) $group['total']) }}</strong></td>
                     </tr>
                     @foreach(($group['children'] ?? []) as $child)
                         <tr class="folder-child-row is-collapsed" data-hierarchy-parent="{{ $index }}">
                             <td class="folder-child-name">{{ $child['label'] }}</td>
-                            <td class="text-right">{{ number_format((int) $child['total']) }}</td>
+                            <td class="text-right breakdown-num">{{ number_format((int) $child['total']) }}</td>
                         </tr>
                     @endforeach
                 @endforeach
@@ -42,7 +42,7 @@
             <tfoot>
                 <tr style="background:#f8fafc; font-weight:600;">
                     <td>{{ $totalLabel }}</td>
-                    <td class="text-right">{{ number_format($documentsTotal) }}</td>
+                    <td class="text-right breakdown-num">{{ number_format($documentsTotal) }}</td>
                 </tr>
             </tfoot>
         </table>
@@ -50,6 +50,13 @@
 </div>
 
 <style>
+    .folder-hierarchy-table .breakdown-num,
+    .breakdown-table .breakdown-num {
+        width: 7.5rem;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
     .folder-hierarchy-table .folder-parent-row {
         cursor: pointer;
         background: #fff;

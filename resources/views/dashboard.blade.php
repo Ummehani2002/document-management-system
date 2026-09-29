@@ -116,7 +116,7 @@
                                     @endif
                                 </div>
                                 <div class="entity-card-body">
-                                    <h3 class="entity-card-name">{{ $card->name }}</h3>
+                                    <h3 class="entity-card-name" title="{{ $card->name }}">{{ $card->name }}</h3>
                                 </div>
                                 <div class="entity-card-footer">
                                     <span class="entity-card-docs">{{ number_format($card->documents_count) }} docs</span>
@@ -305,14 +305,18 @@
             grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
             gap: 16px;
             margin-bottom: 12px;
+            align-items: stretch;
         }
         .entity-card-form {
             margin: 0;
             min-width: 0;
+            height: 100%;
+            display: flex;
         }
         button.entity-card,
         .entity-card {
             width: 100%;
+            height: 100%;
             border: 1px solid #e2e8f0 !important;
             border-radius: 10px;
             overflow: hidden;
@@ -348,6 +352,7 @@
             position: relative;
             min-height: 56px;
             border-bottom: 1px solid #e2e8f0;
+            flex-shrink: 0;
         }
         .entity-card-banner-logo {
             padding: 0;
@@ -362,15 +367,16 @@
         .entity-card-banner-image {
             width: 100%;
             height: 100%;
+            max-height: 140px;
             object-fit: contain;
             object-position: center;
             display: block;
-            padding: 8px 12px;
+            padding: 12px 16px;
             box-sizing: border-box;
             background: #fff;
         }
         .entity-card.has-logo .entity-card-body {
-            padding-top: 16px;
+            padding-top: 14px;
         }
         .entity-card-category {
             font-size: 0.72rem;
@@ -408,15 +414,26 @@
             overflow: hidden;
         }
         .entity-card-body {
-            padding: 16px 16px 8px;
-            flex: 1;
+            padding: 14px 16px 8px;
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
             background: #ffffff;
+            min-height: 0;
         }
         .entity-card-name {
             margin: 0;
-            font-size: 1.05rem;
+            font-size: 1rem;
             font-weight: 600;
             color: #0b1f3a !important;
+            line-height: 1.35;
+            min-height: calc(1.35em * 3);
+            max-height: calc(1.35em * 3);
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 3;
+            overflow: hidden;
+            word-break: break-word;
         }
         .entity-card-footer {
             display: flex;
@@ -424,6 +441,8 @@
             justify-content: space-between;
             padding: 8px 16px 14px;
             background: #ffffff;
+            flex-shrink: 0;
+            margin-top: auto;
         }
         .entity-card-docs {
             color: #64748b !important;

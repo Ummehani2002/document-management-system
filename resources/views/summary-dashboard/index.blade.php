@@ -397,16 +397,28 @@
 
                 doc.autoTable({
                     startY: y,
-                    head: [['Name', 'Documents']],
+                    head: [[
+                        { content: 'Name', styles: { halign: 'left' } },
+                        { content: 'Documents', styles: { halign: 'right' } },
+                    ]],
                     body: rows.map(function (row) {
-                        return [row.label, Number(row.total).toLocaleString()];
+                        return [
+                            { content: String(row.label), styles: { halign: 'left' } },
+                            { content: Number(row.total).toLocaleString(), styles: { halign: 'right' } },
+                        ];
                     }),
-                    foot: [[totalLabel, Number(total).toLocaleString()]],
+                    foot: [[
+                        { content: totalLabel, styles: { halign: 'left', fontStyle: 'bold' } },
+                        { content: Number(total).toLocaleString(), styles: { halign: 'right', fontStyle: 'bold' } },
+                    ]],
                     theme: 'striped',
                     styles: { fontSize: 9, cellPadding: 2 },
                     headStyles: { fillColor: [33, 45, 62], textColor: 255 },
                     footStyles: { fillColor: [248, 250, 252], textColor: [33, 45, 62], fontStyle: 'bold' },
-                    columnStyles: { 1: { halign: 'right' } },
+                    columnStyles: {
+                        0: { halign: 'left' },
+                        1: { halign: 'right', cellWidth: 32 },
+                    },
                     margin: { left: margin, right: margin },
                 });
 
