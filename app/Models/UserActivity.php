@@ -17,6 +17,8 @@ class UserActivity extends Model
 
     public const ACTION_REATTACHED = 'document.re_attached';
 
+    public const ACTION_SHARED = 'document.shared';
+
     /** @var array<string, string> */
     public const ACTION_LABELS = [
         self::ACTION_UPLOADED => 'Uploaded',
@@ -24,6 +26,7 @@ class UserActivity extends Model
         self::ACTION_DELETED => 'Deleted',
         self::ACTION_RESTORED => 'Restored',
         self::ACTION_REATTACHED => 'Re-attached',
+        self::ACTION_SHARED => 'Shared',
     ];
 
     protected $fillable = [

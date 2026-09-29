@@ -1381,6 +1381,13 @@ class DocumentController extends Controller
                     'personalMessage' => $personalMessage,
                 ]
             );
+
+            UserActivityLogger::shared($document, [
+                'shared_by' => $fromName,
+                'shared_by_email' => $fromAddress,
+                'shared_to' => $email,
+                'share_message' => $personalMessage !== '' ? $personalMessage : null,
+            ]);
         } catch (\Throwable $e) {
             Log::warning('Document share failed', [
                 'document_id' => $id,

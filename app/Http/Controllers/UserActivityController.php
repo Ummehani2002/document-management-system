@@ -118,6 +118,8 @@ class UserActivityController extends Controller
             'date' => format_model_datetime($activity, 'created_at'),
             'reference_no' => $meta['reference_no'] ?? '—',
             'subject' => $meta['subject'] ?? '—',
+            'shared_by' => $this->shareParty($activity, $props, 'shared_by', 'shared_by_email', $activity->user?->name ?: $activity->user?->email),
+            'shared_to' => $this->shareParty($activity, $props, 'shared_to', 'shared_to', null),
             'project_number' => $project?->project_number ?? '—',
             'project_name' => $project?->project_name ?? '—',
             'project_client' => $project?->client_name ?? '—',
@@ -152,6 +154,8 @@ class UserActivityController extends Controller
             'date' => format_model_datetime($activity, 'created_at'),
             'reference_no' => $this->propOrDash($props, 'reference_no'),
             'subject' => $this->propOrDash($props, 'subject'),
+            'shared_by' => $this->shareParty($activity, $props, 'shared_by', 'shared_by_email', $activity->user?->name ?: $activity->user?->email),
+            'shared_to' => $this->shareParty($activity, $props, 'shared_to', 'shared_to', null),
             'project_number' => $this->firstNonEmpty(
                 $this->propValue($props, 'project_number'),
                 $project?->project_number
@@ -179,6 +183,44 @@ class UserActivityController extends Controller
             'can_restore' => false,
             'document_id' => '',
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $props
+     */
+    protected function shareParty(
+        UserActivity $activity,
+        array $props,
+        string $nameKey,
+        string $emailKey,
+        ?string $fallback
+    ): string {
+        if ($activity->action !== UserActivity::ACTION_SHARED) {
+            return '—';
+        }
+
+        $name = trim((string) ($props[$nameKey] ?? ''));
+        $email = trim((string) ($props[$emailKey] ?? ''));
+
+        if ($nameKey === 'shared_to') {
+            return $email !== '' ? $email : ($name !== '' ? $name : '—');
+        }
+
+        if ($name !== '' && $email !== '' && strcasecmp($name, $email) !== 0) {
+            return $name.' <'.$email.'>';
+        }
+
+        if ($email !== '') {
+            return $email;
+        }
+
+        if ($name !== '') {
+            return $name;
+        }
+
+        $fallback = trim((string) $fallback);
+
+        return $fallback !== '' ? $fallback : '—';
     }
 
     /**

@@ -2,7 +2,7 @@
 
 @section('content')
     <h2>User Activity Log</h2>
-    <p style="color: #64748b; margin-top: -8px;">See whether each PDF was uploaded, edited, or deleted.</p>
+    <p style="color: #64748b; margin-top: -8px;">See uploads, edits, deletes, and shares (who shared which file to whom).</p>
 
     <form method="GET" action="{{ route('user-activities.index') }}" class="card" style="margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
         <div style="min-width: 220px;">
@@ -42,6 +42,8 @@
                     <tr>
                         <th>Action</th>
                         <th>User</th>
+                        <th>Shared By</th>
+                        <th>Shared To</th>
                         <th>File Type</th>
                         <th>File Name</th>
                         <th>Date</th>
@@ -68,6 +70,8 @@
                         <tr>
                             <td style="white-space: nowrap; font-weight: 600;">{{ $activity->actionLabel() }}</td>
                             <td style="white-space: nowrap;">{{ $activity->user?->name ?? $activity->user?->username ?? '—' }}</td>
+                            <td style="word-break: break-word;">{{ $row['shared_by'] ?? '—' }}</td>
+                            <td style="word-break: break-word;">{{ $row['shared_to'] ?? '—' }}</td>
                             <td>{{ $row['file_type'] ?? '—' }}</td>
                             <td style="word-break: break-word;">{{ $row['file_name'] ?? '—' }}</td>
                             <td style="white-space: nowrap;">{{ $row['date'] ?? '—' }}</td>
