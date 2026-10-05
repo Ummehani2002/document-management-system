@@ -94,6 +94,10 @@ if (! function_exists('entity_logo_url')) {
             return asset('images/stones-and-slates.png').'?v=1';
         }
 
+        if (str_contains($key, 'tanseeq project') || preg_match('/tanseeq\s*projects?/', $key) === 1) {
+            return asset('images/tanseeq-projects.png').'?v=2';
+        }
+
         if (str_contains($key, 'tanseeq llc') || $key === 'tanseeq') {
             return asset('images/tanseeq-llc.png').'?v=1';
         }
