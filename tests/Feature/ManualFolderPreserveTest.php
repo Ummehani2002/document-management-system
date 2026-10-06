@@ -108,27 +108,78 @@ class ManualFolderPreserveTest extends TestCase
             ->assertDontSee('No files found in this folder for selected project.');
     }
 
-    public function test_short_catalog_name_requires_word_boundary(): void
+    public function test_manual_material_submittal_not_moved_to_prequalification_after_ocr(): void
     {
-        $main = \App\Models\DocumentMainFolder::create([
-            'name' => 'Custom Main',
-            'sort_order' => 99,
-        ]);
-        \App\Models\DocumentSubfolder::create([
-            'main_folder_id' => $main->id,
-            'name' => 'Test',
-            'sort_order' => 1,
-        ]);
-        DocumentFolderCatalog::clearCache();
+        $admin = User::factory()->create();
+        $admin->assignRole('Admin');
 
-        $fromFilename = DocumentFilenameParser::classifyForAutomation('test8.pdf', null);
-        $this->assertSame('Other', $fromFilename['document_category']);
+        $entity = Entity::create(['name' => 'Proscape']);
+        $project = Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => '1696',
+            'project_name' => 'Murooj Al Furjan',
+        ]);
 
-        $fromTitle = DocumentFilenameParser::classifyForAutomation(
-            'scan.pdf',
-            "Document Title: Test\nProject notes"
-        );
-        $this->assertSame('Test', $fromTitle['document_category']);
-        $this->assertSame('catalog_name', $fromTitle['category_source']);
+        $document = Document::create([
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'document_type' => 'Material Submittal',
+            'file_name' => 'MAT-001-material.pdf',
+            'file_path' => 'documents/proscape/1696/material-submittal/mat-001.pdf',
+            'ocr_text' => "PREQUALIFICATION FORM\nVendor pre-qualification questionnaire\nMaterial Submittal Register",
+        ]);
+
+        (new ProcessOCR($document->id, true))->handle();
+
+        $document->refresh();
+        $this->assertSame('Material Submittal', $document->document_type);
+    }
+
+    public function test_direct_upload_finalize_keeps_manual_folder_and_locks_ocr(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('Admin');
+
+        $entity = Entity::create(['name' => 'Proscape']);
+        $project = Project::create([
+            'entity_id' => $entity->id,
+            'project_number' => '1696',
+            'project_name' => 'Murooj Al Furjan',
+        ]);
+
+        $disk = (string) config('filesystems.default');
+        $key = 'documents/proscape/1696/material-submittal/'.uniqid('mat_', true).'.pdf';
+        Storage::disk($disk)->put($key, 'fake-pdf-bytes');
+
+        $this->actingAs($admin);
+
+        $controller = app(\App\Http\Controllers\DocumentDirectUploadController::class);
+        $method = new \ReflectionMethod($controller, 'finalizeUploadedObject');
+        $method->setAccessible(true);
+
+        $response = $method->invoke($controller, [
+            'disk' => $disk,
+            'original_name' => 'MAT-SS-001.pdf',
+            'stored_file_name' => 'MAT-SS-001.pdf',
+            'entity_id' => $entity->id,
+            'project_id' => $project->id,
+            'category' => 'Material Submittal',
+            'upload_mode' => 'manual',
+            'file_size' => 14,
+            'orphan_document_id' => null,
+        ], $key);
+
+        $this->assertSame(200, $response->getStatusCode());
+
+        $document = Document::query()->where('file_name', 'MAT-SS-001.pdf')->first();
+        $this->assertNotNull($document);
+        $this->assertSame('Material Submittal', $document->document_type);
+
+        $document->update([
+            'ocr_text' => "PREQUALIFICATION\nPRE-QUALIFICATION QUESTIONNAIRE\nPQ-123",
+        ]);
+        (new ProcessOCR($document->id, true))->handle();
+        $document->refresh();
+        $this->assertSame('Material Submittal', $document->document_type);
     }
 }

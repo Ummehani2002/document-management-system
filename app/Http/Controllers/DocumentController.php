@@ -321,7 +321,10 @@ class DocumentController extends Controller
             }
 
             if ($orphanCandidate !== null) {
-                $orphanCategory = (string) ($orphanCandidate->document_type ?: $category);
+                // Manual upload must keep the folder the user selected, even when re-attaching.
+                $orphanCategory = $uploadMode === 'manual'
+                    ? $category
+                    : (string) ($orphanCandidate->document_type ?: $category);
                 $reattachFolder = 'documents/'
                     . Str::slug($targetEntity->name) . '/'
                     . Str::slug($targetProject->project_number) . '/'
@@ -359,7 +362,7 @@ class DocumentController extends Controller
                     if ($disciplineName !== null) {
                         $document->discipline = $disciplineName;
                     }
-                    // Preserve orphan's document_type. OCR/reclassification will adjust if needed.
+                    $document->document_type = $orphanCategory;
                     $document->file_path = $reattachPath;
                     $document->ocr_text = null;
                     $document->modified_by_user_id = Auth::id();

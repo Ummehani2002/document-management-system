@@ -179,7 +179,10 @@ class DocumentDirectUploadController extends Controller
         $objectBaseName = Str::lower((string) Str::ulid()).'.'.$originalExt;
 
         if ($orphanCandidate !== null) {
-            $orphanCategory = (string) ($orphanCandidate->document_type ?: $category);
+            // Manual upload must keep the folder the user selected, even when re-attaching.
+            $orphanCategory = $uploadMode === 'manual'
+                ? $category
+                : (string) ($orphanCandidate->document_type ?: $category);
             $reattachFolder = 'documents/'
                 .Str::slug($entity->name).'/'
                 .Str::slug($project->project_number).'/'
@@ -188,6 +191,7 @@ class DocumentDirectUploadController extends Controller
             $storedFileNameForDb = $reattachName;
             $orphanDocumentId = (int) $orphanCandidate->id;
             $storageKey = $reattachFolder.'/'.$objectBaseName;
+            $category = $orphanCategory;
         } else {
             $storedFileNameForDb = $filename;
             $storageKey = $folderPath.'/'.$objectBaseName;
@@ -204,6 +208,7 @@ class DocumentDirectUploadController extends Controller
             'project_id' => $project->id,
             'discipline_name' => $disciplineName,
             'category' => $category,
+            'upload_mode' => $uploadMode,
             'stored_file_name' => $storedFileNameForDb,
             'orphan_document_id' => $orphanDocumentId,
         ];
@@ -264,6 +269,7 @@ class DocumentDirectUploadController extends Controller
             'project_id' => $built['project_id'],
             'discipline_name' => $built['discipline_name'],
             'category' => $built['category'],
+            'upload_mode' => $built['upload_mode'],
             'file_size' => $built['file_size'],
             'content_type' => $built['content_type'],
             'orphan_document_id' => $built['orphan_document_id'],
@@ -518,6 +524,7 @@ class DocumentDirectUploadController extends Controller
             'project_id' => (int) ($payload['project_id'] ?? 0),
             'discipline_name' => $payload['discipline_name'] ?? null,
             'category' => (string) ($payload['category'] ?? 'Other'),
+            'upload_mode' => (string) ($payload['upload_mode'] ?? 'auto'),
             'file_size' => $expectedSize,
             'content_type' => (string) ($payload['content_type'] ?? ''),
             'orphan_document_id' => isset($payload['orphan_document_id']) ? (int) $payload['orphan_document_id'] : null,
@@ -569,6 +576,7 @@ class DocumentDirectUploadController extends Controller
             'project_id' => $built['project_id'],
             'discipline_name' => $built['discipline_name'],
             'category' => $built['category'],
+            'upload_mode' => $built['upload_mode'],
             'file_size' => $built['file_size'],
             'content_type' => $contentType,
             'orphan_document_id' => $built['orphan_document_id'],
@@ -659,6 +667,8 @@ class DocumentDirectUploadController extends Controller
 
         $enableDeepDuplicateCheck = (bool) env('DOC_DEEP_DUP_CHECK', false);
 
+        $uploadMode = (string) ($payload['upload_mode'] ?? 'auto');
+
         if ($orphanDocumentId !== null && $orphanDocumentId > 0) {
             $document = Document::find($orphanDocumentId);
             if ($document) {
@@ -667,17 +677,20 @@ class DocumentDirectUploadController extends Controller
                 if ($disciplineName !== null) {
                     $document->discipline = $disciplineName;
                 }
+                if ($uploadMode === 'manual') {
+                    $document->document_type = $category;
+                }
                 $document->file_path = $key;
                 $document->ocr_text = null;
                 $document->modified_by_user_id = Auth::id();
                 $document->save();
                 UserActivityLogger::reattached($document, [
-                    'upload_mode' => (string) ($payload['upload_mode'] ?? 'auto'),
+                    'upload_mode' => $uploadMode,
                 ]);
                 try {
                     $this->dispatchProcessOcr(
                         $document->id,
-                        (string) ($payload['upload_mode'] ?? 'auto') === 'manual'
+                        $uploadMode === 'manual'
                     );
                 } catch (\Throwable $e) {
                     Log::warning('ProcessOCR on direct re-attach failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
@@ -722,7 +735,7 @@ class DocumentDirectUploadController extends Controller
                         'discipline' => $disciplineName,
                         'document_type' => $category,
                     ],
-                    (string) ($payload['upload_mode'] ?? 'auto') === 'manual'
+                    $uploadMode === 'manual'
                 );
 
                 return response()->json([
@@ -743,12 +756,12 @@ class DocumentDirectUploadController extends Controller
             'modified_by_user_id' => Auth::id(),
         ]);
         UserActivityLogger::uploaded($document, [
-            'upload_mode' => (string) ($payload['upload_mode'] ?? 'auto'),
+            'upload_mode' => $uploadMode,
         ]);
         try {
             $this->dispatchProcessOcr(
                 $document->id,
-                (string) ($payload['upload_mode'] ?? 'auto') === 'manual'
+                $uploadMode === 'manual'
             );
         } catch (\Throwable $e) {
             Log::warning('ProcessOCR on direct upload failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
