@@ -948,7 +948,7 @@
                         type="text"
                         id="share-modal-email"
                         name="email"
-                        placeholder="name@tanseeqllc.com, @tanseeqprojects.com or @proscapeuae.com"
+                        placeholder="name@company.com (approved company domain)"
                         value="{{ old('email') }}"
                         required
                         autocomplete="off"

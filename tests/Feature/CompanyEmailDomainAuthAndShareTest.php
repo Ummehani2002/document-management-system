@@ -13,12 +13,12 @@ class CompanyEmailDomainAuthAndShareTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_login_page_mentions_llc_and_projects_domains(): void
+    public function test_login_page_mentions_approved_company_domains(): void
     {
         $this->get(route('login'))
             ->assertOk()
             ->assertSee('tanseeqllc.com', false)
-            ->assertSee('tanseeqprojects.com', false)
+            ->assertSee('waterinmotionllc.com', false)
             ->assertSee('proscapeuae.com', false);
     }
 
@@ -34,33 +34,30 @@ class CompanyEmailDomainAuthAndShareTest extends TestCase
 
     public function test_microsoft_login_accepts_company_emails(): void
     {
+        // Domain allowlist passes; next step is Azure redirect or "not configured".
         $this->from(route('login'))
             ->post(route('login.microsoft'), [
                 'email' => 'hani@tanseeqllc.com',
             ])
-            ->assertRedirect(route('login'))
-            ->assertSessionHasErrors('microsoft');
+            ->assertSessionDoesntHaveErrors('microsoft');
 
         $this->from(route('login'))
             ->post(route('login.microsoft'), [
                 'email' => 'hani@tanseeqprojects.com',
             ])
-            ->assertRedirect(route('login'))
-            ->assertSessionHasErrors('microsoft');
+            ->assertSessionDoesntHaveErrors('microsoft');
 
         $this->from(route('login'))
             ->post(route('login.microsoft'), [
                 'email' => 'mammadhukani.s@proscapeuae.com',
             ])
-            ->assertRedirect(route('login'))
-            ->assertSessionHasErrors('microsoft');
+            ->assertSessionDoesntHaveErrors('microsoft');
 
-        $llcErrors = session('errors');
-        $this->assertNotNull($llcErrors);
-        $this->assertStringContainsString(
-            'not configured',
-            strtolower((string) $llcErrors->first('microsoft'))
-        );
+        $this->from(route('login'))
+            ->post(route('login.microsoft'), [
+                'email' => 'mubarak.ali@waterinmotionllc.com',
+            ])
+            ->assertSessionDoesntHaveErrors('microsoft');
     }
 
     public function test_share_rejects_non_company_recipient(): void

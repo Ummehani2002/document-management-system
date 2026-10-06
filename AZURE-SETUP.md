@@ -16,11 +16,11 @@ AZURE_REDIRECT_URI="${APP_URL}/login/microsoft/callback"
 AZURE_TENANT_ID=your-tenant-id
 ```
 
-Login and document sharing accept `@tanseeqllc.com`, `@tanseeqprojects.com`, `@tanseeqinvestment.com`, and `@proscapeuae.com`. If those domains live in **different** Microsoft tenants, set:
+Login and document sharing accept approved group company domains (including `@tanseeqllc.com`, `@tanseeqprojects.com`, `@waterinmotionllc.com`, `@proscapeuae.com`, and the full list in `DMS_ALLOWED_EMAIL_DOMAINS`). If those domains live in **different** Microsoft tenants, set:
 
 ```env
 AZURE_TENANT_ID=organizations
-DMS_ALLOWED_EMAIL_DOMAINS=tanseeqllc.com,tanseeqprojects.com,tanseeqinvestment.com,proscapeuae.com
+DMS_ALLOWED_EMAIL_DOMAINS=acacia-ae.com,acaciagardencenter.com,bioscape.ae,metalinellc.com,proscapefm.com,proscapeksa.com,proscapeuae.com,stonesandslates.com,tanseeqinvestment.com,tanseeqllc.com,tanseeqprojects.com,tanseeqrealty.com,timbertechllc.com,transmechllc.com,ventanallc.com,waterinmotionllc.com
 ```
 
 
@@ -34,7 +34,7 @@ This adds the `azure_id` column to the `users` table.
 
 ## Flow
 
-1. User opens `/login`, enters their company email (`@tanseeqllc.com`, `@tanseeqprojects.com`, or `@proscapeuae.com`), and clicks **Sign in with Microsoft**.
+1. User opens `/login`, enters their company email (any approved domain such as `@tanseeqllc.com` or `@waterinmotionllc.com`), and clicks **Sign in with Microsoft**.
 2. They enter their work email and password on Microsoft’s page (MFA/code if your tenant requires it).
 3. After authentication and consent, Microsoft redirects to `/login/microsoft/callback`.
 4. The app finds or creates a user by Azure ID or email, stores Microsoft mail permissions, logs them in, and redirects to the **dashboard**.

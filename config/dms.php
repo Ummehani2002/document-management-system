@@ -8,7 +8,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Microsoft sign-in and document sharing accept these work addresses only.
-    | Tanseeq + Proscape company domains.
+    | Group company domains (Tanseeq, Proscape, Water in Motion, and others).
     |
     */
 
@@ -16,7 +16,7 @@ return [
         static fn (string $domain): string => strtolower(trim($domain)),
         explode(',', (string) env(
             'DMS_ALLOWED_EMAIL_DOMAINS',
-            'tanseeqllc.com,tanseeqprojects.com,tanseeqinvestment.com,proscapeuae.com'
+            'acacia-ae.com,acaciagardencenter.com,bioscape.ae,metalinellc.com,proscapefm.com,proscapeksa.com,proscapeuae.com,stonesandslates.com,tanseeqinvestment.com,tanseeqllc.com,tanseeqprojects.com,tanseeqrealty.com,timbertechllc.com,transmechllc.com,ventanallc.com,waterinmotionllc.com'
         ))
     ))),
 ];

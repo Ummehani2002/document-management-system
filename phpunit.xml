@@ -31,5 +31,6 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="DMS_ALLOWED_EMAIL_DOMAINS" value="acacia-ae.com,acaciagardencenter.com,bioscape.ae,metalinellc.com,proscapefm.com,proscapeksa.com,proscapeuae.com,stonesandslates.com,tanseeqinvestment.com,tanseeqllc.com,tanseeqprojects.com,tanseeqrealty.com,timbertechllc.com,transmechllc.com,ventanallc.com,waterinmotionllc.com"/>
     </php>
 </phpunit>

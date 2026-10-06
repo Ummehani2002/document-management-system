@@ -11,7 +11,24 @@ class CompanyEmailDomain
     {
         $domains = config('dms.allowed_email_domains', []);
         if (! is_array($domains) || $domains === []) {
-            $domains = ['tanseeqllc.com', 'tanseeqprojects.com', 'tanseeqinvestment.com', 'proscapeuae.com'];
+            $domains = [
+                'acacia-ae.com',
+                'acaciagardencenter.com',
+                'bioscape.ae',
+                'metalinellc.com',
+                'proscapefm.com',
+                'proscapeksa.com',
+                'proscapeuae.com',
+                'stonesandslates.com',
+                'tanseeqinvestment.com',
+                'tanseeqllc.com',
+                'tanseeqprojects.com',
+                'tanseeqrealty.com',
+                'timbertechllc.com',
+                'transmechllc.com',
+                'ventanallc.com',
+                'waterinmotionllc.com',
+            ];
         }
 
         $normalized = [];
@@ -53,10 +70,13 @@ class CompanyEmailDomain
         if (count($labels) === 1) {
             return $labels[0];
         }
+        if (count($labels) <= 5) {
+            $last = array_pop($labels);
 
-        $last = array_pop($labels);
+            return implode(', ', $labels).' or '.$last;
+        }
 
-        return implode(', ', $labels).' or '.$last;
+        return 'an approved company work email (@tanseeqllc.com, @waterinmotionllc.com, @proscapeuae.com, and others)';
     }
 
     public static function loginMessage(): string

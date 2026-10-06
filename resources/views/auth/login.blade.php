@@ -276,7 +276,7 @@
                     value="{{ old('email') }}"
                     required
                     autocomplete="username"
-                    placeholder="you@tanseeqllc.com, @tanseeqprojects.com or @proscapeuae.com"
+                    placeholder="you@company.com (approved company domain)"
                     style="width:100%; padding:13px 14px; margin-bottom:16px; border:1px solid var(--border); border-radius:10px; font-size:0.95rem; font-family:inherit; color:var(--text);"
                 >
                 <button type="submit" class="microsoft-btn">
