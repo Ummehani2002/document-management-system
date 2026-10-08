@@ -42,7 +42,7 @@ class OfficeOpenChooserTest extends TestCase
         $this->actingAs($user)
             ->get(route('documents.view', ['id' => $document->id]))
             ->assertOk()
-            ->assertSee('Edit in DMS', false)
+            ->assertSee('>Edit</a>', false)
             ->assertSee('Do not use “Edit a copy”', false)
             ->assertSee('test copy.xlsx', false);
     }

@@ -15,12 +15,12 @@
         <p style="margin: 0; color: #9a3412; line-height: 1.55; font-size: 0.92rem;">
             Opening Excel/Word in the browser’s Office Online viewer only saves to OneDrive/SharePoint.
             Those changes <strong>never</strong> update the DMS. To change the file in the portal, use
-            <strong>Edit in DMS</strong> below (or Download → edit → upload).
+            <strong>Edit</strong> below (or Download → edit → upload).
         </p>
     </div>
 
     <div class="card" style="padding: 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
-        <a href="{{ $editUrl }}" class="btn-primary" style="padding: 12px 18px; text-decoration: none; display: inline-block;">Edit in DMS</a>
+        <a href="{{ $editUrl }}" class="btn-primary" style="padding: 12px 18px; text-decoration: none; display: inline-block;">Edit</a>
         <a href="{{ $downloadUrl }}" style="padding: 12px 18px; border: 1px solid #cbd5e1; border-radius: 8px; color: #334155; text-decoration: none; display: inline-block;">Download</a>
         <a href="{{ route('documents.search') }}" style="color: #64748b; font-size: 0.9rem;">Back to search</a>
     </div>
