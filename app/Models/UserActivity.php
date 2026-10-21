@@ -19,6 +19,10 @@ class UserActivity extends Model
 
     public const ACTION_SHARED = 'document.shared';
 
+    public const ACTION_MOVED = 'document.moved';
+
+    public const ACTION_COPIED = 'document.copied';
+
     /** @var array<string, string> */
     public const ACTION_LABELS = [
         self::ACTION_UPLOADED => 'Uploaded',
@@ -27,6 +31,8 @@ class UserActivity extends Model
         self::ACTION_RESTORED => 'Restored',
         self::ACTION_REATTACHED => 'Re-attached',
         self::ACTION_SHARED => 'Shared',
+        self::ACTION_MOVED => 'Moved',
+        self::ACTION_COPIED => 'Copied',
     ];
 
     protected $fillable = [

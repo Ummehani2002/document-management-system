@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\DocumentBulkController;
 use App\Http\Controllers\DocumentDirectUploadController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EntityWorkspaceController;
@@ -119,6 +120,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/share/email-suggestions', [DocumentController::class, 'shareEmailSuggestions'])->name('documents.share.email-suggestions');
     Route::post('/documents/{id}/share', [DocumentController::class, 'share'])->name('documents.share')->where('id', '[0-9]+');
     Route::delete('/documents/{id}', [DocumentController::class, 'destroy'])->name('documents.destroy')->where('id', '[0-9]+');
+    Route::post('/documents/bulk/download', [DocumentBulkController::class, 'download'])->name('documents.bulk.download');
+    Route::post('/documents/bulk/move', [DocumentBulkController::class, 'move'])->name('documents.bulk.move');
+    Route::post('/documents/bulk/copy', [DocumentBulkController::class, 'copy'])->name('documents.bulk.copy');
+    Route::post('/documents/bulk/delete', [DocumentBulkController::class, 'destroy'])->name('documents.bulk.delete');
 });
 
 require __DIR__ . '/auth.php';

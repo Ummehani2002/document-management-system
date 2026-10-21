@@ -671,10 +671,12 @@
             </form>
 
             <section>
+                @include('documents.partials.bulk-toolbar')
                 <div class="card dms-grid-wrap" style="margin-top: 0;">
                     <table class="dms-grid-table min-w-lg">
                         <thead>
                             <tr>
+                                <th class="bulk-col"><input type="checkbox" class="bulk-select-all" aria-label="Select all documents"></th>
                                 <th>Name</th>
                                 <th>Reference No</th>
                                 <th>Subject</th>
@@ -696,6 +698,7 @@
                                     $subject = $meta['subject'] ?? '—';
                                 @endphp
                                 <tr>
+                                    <td class="bulk-col"><input type="checkbox" class="bulk-select" value="{{ $doc->id }}" aria-label="Select {{ $doc->file_name }}"></td>
                                     <td>
                                         @if(!empty($doc->file_available))
                                             <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank">{{ $doc->file_name }}</a>
@@ -747,7 +750,7 @@
                                 </tr>
                                 @if(!empty($doc->file_available))
                                     <tr id="preview-row-{{ $doc->id }}" style="display:none; border-bottom: 1px solid #e2e8f0;">
-                                        <td colspan="11" style="padding: 10px;">
+                                        <td colspan="12" style="padding: 10px;">
                                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                                                 <strong>Inline Preview</strong>
                                                 <button type="button" style="padding:4px 10px;" onclick="closeInlinePreview('{{ $doc->id }}')">Close preview</button>
@@ -765,7 +768,7 @@
                                 @endif
                             @empty
                                 <tr>
-                                    <td colspan="11" style="padding: 14px;">No files found in this folder for selected project.</td>
+                                    <td colspan="12" style="padding: 14px;">No files found in this folder for selected project.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -820,10 +823,12 @@
             });
         </script>
     @else
+        @include('documents.partials.bulk-toolbar')
         <div class="card dms-grid-wrap" style="margin-top: 0;">
             <table class="dms-grid-table min-w-lg">
                 <thead>
                     <tr>
+                        <th class="bulk-col"><input type="checkbox" class="bulk-select-all" aria-label="Select all documents"></th>
                         <th>Name</th>
                         <th>Reference No</th>
                         <th>Subject</th>
@@ -842,6 +847,7 @@
                             $subject = $meta['subject'] ?? '—';
                         @endphp
                         <tr>
+                            <td class="bulk-col"><input type="checkbox" class="bulk-select" value="{{ $doc->id }}" aria-label="Select {{ $doc->file_name }}"></td>
                             <td>
                                 @if(!empty($doc->file_available))
                                     <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank">{{ $doc->file_name }}</a>
@@ -890,7 +896,7 @@
                         </tr>
                         @if(!empty($doc->file_available))
                             <tr id="preview-row-{{ $doc->id }}" style="display:none;">
-                                <td colspan="8">
+                                <td colspan="9">
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                                         <strong>Inline Preview</strong>
                                         <button type="button" style="padding:4px 10px;" onclick="closeInlinePreview('{{ $doc->id }}')">Close preview</button>
@@ -908,7 +914,7 @@
                         @endif
                     @empty
                         <tr>
-                            <td colspan="8">No documents found.</td>
+                            <td colspan="9">No documents found.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -916,6 +922,7 @@
         </div>
         {{ $documents->links() }}
     @endif
+    @include('documents.partials.bulk-actions')
 @endif
 
 @php
