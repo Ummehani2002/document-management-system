@@ -679,6 +679,7 @@ class DocumentDirectUploadController extends Controller
                 }
                 if ($uploadMode === 'manual') {
                     $document->document_type = $category;
+                    $document->folder_locked = true;
                 }
                 $document->file_path = $key;
                 $document->ocr_text = null;
@@ -734,6 +735,7 @@ class DocumentDirectUploadController extends Controller
                         'project_id' => $project->id,
                         'discipline' => $disciplineName,
                         'document_type' => $category,
+                        'folder_locked' => $uploadMode === 'manual',
                     ],
                     $uploadMode === 'manual'
                 );
@@ -751,6 +753,7 @@ class DocumentDirectUploadController extends Controller
             'project_id' => $project->id,
             'discipline' => $disciplineName,
             'document_type' => $category,
+            'folder_locked' => $uploadMode === 'manual',
             'file_name' => $displayName,
             'file_path' => $key,
             'modified_by_user_id' => Auth::id(),

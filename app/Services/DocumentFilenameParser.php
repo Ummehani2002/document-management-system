@@ -1752,10 +1752,16 @@ class DocumentFilenameParser
      *     prefer the stored value so the UI matches the database until OCR is available.
      *  3. Otherwise, use the filename parse when it is non-Other.
      *  4. Otherwise, fall back to the stored document_type.
+     *
+     * Rows locked by a manual upload always show the stored document_type.
      */
-    protected static function resolveSubLabel(?string $documentType, ?string $fileName, ?string $ocrText = null): ?string
+    protected static function resolveSubLabel(?string $documentType, ?string $fileName, ?string $ocrText = null, bool $folderLocked = false): ?string
     {
         $type = $documentType !== null && trim($documentType) !== '' ? trim($documentType) : null;
+
+        if ($folderLocked && $type !== null) {
+            return $type;
+        }
 
         if ($fileName !== null && $fileName !== '') {
             $ocr = is_string($ocrText) && $ocrText !== '' ? $ocrText : null;
@@ -1792,9 +1798,9 @@ class DocumentFilenameParser
         return $type;
     }
 
-    public static function folderDisplayLabel(?string $documentType, ?string $fileName = null, ?string $ocrText = null): string
+    public static function folderDisplayLabel(?string $documentType, ?string $fileName = null, ?string $ocrText = null, bool $folderLocked = false): string
     {
-        $type = self::resolveSubLabel($documentType, $fileName, $ocrText);
+        $type = self::resolveSubLabel($documentType, $fileName, $ocrText, $folderLocked);
         if ($type === null) {
             return '—';
         }
@@ -1803,9 +1809,9 @@ class DocumentFilenameParser
         return $main !== null ? $main.' / '.$type : $type;
     }
 
-    public static function folderSubLabel(?string $documentType, ?string $fileName = null, ?string $ocrText = null): string
+    public static function folderSubLabel(?string $documentType, ?string $fileName = null, ?string $ocrText = null, bool $folderLocked = false): string
     {
-        $type = self::resolveSubLabel($documentType, $fileName, $ocrText);
+        $type = self::resolveSubLabel($documentType, $fileName, $ocrText, $folderLocked);
 
         return $type !== null && $type !== '' ? $type : '—';
     }
@@ -1835,6 +1841,7 @@ class DocumentFilenameParser
     /**
      * Apply sidebar/search folder filter: stored document_type OR filename code,
      * with cross-folder exclusions (e.g. MAT files hidden from BOQ browse).
+     * Filename matching never applies to rows locked by a manual upload.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<Document>  $query
      * @param  list<string>  $documentTypeFilters
@@ -1855,14 +1862,20 @@ class DocumentFilenameParser
                 });
                 foreach ($documentTypeFilters as $type) {
                     foreach (self::folderSearchFilenameLikePatterns($type) as $pattern) {
-                        $inner->orWhere('file_name', 'like', $pattern);
+                        $inner->orWhere(function ($byName) use ($pattern) {
+                            $byName->where('folder_locked', false)
+                                ->where('file_name', 'like', $pattern);
+                        });
                     }
                 }
             });
 
             if (in_array('BOQ Bill Of Quantities', $documentTypeFilters, true)) {
                 foreach (self::folderSearchFilenameLikePatterns('Material Submittal') as $pattern) {
-                    $outer->where('file_name', 'not like', $pattern);
+                    $outer->where(function ($exclude) use ($pattern) {
+                        $exclude->where('folder_locked', true)
+                            ->orWhere('file_name', 'not like', $pattern);
+                    });
                 }
             }
         });

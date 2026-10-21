@@ -122,7 +122,7 @@ class DocumentFileReplacer
     ): void {
         $oldPath = (string) $document->file_path;
 
-        foreach (['entity_id', 'project_id', 'discipline', 'document_type'] as $field) {
+        foreach (['entity_id', 'project_id', 'discipline', 'document_type', 'folder_locked'] as $field) {
             if (array_key_exists($field, $attributes) && $attributes[$field] !== null) {
                 $document->{$field} = $attributes[$field];
             }

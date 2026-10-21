@@ -58,6 +58,7 @@ class DocumentVersionSaver
             'project_id' => $source->project_id,
             'discipline' => $source->discipline,
             'document_type' => $source->document_type,
+            'folder_locked' => (bool) $source->folder_locked,
             'file_name' => $newFileName,
             'file_path' => $storedPath,
             'ocr_text' => null,

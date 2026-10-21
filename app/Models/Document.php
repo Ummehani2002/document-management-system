@@ -40,10 +40,15 @@ class Document extends Model
         'project_id',
         'discipline',
         'document_type',
+        'folder_locked',
         'file_name',
         'file_path',
         'ocr_text',
         'modified_by_user_id',
+    ];
+
+    protected $casts = [
+        'folder_locked' => 'boolean',
     ];
 
     public function entity()
@@ -73,7 +78,8 @@ class Document extends Model
         return DocumentFilenameParser::folderSubLabel(
             $this->document_type,
             $this->file_name,
-            $this->ocr_text
+            $this->ocr_text,
+            (bool) $this->folder_locked
         );
     }
 }

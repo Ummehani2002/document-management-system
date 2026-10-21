@@ -15,6 +15,14 @@ class DocumentReclassificationService
     public function refineAfterOcr(Document $document): void
     {
         $document->refresh();
+        if ($document->folder_locked) {
+            Log::info('Document reclassification skipped: folder locked by manual upload', [
+                'document_id' => $document->id,
+                'document_type' => $document->document_type,
+            ]);
+
+            return;
+        }
         $ocr = trim((string) $document->ocr_text);
         $minConfidence = (float) env('DOC_AUTO_CLASSIFY_MIN_CONFIDENCE', 0.70);
 

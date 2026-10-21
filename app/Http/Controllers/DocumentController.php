@@ -363,6 +363,9 @@ class DocumentController extends Controller
                         $document->discipline = $disciplineName;
                     }
                     $document->document_type = $orphanCategory;
+                    if ($uploadMode === 'manual') {
+                        $document->folder_locked = true;
+                    }
                     $document->file_path = $reattachPath;
                     $document->ocr_text = null;
                     $document->modified_by_user_id = Auth::id();
@@ -412,6 +415,7 @@ class DocumentController extends Controller
                         'project_id' => $targetProject->id,
                         'discipline' => $disciplineName,
                         'document_type' => $category,
+                        'folder_locked' => $uploadMode === 'manual',
                     ],
                     $uploadMode === 'manual'
                 );
@@ -455,6 +459,7 @@ class DocumentController extends Controller
                 'project_id'    => $targetProject->id,
                 'discipline'    => $disciplineName,
                 'document_type' => $category,
+                'folder_locked' => $uploadMode === 'manual',
                 'file_name'     => $storedFileName,
                 'file_path'     => $path,
                 'modified_by_user_id' => Auth::id(),
@@ -1360,7 +1365,7 @@ class DocumentController extends Controller
             $projectNumber = (string) ($document->project?->project_number ?? '');
             $projectName = (string) ($document->project?->project_name ?? '');
             $entityName = (string) ($document->entity?->name ?? '');
-            $folderLabel = DocumentFilenameParser::folderDisplayLabel($document->document_type, $document->file_name, $document->ocr_text);
+            $folderLabel = DocumentFilenameParser::folderDisplayLabel($document->document_type, $document->file_name, $document->ocr_text, (bool) $document->folder_locked);
 
             $fromAddress = (string) $sender->email;
             $fromName = (string) ($sender->name ?: $sender->username ?: $sender->email);
