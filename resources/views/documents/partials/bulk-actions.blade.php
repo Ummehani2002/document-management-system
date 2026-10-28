@@ -1,10 +1,12 @@
 @php
     $bulkAccess = app(\App\Services\DocumentAccessService::class);
+    $bulkDestinationEntities = $bulkEntities ?? $entities ?? collect();
+    $bulkDestinationProjects = $bulkProjects ?? $projects ?? collect();
     $bulkFolderTrees = [];
-    foreach ($entities ?? [] as $bulkEntity) {
+    foreach ($bulkDestinationEntities as $bulkEntity) {
         $bulkFolderTrees[$bulkEntity->id] = $bulkAccess->accessibleFolderTreeForEntity(auth()->user(), (int) $bulkEntity->id);
     }
-    $bulkProjects = collect($projects ?? [])->map(fn ($p) => [
+    $bulkProjects = collect($bulkDestinationProjects)->map(fn ($p) => [
         'id' => $p->id,
         'entity_id' => $p->entity_id,
         'label' => $p->project_name.' ('.$p->project_number.')',
@@ -45,8 +47,13 @@
         cursor: pointer;
     }
 
-    .bulk-toolbar button:hover {
+    .bulk-toolbar button:hover:not(:disabled) {
         background: #e2e8f0;
+    }
+
+    .bulk-toolbar button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
     }
 
     .bulk-toolbar-count {
@@ -99,7 +106,7 @@
             <label for="bulk-target-entity">Entity</label>
             <select id="bulk-target-entity">
                 <option value="">Select entity</option>
-                @foreach($entities ?? [] as $e)
+                @foreach($bulkDestinationEntities as $e)
                     <option value="{{ $e->id }}">{{ $e->name }}</option>
                 @endforeach
             </select>
@@ -155,11 +162,11 @@
         function refreshBulkUi() {
             var ids = selectedIds();
             var boxes = rowBoxes();
-            document.querySelectorAll('[data-bulk-toolbar]').forEach(function (bar) {
-                bar.style.display = ids.length > 0 ? 'flex' : 'none';
-            });
             document.querySelectorAll('[data-bulk-count]').forEach(function (el) {
                 el.textContent = ids.length;
+            });
+            document.querySelectorAll('[data-bulk-action]').forEach(function (btn) {
+                btn.disabled = ids.length === 0;
             });
             boxes.forEach(function (box) {
                 var row = box.closest('tr');
@@ -253,7 +260,14 @@
         });
         mainSelect.addEventListener('change', fillTypes);
 
-        window.openBulkTargetModal = function (mode) {
+        window.openBulkTargetModal = function (mode, presetIds) {
+            if (presetIds && presetIds.length) {
+                var wanted = presetIds.map(String);
+                rowBoxes().forEach(function (box) {
+                    box.checked = wanted.indexOf(String(box.value)) !== -1;
+                });
+                refreshBulkUi();
+            }
             var ids = selectedIds();
             if (ids.length === 0) return;
             bulkMode = mode;

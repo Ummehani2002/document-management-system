@@ -160,6 +160,9 @@
             <div class="card full-width">
                 <label for="documents_input">Choose files (PDF/Word/Excel) *</label>
                 <input type="file" name="documents[]" id="documents_input" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                <p style="margin: 8px 0 0; color: #64748b; font-size: 0.88rem;">
+                    You can select many files at once. Each file is uploaded separately, so large batches (hundreds of MB) will not hit a server size limit.
+                </p>
                 @error('documents')<p style="margin-top: 6px; color: #b91c1c;">{{ $message }}</p>@enderror
             </div>
         </div>
@@ -313,7 +316,16 @@
             uploadForm.addEventListener('submit', async function (e) {
                 var filesInput = document.getElementById('documents_input');
                 var files = filesInput && filesInput.files ? Array.from(filesInput.files) : [];
-                var needsDirect = directUploadEnabled && files.some(function (f) { return f.size > directUploadMinBytes; });
+                var batchBytes = files.reduce(function (sum, file) { return sum + (file.size || 0); }, 0);
+                // Laravel Cloud rejects large POSTs (413). Send every file via R2 when S3 is on,
+                // or whenever the batch would exceed a safe form size.
+                var safeFormBytes = 8 * 1024 * 1024;
+                var needsDirect = directUploadEnabled && files.length > 0;
+                if (!needsDirect && batchBytes > safeFormBytes) {
+                    e.preventDefault();
+                    alert('This batch is too large to send in one request. Upload fewer files at a time, or ask an administrator to enable storage (S3/R2) uploads.');
+                    return;
+                }
 
                 if (!needsDirect) {
                     submitBtn.disabled = true;

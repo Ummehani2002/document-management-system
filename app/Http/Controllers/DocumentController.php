@@ -111,7 +111,7 @@ class DocumentController extends Controller
         }
 
         $directUploadEnabled = config('filesystems.default') === 's3';
-        $directUploadMinMb = max(1, (int) env('DOC_DIRECT_UPLOAD_MIN_MB', 75));
+        $directUploadMinMb = max(1, (int) env('DOC_DIRECT_UPLOAD_MIN_MB', 20));
 
         return view('documents.upload', compact(
             'entities', 'projects', 'folderTree', 'folderTreesByEntity', 'mode', 'disciplines',
@@ -784,10 +784,25 @@ class DocumentController extends Controller
             $q->whereNull('ocr_text')->orWhere('ocr_text', '');
         })->count();
 
+        $bulkEntities = Entity::query()->orderBy('name');
+        $bulkProjects = Project::query()->orderBy('project_name');
+        if (! $this->access->isAdmin($user)) {
+            $bulkEntityIds = $this->access->accessibleEntityIds($user);
+            $bulkEntities->whereIn('id', $bulkEntityIds);
+            $bulkProjects->whereIn('entity_id', $bulkEntityIds);
+        }
+        if ($currentEntityId !== null) {
+            $bulkEntities->where('id', $currentEntityId);
+            $bulkProjects->where('entity_id', $currentEntityId);
+        }
+        $bulkEntities = $bulkEntities->get(['id', 'name']);
+        $bulkProjects = $bulkProjects->get(['id', 'entity_id', 'project_number', 'project_name']);
+
         return view('documents.search', compact(
             'documents', 'keyword', 'projects', 'entities',
             'disciplines', 'documentTypes', 'totalDocuments', 'documentsWithoutOcr',
-            'fromSidebar', 'needsProjectSelection', 'currentEntityId', 'entityId'
+            'fromSidebar', 'needsProjectSelection', 'currentEntityId', 'entityId',
+            'bulkEntities', 'bulkProjects'
         ));
     }
 
