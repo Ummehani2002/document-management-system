@@ -723,8 +723,9 @@ class DocumentFilenameParser
                 if (preg_match($re, $normalized, $m)) {
                     $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
                     $candidate = preg_replace('/\s*(?:REV(?:ISION)?|DATE)\s*[:\-].*$/i', '', $candidate) ?? $candidate;
-                    if ($candidate !== '' && ! self::isGenericFormLabel($candidate)) {
-                        $referenceNo = trim($candidate);
+                    $candidate = trim($candidate);
+                    if ($candidate !== '' && self::looksLikeRegisterCode($candidate)) {
+                        $referenceNo = $candidate;
                         break;
                     }
                 }
@@ -756,19 +757,18 @@ class DocumentFilenameParser
 
         $nameWithoutExt = pathinfo($fileName, PATHINFO_FILENAME);
         $fromName = self::splitFilenameReferenceAndSubject($nameWithoutExt);
-        if ($fromName['subject'] === '') {
-            // Register-only names keep the full file stem as the reference, including revision/date.
+        if (self::looksLikeRegisterCode($fromName['reference_no'])) {
             $referenceNo = $fromName['reference_no'];
-        } elseif ($referenceNo === '' || self::isGenericFormLabel($referenceNo)) {
-            $referenceNo = $fromName['reference_no'];
+        } elseif ($referenceNo === '' || ! self::looksLikeRegisterCode($referenceNo)) {
+            $referenceNo = $fromName['reference_no'] !== '' ? $fromName['reference_no'] : $nameWithoutExt;
         }
         if ($subject === '' && $fromName['subject'] !== '') {
             $subject = $fromName['subject'];
         }
 
-        $referenceNo = $referenceNo !== '' && ! self::isGenericFormLabel($referenceNo)
+        $referenceNo = self::looksLikeRegisterCode($referenceNo)
             ? $referenceNo
-            : $nameWithoutExt;
+            : (self::looksLikeRegisterCode($nameWithoutExt) ? $nameWithoutExt : ($fromName['reference_no'] ?: $nameWithoutExt));
         $subject = $subject !== '' ? $subject : '—';
 
         if (self::isGenericFormLabel($subject) || self::looksLikeRegisterOrRevisionTail($subject)) {
@@ -834,9 +834,31 @@ class DocumentFilenameParser
     protected static function isGenericFormLabel(string $value): bool
     {
         return (bool) preg_match(
-            '/^(?:contract\s+document\s+ref\.?|manufacturer\s*\/?\s*supplier|material\s+description|submittal\s+title|document\s+type|document\s+ref\.?|reference(?:\s*(?:no\.?|number))?|subject|description)$/i',
+            '/^(?:contract\s+document\s+ref\.?|manufacturer\s*\/?\s*supplier|material\s+description|submittal\s+title|document\s+type|document\s+ref\.?|reference(?:\s*(?:no\.?|number))?|subject|description|date|re-?submittal|new\s+submittal|submittal(?:\s*(?:nr|no\.?|number))?)$/i',
             trim($value)
         );
+    }
+
+    protected static function looksLikeRegisterCode(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '' || str_contains($value, ' ') || self::isGenericFormLabel($value)) {
+            return false;
+        }
+        if (! preg_match('/^[A-Z0-9]+(?:[-_\/.][A-Z0-9]+){1,}$/i', $value)) {
+            return false;
+        }
+
+        foreach (preg_split('/[-_\/.]+/', $value) as $part) {
+            if (preg_match('/^(?:submittal|material|description|drawing|revision|cable|armoured|flexible|pipes?|fittings?|accessories|isolator|conduits?)$/i', $part)) {
+                return false;
+            }
+            if (strlen($part) >= 10 && preg_match('/[AEIOUaeiou].*[AEIOUaeiou]/', $part)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -865,19 +887,30 @@ class DocumentFilenameParser
             return ['reference_no' => '', 'subject' => ''];
         }
 
+        // TVD-86774-WIM-PAR-MS-MEP-001-R00 Material Submittal…
+        // TVD-86774-WIM-PAR-MS-MEP-003-R00-Armoured Cable AN
+        if (preg_match('/^([A-Z0-9]+(?:-[A-Z0-9]+)*-R\d{2})(?:[\s_\-]+(.+))?$/iu', $name, $m)) {
+            $ref = trim((string) $m[1]);
+            $right = trim((string) ($m[2] ?? ''));
+            if ($right !== '' && self::looksLikeDescriptiveSubject($right)) {
+                return ['reference_no' => $ref, 'subject' => $right];
+            }
+
+            return ['reference_no' => $ref, 'subject' => ''];
+        }
+
         if (preg_match('/^(.+?)\s+-\s+(.+)$/u', $name, $m)) {
             $left = trim((string) $m[1]);
             $right = trim((string) $m[2]);
-            $left = self::stripFilenameRevisionSuffix($left);
-            if (self::looksLikeDescriptiveSubject($right)) {
+            if (self::looksLikeDescriptiveSubject($right) && self::looksLikeRegisterCode($left)) {
                 return ['reference_no' => $left, 'subject' => $right];
             }
         }
 
-        if (preg_match('/^([A-Z0-9]+(?:[-_][A-Z0-9]+){1,}(?:_[A-Z]\d{0,3})?)\s+(.+)$/u', $name, $m)) {
-            $left = self::stripFilenameRevisionSuffix(trim((string) $m[1]));
+        if (preg_match('/^([A-Z0-9]+(?:[-_][A-Z0-9]+){1,})\s+(.+)$/u', $name, $m)) {
+            $left = trim((string) $m[1]);
             $right = trim((string) $m[2]);
-            if (self::looksLikeDescriptiveSubject($right)) {
+            if (self::looksLikeDescriptiveSubject($right) && self::looksLikeRegisterCode($left)) {
                 return ['reference_no' => $left, 'subject' => $right];
             }
         }

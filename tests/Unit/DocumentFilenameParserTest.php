@@ -251,6 +251,47 @@ test('material submittal form keeps filename reference and uses material descrip
     expect($meta['subject'])->toBe("Nivoplan - Premixed Plaster For NH08 & NH09 Adult Pool and Kid's Pool Plastering");
 });
 
+test('material submittal filename reference stops at revision even when ocr is a form label', function () {
+    $cases = [
+        [
+            'TVD-86774-WIM-PAR-MS-MEP-001-R00 Material Submittal for uPVC Pipes & Fitting AN.pdf',
+            "MATERIAL SUBMITTAL\nSubmittal Nr: Date\nMaterial Description: uPVC Pipes & Fittings",
+            'TVD-86774-WIM-PAR-MS-MEP-001-R00',
+            'uPVC Pipes & Fittings',
+        ],
+        [
+            'TVD-86774-WIM-PAR-MS-MEP-001-R00-Material Submittal for uPVC Pipes & Fitting.pdf',
+            "MATERIAL SUBMITTAL\nMaterial Description: uPVC Pipes & Fittings",
+            'TVD-86774-WIM-PAR-MS-MEP-001-R00',
+            'uPVC Pipes & Fittings',
+        ],
+        [
+            'TVD-86774-WIM-PAR-MS-MEP-003-R00-Armoured Cable AN.pdf',
+            "MATERIAL SUBMITTAL\nMaterial Description: Material Submittal for Armoured Cable (Cu/XLPE/SWA/PVC) & Single Core cable (Cu/PVC)",
+            'TVD-86774-WIM-PAR-MS-MEP-003-R00',
+            'Material Submittal for Armoured Cable (Cu/XLPE/SWA/PVC) & Single Core cable (Cu/PVC)',
+        ],
+        [
+            'TVD-86774-WIM-PAR-MS-MEP-005-R00-PVC Conduits AN.pdf',
+            "MATERIAL SUBMITTAL\nSubmittal Nr: Re-Submittal\nMaterial Description: Material Submittal for PVC conduits & fittings",
+            'TVD-86774-WIM-PAR-MS-MEP-005-R00',
+            'Material Submittal for PVC conduits & fittings',
+        ],
+        [
+            'TVD-86774-WIM-PAR-MS-MEP-006-R01-Cable Tray-Trunking & Accessories-AN.pdf',
+            "MATERIAL SUBMITTAL\nMaterial Description: Material Submittal for Cable tray, Trunking & Accessories",
+            'TVD-86774-WIM-PAR-MS-MEP-006-R01',
+            'Material Submittal for Cable tray, Trunking & Accessories',
+        ],
+    ];
+
+    foreach ($cases as [$filename, $ocr, $reference, $subject]) {
+        $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+        expect($meta['reference_no'])->toBe($reference);
+        expect($meta['subject'])->toBe($subject);
+    }
+});
+
 test('ir form ocr labels are not used as reference or subject', function () {
     $filename = '3501B-IR-L-2022_R0_B_20260907.pdf';
     $ocr = "WORK INSPECTION REQUEST\nIR No.: 3501B-IR-L-2022\nDescription of Works: Softscape planting inspection\n"
