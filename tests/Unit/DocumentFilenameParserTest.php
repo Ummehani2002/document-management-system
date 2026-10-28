@@ -341,6 +341,41 @@ test('subject ignores register dates and broken ocr then uses the filename title
     }
 });
 
+test('every document type takes subject from the form body field', function () {
+    $cases = [
+        [
+            'TVD-86774-WIM-PAR-MS-CVL-010-R00.pdf',
+            "MATERIAL SUBMITTAL\nMaterial Description\nPolythene Sheet (1000 Gauge) NH08 & NH09 Adult Pool and Kid's Pool (Vapor Barrier)\nSpecification Clause Ref. SECTION 03 3000",
+            "Polythene Sheet (1000 Gauge) NH08 & NH09 Adult Pool and Kid's Pool (Vapor Barrier)",
+        ],
+        [
+            'TVD-86774-WIM-PAR-SD-0004-R01.pdf',
+            "SHOP DRAWING / SKETCH SUBMITTAL\nDrawing Title: POOL SHOWER & FOOT WASH ARCHITECTURAL DETAILS\nDrawing No: TVD-86774-WIM-PAR-SD-0004",
+            'POOL SHOWER & FOOT WASH ARCHITECTURAL DETAILS',
+        ],
+        [
+            '3501B-IR-L-1822_R0_B_20260904.pdf',
+            "WORK INSPECTION REQUEST\nIR No.: 3501B-IR-L-1822\nDescription of Works: Softscape planting — Zone A\nDate: 04/09/2026",
+            'Softscape planting — Zone A',
+        ],
+        [
+            'TS-SPML-PBET-LSC-MS-0202-01_B.pdf',
+            "METHOD STATEMENT\nMethod Statement Title: Cast-in-Situ Concrete Works at Hardscape areas\nRev: 01",
+            'Cast-in-Situ Concrete Works at Hardscape areas',
+        ],
+        [
+            'PSE2024-10111-PRS-PAR-MIR-HLS-01.pdf',
+            "MATERIAL INSPECTION REQUEST\nMaterials for Inspection: uPVC pipes and fittings for pool water supply\nDate: 02-Apr-26",
+            'uPVC pipes and fittings for pool water supply',
+        ],
+    ];
+
+    foreach ($cases as [$filename, $ocr, $subject]) {
+        $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+        expect($meta['subject'])->toBe($subject);
+    }
+});
+
 test('material description from the submittal form is used in full as the subject', function () {
     $filename = 'TVD-86774-WIM-PAR-MS-CVL-010-R00 - Polythene Sheet AN.pdf';
     $ocr = "MATERIAL SUBMITTAL\nB.O.Q. Item Ref.\nContract LOA Nr: 86774\n"

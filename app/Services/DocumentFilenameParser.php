@@ -863,15 +863,24 @@ class DocumentFilenameParser
     {
         $labels = [
             'MATERIAL\s*DESCRIPTION',
+            'DESCRIPTION\s+OF\s+MATERIALS?',
             'DRAWING\s*TITLE',
-            'TITLE\s+OF\s+DRAWING',
+            'TITLE\s+OF\s+(?:THE\s+)?DRAWING',
+            'DRAWING\s*DESCRIPTION',
             'DESCRIPTION\s+OF\s+WORKS?',
             'WORK\s*DESCRIPTION',
+            'NATURE\s+OF\s+WORKS?',
+            'SCOPE\s+OF\s+WORKS?',
             'MATERIALS?\s+FOR\s+INSPECTION',
+            'METHOD\s*STATEMENT\s*TITLE',
+            'TITLE\s+OF\s+METHOD\s+STATEMENT',
+            'DESCRIPTION\s+OF\s+ACTIVITY',
+            'ACTIVITY\s+DESCRIPTION',
+            'TITLE\s*[:\-]',
         ];
-        $stop = 'Specification(?:\s+Clause)?\s+Ref|Drawing\s+Ref(?:erence)?|Manufacturer|Local\s+Supplier'
+        $stop = 'Specification(?:\s+Clause)?\s+Ref|Drawing\s+(?:No|Number|Ref(?:erence)?)|Manufacturer|Local\s+Supplier'
             .'|Received(?:\s+by)?|Enclosures?|Contractor(?:\'s)?\s+Certification|B\.?O\.?Q\.?\s+Item'
-            .'|Section\s+\d|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bSubject\b';
+            .'|Section\s+\d|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bSubject\b|\bScale\s*[:\-]|\bRev(?:ision)?\s*[:\-]';
 
         foreach ($labels as $label) {
             if (! preg_match(
