@@ -731,25 +731,23 @@ class DocumentFilenameParser
                 }
             }
 
-            $subjectPatterns = [
-                // When the filename is only a register number, take the subject from the file body.
-                '/(?:^|\n)\s*MATERIAL\s*DESCRIPTION\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
-                '/(?:^|\n)\s*DRAWING\s*TITLE\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
-                '/(?:^|\n)\s*TITLE\s+OF\s+DRAWING\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
-                '/(?:^|\n)\s*DESCRIPTION\s+OF\s+WORKS?\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
-                '/(?:^|\n)\s*WORK\s*DESCRIPTION\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
-                '/(?:^|\n)\s*MATERIALS?\s+FOR\s+INSPECTION\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
-                '/(?:^|\n)\s*SUBMITTAL\s*TITLE\s*[:\-]\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
-                '/(?:^|\n)\s*SUBJECT\s*[:\-]\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
-                '/(?:^|\n)\s*DESCRIPTION\s*[:\-]\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
-            ];
-            foreach ($subjectPatterns as $re) {
-                if (preg_match($re, $normalized, $m)) {
-                    $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
-                    $candidate = preg_replace('/\s*(?:REV(?:ISION)?|DATE)\s*[:\-].*$/i', '', $candidate) ?? $candidate;
-                    if ($candidate !== '' && ! self::isGenericFormLabel($candidate)) {
-                        $subject = self::trimSubjectAtNextFormField(trim($candidate));
-                        break;
+            $subject = self::extractLabeledSubject($normalized);
+
+            if ($subject === '') {
+                $subjectPatterns = [
+                    '/(?:^|\n)\s*SUBMITTAL\s*TITLE\s*[:\-]\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+                    '/(?:^|\n)\s*SUBJECT\s*[:\-]\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+                    '/(?:^|\n)\s*DESCRIPTION\s*[:\-]\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+                ];
+                foreach ($subjectPatterns as $re) {
+                    if (preg_match($re, $normalized, $m)) {
+                        $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
+                        $candidate = preg_replace('/\s*(?:REV(?:ISION)?|DATE)\s*[:\-].*$/i', '', $candidate) ?? $candidate;
+                        $candidate = self::cleanOcrSubject(trim($candidate));
+                        if ($candidate !== '' && ! self::isJunkSubject($candidate)) {
+                            $subject = $candidate;
+                            break;
+                        }
                     }
                 }
             }
@@ -762,21 +760,18 @@ class DocumentFilenameParser
         } elseif ($referenceNo === '' || ! self::looksLikeRegisterCode($referenceNo)) {
             $referenceNo = $fromName['reference_no'] !== '' ? $fromName['reference_no'] : $nameWithoutExt;
         }
-        if ($subject === '' && $fromName['subject'] !== '') {
-            $subject = $fromName['subject'];
+        $filenameSubject = self::cleanFilenameSubject($fromName['subject']);
+        if (self::isJunkSubject($subject)) {
+            $subject = '';
+        }
+        if ($subject === '' && $filenameSubject !== '' && ! self::isJunkSubject($filenameSubject)) {
+            $subject = $filenameSubject;
         }
 
         $referenceNo = self::looksLikeRegisterCode($referenceNo)
             ? $referenceNo
             : (self::looksLikeRegisterCode($nameWithoutExt) ? $nameWithoutExt : ($fromName['reference_no'] ?: $nameWithoutExt));
-        $subject = $subject !== '' ? $subject : '—';
-
-        if (self::isGenericFormLabel($subject) || self::looksLikeRegisterOrRevisionTail($subject)) {
-            $subject = '—';
-        }
-        if (preg_match('/^MATERIAL\s+SUBMITTAL$/i', trim($subject))) {
-            $subject = '—';
-        }
+        $subject = $subject !== '' && ! self::isJunkSubject($subject) ? $subject : '—';
 
         return [
             'reference_no' => $referenceNo,
@@ -862,17 +857,117 @@ class DocumentFilenameParser
     }
 
     /**
+     * Read Material Description / Drawing Title / Description of Works until the next form box.
+     */
+    protected static function extractLabeledSubject(string $normalized): string
+    {
+        $labels = [
+            'MATERIAL\s*DESCRIPTION',
+            'DRAWING\s*TITLE',
+            'TITLE\s+OF\s+DRAWING',
+            'DESCRIPTION\s+OF\s+WORKS?',
+            'WORK\s*DESCRIPTION',
+            'MATERIALS?\s+FOR\s+INSPECTION',
+        ];
+        $stop = 'Specification(?:\s+Clause)?\s+Ref|Drawing\s+Ref(?:erence)?|Manufacturer|Local\s+Supplier'
+            .'|Received(?:\s+by)?|Enclosures?|Contractor(?:\'s)?\s+Certification|B\.?O\.?Q\.?\s+Item'
+            .'|Section\s+\d|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bSubject\b';
+
+        foreach ($labels as $label) {
+            if (! preg_match(
+                '/(?:^|\n)\s*'.$label.'\s*[:\-]?\s*(.+?)(?=(?:\n|\s+)(?:'.$stop.')|\z)/is',
+                $normalized,
+                $m
+            )) {
+                continue;
+            }
+
+            $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
+            $candidate = self::cleanOcrSubject($candidate);
+            if ($candidate !== '' && ! self::isJunkSubject($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return '';
+    }
+
+    /**
      * Table OCR often continues into the next label (Specification, Drawing Ref, Manufacturer).
      */
     protected static function trimSubjectAtNextFormField(string $subject): string
     {
         $cut = preg_split(
-            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?\.?|Manufacturer|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification)?|Section\s+\d)/i',
+            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?\.?|Manufacturer|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification)?|Section\s+\d|Submittal\s+N[ro]|LOA\s+N[ro]|\bDate\b)/i',
             $subject,
             2
         );
 
         return trim((string) ($cut[0] ?? $subject));
+    }
+
+    protected static function cleanOcrSubject(string $subject): string
+    {
+        $subject = self::trimSubjectAtNextFormField($subject);
+        $subject = preg_replace(
+            '/^(?:[A-Z]{2,}-\d{3,}(?:-[A-Z0-9]+)+\s*|\d{1,2}-[A-Za-z]{3}-\d{2,4}\s*|\b\d{4,}\b\s*)+/',
+            '',
+            $subject
+        ) ?? $subject;
+
+        return trim($subject);
+    }
+
+    protected static function cleanFilenameSubject(string $subject): string
+    {
+        $subject = trim($subject);
+        if ($subject === '') {
+            return '';
+        }
+
+        $subject = preg_replace('/[\s_\-]+AN\b/i', '', $subject) ?? $subject;
+        $subject = preg_replace('/\s+HERE\s*$/i', '', $subject) ?? $subject;
+        $subject = preg_replace('/\s*\(\d+\)\s*$/', '', $subject) ?? $subject;
+
+        return trim($subject, " \t-_,.");
+    }
+
+    protected static function isJunkSubject(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '' || $value === '—' || self::isGenericFormLabel($value) || self::looksLikeRegisterOrRevisionTail($value)) {
+            return true;
+        }
+        if (preg_match('/^MATERIAL\s+SUBMITTAL$/i', $value)) {
+            return true;
+        }
+        if (preg_match('/^(?:date|ref(?:erence)?)\s*[:\-]/i', $value)) {
+            return true;
+        }
+
+        $withoutCodes = preg_replace(
+            '/[A-Z]{2,}-\d{3,}(?:-[A-Z0-9]+)+|\d{1,2}-[A-Za-z]{3}-\d{2,4}|\b\d{4,}\b/',
+            ' ',
+            $value
+        ) ?? $value;
+        $withoutCodes = trim(preg_replace('/\s+/', ' ', $withoutCodes) ?? '');
+        if ($withoutCodes === '' || ! preg_match('/[A-Za-z]{3,}/', $withoutCodes)) {
+            return true;
+        }
+
+        $words = preg_split('/\s+/', $value) ?: [];
+        $real = 0;
+        $tiny = 0;
+        foreach ($words as $word) {
+            $letters = preg_replace('/[^A-Za-z]/', '', $word) ?? '';
+            if (strlen($letters) >= 4) {
+                $real++;
+            } elseif ($letters !== '' && strlen($letters) <= 1) {
+                $tiny++;
+            }
+        }
+
+        return $real === 0 || ($real <= 1 && $tiny >= 2);
     }
 
     /**

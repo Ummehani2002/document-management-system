@@ -292,6 +292,68 @@ test('material submittal filename reference stops at revision even when ocr is a
     }
 });
 
+test('subject ignores register dates and broken ocr then uses the filename title', function () {
+    $cases = [
+        [
+            'TVD-86774-WIM-PAR-MS-CVL-005-R01-Nivoplan AN.pdf',
+            "MATERIAL SUBMITTAL\nMaterial Description\nTVD-86774-WIM-PAR-MS-CVL-005\n24-Feb-26",
+            'TVD-86774-WIM-PAR-MS-CVL-005-R01',
+            'Nivoplan',
+        ],
+        [
+            'TVD-86774-WIM-PAR-MS-CVL-009-R00 - Bitumen Coating AN HERE.pdf',
+            "MATERIAL SUBMITTAL\nMaterial Description: TVD-86774-WIM-PAR-MS-CVL-009 24-Feb-26 86774",
+            'TVD-86774-WIM-PAR-MS-CVL-009-R00',
+            'Bitumen Coating',
+        ],
+        [
+            'TVD-86774-WIM-PAR-MS-CVL-010-R00 - Polythene Sheet AN.pdf',
+            "MATERIAL SUBMITTAL\nMaterial Description\nTVD-86774-WIM-PAR-MS-CVL-010\n24-Feb-26 86774\n"
+            ."Polythene Sheet (1000 Gauge) NH08 & NH09 Adult Pool and Kid's Pool\n(Vapor Barrier)\n"
+            ."Specification Clause Ref. SECTION 03 3000\nDrawing Ref. N/A\nManufacturer MAPLE LEAF PLASTIC INDUSTRY",
+            'TVD-86774-WIM-PAR-MS-CVL-010-R00',
+            "Polythene Sheet (1000 Gauge) NH08 & NH09 Adult Pool and Kid's Pool (Vapor Barrier)",
+        ],
+        [
+            'TVD-86774-WIM-PAR-SD-MEP-0001-R01 AN.(2).pdf',
+            "SHOP DRAWING\nDrawing Title: water m t",
+            'TVD-86774-WIM-PAR-SD-MEP-0001-R01',
+            '—',
+        ],
+        [
+            'TVD-86774-WIM-PAR-SD-MEP-0002-R03-AN.pdf',
+            "SHOP DRAWING\nDrawing Title:\nDate: 02-Apr-26",
+            'TVD-86774-WIM-PAR-SD-MEP-0002-R03',
+            '—',
+        ],
+        [
+            'TVD-86774-WIM-PAR-SD-0004-R01-POOL SHOWER & FOOT WASH ARCHITECTURAL DETAILS-AN.pdf',
+            "SHOP DRAWING\nDrawing Title: POOL SHOWER & FOOT WASH ARCHITECTURAL DETAILS",
+            'TVD-86774-WIM-PAR-SD-0004-R01',
+            'POOL SHOWER & FOOT WASH ARCHITECTURAL DETAILS',
+        ],
+    ];
+
+    foreach ($cases as [$filename, $ocr, $reference, $subject]) {
+        $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+        expect($meta['reference_no'])->toBe($reference);
+        expect($meta['subject'])->toBe($subject);
+    }
+});
+
+test('material description from the submittal form is used in full as the subject', function () {
+    $filename = 'TVD-86774-WIM-PAR-MS-CVL-010-R00 - Polythene Sheet AN.pdf';
+    $ocr = "MATERIAL SUBMITTAL\nB.O.Q. Item Ref.\nContract LOA Nr: 86774\n"
+        ."Material Description\nPolythene Sheet (1000 Gauge) NH08 & NH09 Adult Pool and Kid's Pool (Vapor Barrier)\n"
+        ."Specification Clause Ref. SECTION 03 3000\nDrawing Ref. N/A\n"
+        ."Manufacturer MAPLE LEAF PLASTIC INDUSTRY\nLocal Supplier BISMARK TRADING CO LLC";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->toBe('TVD-86774-WIM-PAR-MS-CVL-010-R00');
+    expect($meta['subject'])->toBe("Polythene Sheet (1000 Gauge) NH08 & NH09 Adult Pool and Kid's Pool (Vapor Barrier)");
+});
+
 test('ir form ocr labels are not used as reference or subject', function () {
     $filename = '3501B-IR-L-2022_R0_B_20260907.pdf';
     $ocr = "WORK INSPECTION REQUEST\nIR No.: 3501B-IR-L-2022\nDescription of Works: Softscape planting inspection\n"
