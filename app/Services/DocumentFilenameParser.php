@@ -687,8 +687,8 @@ class DocumentFilenameParser
         $head = substr(self::normalizeOcrText($text), 0, 4000);
 
         return (bool) preg_match(
-            '/MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL(?:\s+FORM)?'
-            .'|(?:^|\n)\s*MATERIAL\s*SUBMITTAL\b'
+            '/MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL+(?:\s+FORM)?'
+            .'|(?:^|\n)\s*MATERIAL\s*SUBMITTAL+\b'
             .'/iu',
             $head
         );
@@ -731,11 +731,12 @@ class DocumentFilenameParser
             }
 
             $subjectPatterns = [
-                // Multiline-friendly: capture current line and up to 2 continuation lines
-                // until another label-like line appears.
-                // Priority: Material Description should win over generic Submittal Title.
-                '/(?:^|\n)\s*DESCRIPTION\s+OF\s+WORKS?\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+                // When the filename is only a register number, take the subject from the file body.
                 '/(?:^|\n)\s*MATERIAL\s*DESCRIPTION\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+                '/(?:^|\n)\s*DRAWING\s*TITLE\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+                '/(?:^|\n)\s*TITLE\s+OF\s+DRAWING\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+                '/(?:^|\n)\s*DESCRIPTION\s+OF\s+WORKS?\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
+                '/(?:^|\n)\s*WORK\s*DESCRIPTION\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
                 '/(?:^|\n)\s*MATERIALS?\s+FOR\s+INSPECTION\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
                 '/(?:^|\n)\s*SUBMITTAL\s*TITLE\s*[:\-]\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
                 '/(?:^|\n)\s*SUBJECT\s*[:\-]\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
@@ -746,7 +747,7 @@ class DocumentFilenameParser
                     $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
                     $candidate = preg_replace('/\s*(?:REV(?:ISION)?|DATE)\s*[:\-].*$/i', '', $candidate) ?? $candidate;
                     if ($candidate !== '' && ! self::isGenericFormLabel($candidate)) {
-                        $subject = trim($candidate);
+                        $subject = self::trimSubjectAtNextFormField(trim($candidate));
                         break;
                     }
                 }
@@ -754,21 +755,15 @@ class DocumentFilenameParser
         }
 
         $nameWithoutExt = pathinfo($fileName, PATHINFO_FILENAME);
-        if ($referenceNo === '' || self::isGenericFormLabel($referenceNo)) {
-            if (preg_match('/^([A-Z0-9]+(?:-[A-Z0-9]+){2,})[_-]R(?:EV(?:ISION)?)?\.?\s*\d/i', $nameWithoutExt, $m)) {
-                $referenceNo = trim((string) $m[1]);
-            }
+        $fromName = self::splitFilenameReferenceAndSubject($nameWithoutExt);
+        if ($fromName['subject'] === '') {
+            // Register-only names keep the full file stem as the reference, including revision/date.
+            $referenceNo = $fromName['reference_no'];
+        } elseif ($referenceNo === '' || self::isGenericFormLabel($referenceNo)) {
+            $referenceNo = $fromName['reference_no'];
         }
-        if ($referenceNo === '' || $subject === '') {
-            if (preg_match('/^\s*([A-Z0-9]+(?:-[A-Z0-9]+){1,})\s*-\s*(.+)\s*$/iu', $nameWithoutExt, $m)
-                || preg_match('/^\s*([A-Z0-9]+(?:-[A-Z0-9]+){1,})[ _]+(.+)\s*$/iu', $nameWithoutExt, $m)) {
-                if ($referenceNo === '') {
-                    $referenceNo = trim((string) ($m[1] ?? ''));
-                }
-                if ($subject === '') {
-                    $subject = trim((string) ($m[2] ?? ''));
-                }
-            }
+        if ($subject === '' && $fromName['subject'] !== '') {
+            $subject = $fromName['subject'];
         }
 
         $referenceNo = $referenceNo !== '' && ! self::isGenericFormLabel($referenceNo)
@@ -776,11 +771,9 @@ class DocumentFilenameParser
             : $nameWithoutExt;
         $subject = $subject !== '' ? $subject : '—';
 
-        $isRevisionTail = (bool) preg_match('/^(?:REV(?:ISION)?\s*)?[A-Z]?\d{1,3}(?:[._-][A-Z0-9]+)*(?:\s*\(\d+\))?$/i', $subject);
-        if ($isRevisionTail || self::isGenericFormLabel($subject)) {
+        if (self::isGenericFormLabel($subject) || self::looksLikeRegisterOrRevisionTail($subject)) {
             $subject = '—';
         }
-        // Ignore generic headers used as form titles, not real subject lines.
         if (preg_match('/^MATERIAL\s+SUBMITTAL$/i', trim($subject))) {
             $subject = '—';
         }
@@ -844,6 +837,88 @@ class DocumentFilenameParser
             '/^(?:contract\s+document\s+ref\.?|manufacturer\s*\/?\s*supplier|material\s+description|submittal\s+title|document\s+type|document\s+ref\.?|reference(?:\s*(?:no\.?|number))?|subject|description)$/i',
             trim($value)
         );
+    }
+
+    /**
+     * Table OCR often continues into the next label (Specification, Drawing Ref, Manufacturer).
+     */
+    protected static function trimSubjectAtNextFormField(string $subject): string
+    {
+        $cut = preg_split(
+            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?\.?|Manufacturer|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification)?|Section\s+\d)/i',
+            $subject,
+            2
+        );
+
+        return trim((string) ($cut[0] ?? $subject));
+    }
+
+    /**
+     * Split "REF - Subject" filenames. Register-only names keep the whole code as the reference.
+     *
+     * @return array{reference_no:string, subject:string}
+     */
+    protected static function splitFilenameReferenceAndSubject(string $nameWithoutExt): array
+    {
+        $name = trim($nameWithoutExt);
+        if ($name === '') {
+            return ['reference_no' => '', 'subject' => ''];
+        }
+
+        if (preg_match('/^(.+?)\s+-\s+(.+)$/u', $name, $m)) {
+            $left = trim((string) $m[1]);
+            $right = trim((string) $m[2]);
+            $left = self::stripFilenameRevisionSuffix($left);
+            if (self::looksLikeDescriptiveSubject($right)) {
+                return ['reference_no' => $left, 'subject' => $right];
+            }
+        }
+
+        if (preg_match('/^([A-Z0-9]+(?:[-_][A-Z0-9]+){1,}(?:_[A-Z]\d{0,3})?)\s+(.+)$/u', $name, $m)) {
+            $left = self::stripFilenameRevisionSuffix(trim((string) $m[1]));
+            $right = trim((string) $m[2]);
+            if (self::looksLikeDescriptiveSubject($right)) {
+                return ['reference_no' => $left, 'subject' => $right];
+            }
+        }
+
+        return [
+            'reference_no' => $name,
+            'subject' => '',
+        ];
+    }
+
+    protected static function stripFilenameRevisionSuffix(string $name): string
+    {
+        $trimmed = trim($name);
+        $trimmed = preg_replace('/\s*\[[A-Z0-9]+\](?:\s*\([A-Z0-9]+\))?\s*$/i', '', $trimmed) ?? $trimmed;
+        $trimmed = preg_replace('/[_-]+R(?:EV(?:ISION)?)?\.?\s*\d.*$/i', '', $trimmed) ?? $trimmed;
+        $trimmed = preg_replace('/\s+R(?:EV(?:ISION)?)?\.?\s*\d.*$/i', '', $trimmed) ?? $trimmed;
+
+        return trim($trimmed);
+    }
+
+    protected static function looksLikeRegisterOrRevisionTail(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return true;
+        }
+
+        return (bool) preg_match(
+            '/^(?:REV(?:ISION)?\s*)?[A-Z]?\d{1,4}(?:[._-][A-Z0-9]+)*(?:\s*\(\d+\))?$/i',
+            $value
+        );
+    }
+
+    protected static function looksLikeDescriptiveSubject(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '' || self::isGenericFormLabel($value) || self::looksLikeRegisterOrRevisionTail($value)) {
+            return false;
+        }
+
+        return (bool) preg_match('/[A-Za-z]{3,}/', $value);
     }
 
     /**
@@ -1124,6 +1199,13 @@ class DocumentFilenameParser
             $category = 'Shop Drawing';
             $source = 'filename';
             $confidence = max($confidence, 0.92);
+        } elseif ($hasStrongMethodSignal
+            && (self::textLooksLikeMaterialSubmittal($ocr)
+                || $ocrHeadlineCategory === 'Material Submittal'
+                || $contentCategory === 'Material Submittal')) {
+            $category = 'Material Submittal';
+            $source = 'ocr';
+            $confidence = max($confidence, 0.90);
         } elseif ($hasStrongMethodSignal) {
             $category = 'Method Statement';
             $source = 'filename';
@@ -1338,7 +1420,7 @@ class DocumentFilenameParser
         $hasTransmittalToken = (bool) preg_match('/\bDTF\b|\bDT\b|DOC\.?\s*TRANS|DOCUMENT\s*TRANSMITTAL|TRANSMITTAL\s*NOTE/i', $upper);
         // Register segment ...-L0002-24 sets letter heuristics; explicit material-submittal wording in the title must still win.
         $hasMaterialSubmittalKeyword = (bool) preg_match(
-            '/MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL|SUBMITTAL\s+TITLE\s*[:\-]\s*MATERIAL|(?:COMMENT|COMMENTS?)\s+ON\s+MATERIAL\s+SUBMITTAL|ENGINEER\s+COMMENT\s+ON\s+MATERIAL\s+SUBMITTAL/i',
+            '/MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL+|SUBMITTAL+\s+TITLE\s*[:\-]\s*MATERIAL|(?:COMMENT|COMMENTS?)\s+ON\s+MATERIAL\s+SUBMITTAL+|ENGINEER\s+COMMENT\s+ON\s+MATERIAL\s+SUBMITTAL+/i',
             $upper
         );
 

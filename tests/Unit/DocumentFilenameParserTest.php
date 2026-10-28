@@ -155,7 +155,7 @@ test('tanseeq ir register filename goes to work inspection', function () {
 
     expect($result['document_category'])->toBe('Work Inspection');
     expect($result['confidence'])->toBeGreaterThanOrEqual(0.70);
-    expect($result['reference_no'])->toBe('3501B-IR-L-1822');
+    expect($result['reference_no'])->toBe('3501B-IR-L-1822_R0_B_20260904');
 });
 
 test('mat-ir material submittal is not classified as work inspection', function () use ($matFilename) {
@@ -199,6 +199,58 @@ test('tanseeq st for cast-in-situ is shop drawing not work inspection', function
     expect($result['document_category'])->toBe('Shop Drawing');
 });
 
+test('register-only filename keeps full reference and takes subject from drawing title', function () {
+    $filename = '3501B-IR-L-1822_R0_B_20260904.pdf';
+    $ocr = "WORK INSPECTION REQUEST\nIR No.: 3501B-IR-L-1822\nDrawing Title: Softscape planting — Zone A\nDate: 04/09/2026";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->toBe('3501B-IR-L-1822_R0_B_20260904');
+    expect($meta['subject'])->toBe('Softscape planting — Zone A');
+});
+
+test('register-only filename has no subject when the file has not been read', function () {
+    $meta = DocumentFilenameParser::extractReferenceAndSubject(null, '3501B-IR-L-1822_R0_B_20260904.pdf');
+
+    expect($meta['reference_no'])->toBe('3501B-IR-L-1822_R0_B_20260904');
+    expect($meta['subject'])->toBe('—');
+});
+
+test('filename with reference and subject is split on the title wording', function () {
+    $meta = DocumentFilenameParser::extractReferenceAndSubject(
+        null,
+        'PJE20231001-AV-L0039-23 - Cost Variation.pdf'
+    );
+
+    expect($meta['reference_no'])->toBe('PJE20231001-AV-L0039-23');
+    expect($meta['subject'])->toBe('Cost Variation');
+});
+
+test('material description from the file is used as subject', function () {
+    $filename = 'LSC-MAS-0605-01_B.pdf';
+    $ocr = "MATERIAL APPROVAL SUBMITTAL\nRef. No.: LSC-MAS-0605-01\nMaterial Description: Cast-in-situ concrete for hardscape areas";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->toBe('LSC-MAS-0605-01_B');
+    expect($meta['subject'])->toBe('Cast-in-situ concrete for hardscape areas');
+});
+
+test('material submittal form keeps filename reference and uses material description as subject', function () {
+    $filename = 'TVD-86774-WIM-PARPAR-MS-CVL-005-R01.pdf';
+    $ocr = "MATERIAL SUBMITTALL\nSubmittal Nr: TVD-86774-WIM-PARPAR-MS-CVL-005-R01\n"
+        ."Material Description\nNivoplan - Premixed Plaster For NH08 & NH09 Adult Pool and Kid's\n"
+        ."Pool Plastering\nSpecification Clause Ref. SECTION 07 16 13\n"
+        ."Drawing Ref. WME20261008-SD-SP-STR-0033\nManufacturer MAPEI CONSTRUCTION CHEMICALS LLC";
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($result['document_category'])->toBe('Material Submittal');
+    expect($meta['reference_no'])->toBe('TVD-86774-WIM-PARPAR-MS-CVL-005-R01');
+    expect($meta['subject'])->toBe("Nivoplan - Premixed Plaster For NH08 & NH09 Adult Pool and Kid's Pool Plastering");
+});
+
 test('ir form ocr labels are not used as reference or subject', function () {
     $filename = '3501B-IR-L-2022_R0_B_20260907.pdf';
     $ocr = "WORK INSPECTION REQUEST\nIR No.: 3501B-IR-L-2022\nDescription of Works: Softscape planting inspection\n"
@@ -208,6 +260,6 @@ test('ir form ocr labels are not used as reference or subject', function () {
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
     expect($result['document_category'])->toBe('Work Inspection');
-    expect($meta['reference_no'])->toBe('3501B-IR-L-2022');
+    expect($meta['reference_no'])->toBe('3501B-IR-L-2022_R0_B_20260907');
     expect($meta['subject'])->toBe('Softscape planting inspection');
 });
