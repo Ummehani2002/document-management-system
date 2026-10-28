@@ -14,6 +14,7 @@ use App\Services\EntityContextService;
 use App\Services\CompanyEmailDomain;
 use App\Services\DocumentDeletionService;
 use App\Services\DocumentFilenameParser;
+use App\Services\PdfFirstPageOcrService;
 use App\Services\DocumentFileReplacer;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
@@ -1504,20 +1505,41 @@ class DocumentController extends Controller
     }
 
     /**
-     * Best-effort folder prediction during upload.
-     * Keep this lightweight (filename-only) so upload request returns quickly.
-     * OCR-based refinement still runs asynchronously via ProcessOCR after upload.
+     * Auto Upload: read the first page of the file, then choose the folder.
+     * Filename is only used when the page has no form title.
      *
      * @param  array<int, string>  $validSubfolders
      */
     protected function predictUploadCategory($file, string $originalName, array $validSubfolders): string
     {
-        $result = DocumentFilenameParser::classifyForAutomation($originalName, null);
+        $ocr = $this->extractUploadTextForClassification($file, $originalName);
+        $result = DocumentFilenameParser::classifyForAutomation($originalName, $ocr);
         $predicted = trim((string) ($result['document_category'] ?? 'Other'));
-        if ($predicted === '' || !in_array($predicted, $validSubfolders, true)) {
+        if ($predicted === '' || ! in_array($predicted, $validSubfolders, true)) {
             return 'Other';
         }
 
         return $predicted;
+    }
+
+    protected function extractUploadTextForClassification($file, string $originalName): ?string
+    {
+        $path = is_object($file) && method_exists($file, 'getRealPath') ? $file->getRealPath() : null;
+        if (! is_string($path) || $path === '' || ! is_file($path)) {
+            return null;
+        }
+
+        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        if ($ext !== 'pdf') {
+            return null;
+        }
+
+        try {
+            $text = trim(app(PdfFirstPageOcrService::class)->extractFastText($path));
+
+            return $text !== '' ? $text : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 }

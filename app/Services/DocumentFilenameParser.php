@@ -237,6 +237,66 @@ class DocumentFilenameParser
     }
 
     /**
+     * Form banner printed at the top of the first page (Material Submittal, Shop Drawing, WIR, …).
+     * Ignores drawing-legend lines such as "RFI = Request For Information".
+     */
+    protected static function extractFormBannerCategory(string $text): string
+    {
+        $head = substr(self::normalizeOcrText($text), 0, 2500);
+        $lines = preg_split('/\n+/u', $head) ?: [];
+        $checked = 0;
+        foreach ($lines as $line) {
+            $line = trim((string) $line);
+            if ($line === '') {
+                continue;
+            }
+            if (++$checked > 40) {
+                break;
+            }
+            if (preg_match('/^[A-Z]{1,8}\s*=/', $line)) {
+                continue;
+            }
+            $u = strtoupper($line);
+            if (preg_match('/MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL+/', $u)) {
+                return 'Material Submittal';
+            }
+            if (preg_match('/^(?:SHOP\s*DRAWING|SKETCH\s*SUBMITTAL)/', $u)
+                || preg_match('/SHOP\s*DRAWING\s*(?:\/\s*)?(?:SKETCH\s*)?SUBMITTAL/', $u)) {
+                return 'Shop Drawing';
+            }
+            if (preg_match('/WORK\s*INSPECTION/', $u)) {
+                return 'Work Inspection';
+            }
+            if (preg_match('/MATERIAL\s*INSPECTION\s*REQUEST/', $u)) {
+                return 'Material Inspection Request';
+            }
+            if (preg_match('/METHOD\s*STATEMENT/', $u)) {
+                return 'Method Statement';
+            }
+            if (preg_match('/MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|\bMOM\b/', $u)) {
+                return 'MOM';
+            }
+            if (preg_match('/INTERNAL\s*MEMO/', $u)) {
+                return 'Internal Memo';
+            }
+            if (preg_match('/DOCUMENT\s*TRANSMITTAL/', $u)) {
+                return 'Document Transmittal';
+            }
+            if (preg_match('/REQUEST\s+FOR\s+INFORMATION/', $u)) {
+                return 'Request For Information';
+            }
+            if (preg_match('/ENGINEER\S*\s*INSTRUCTION/', $u)) {
+                return 'Engineers Instruction';
+            }
+            if (preg_match('/PRE[\s\-]*QUALIF/', $u)) {
+                return 'Prequalification';
+            }
+        }
+
+        return 'Other';
+    }
+
+    /**
      * Classify from OCR title/subject/report lines only (no full-body keyword fallbacks).
      * Used to override filename register codes (e.g. WIR) when the first-page heading disagrees.
      */
@@ -1222,9 +1282,14 @@ class DocumentFilenameParser
         $category = 'Other';
         $source = 'none';
         $confidence = 0.10;
+        $formBanner = $ocr !== '' ? self::extractFormBannerCategory($ocr) : 'Other';
 
-        // Prefer filename-derived category when present; otherwise use OCR (title → subject → body).
-        if ($fileCategory !== 'Other') {
+        // Read the form title on the page first. Filename codes are only a fallback.
+        if ($formBanner !== 'Other') {
+            $category = $formBanner;
+            $source = 'ocr';
+            $confidence = 0.93;
+        } elseif ($fileCategory !== 'Other') {
             $category = $fileCategory;
             $source = 'filename';
             $confidence = $ocr !== '' ? 0.72 : 0.86;
@@ -1298,59 +1363,53 @@ class DocumentFilenameParser
             }
         }
 
-        // Hard locks: WIR / MIR win over incidental TOC / shop-drawing text, but not over
-        // a real T&C / prequal / payment title (sample T&C files still use a WIR register code).
-        $ocrBeatsWir = in_array($contentCategory, ['Testing And Commissioning', 'Prequalification', 'Payment Application', 'Variation'], true)
-            || in_array($ocrHeadlineCategory, ['Testing And Commissioning', 'Prequalification', 'Payment Application', 'Variation'], true);
-        $filenameHasOtherRegister = $hasStrongShopDrawingSignal
-            || $hasStrongMethodSignal
-            || $hasStrongMaterialSignal
-            || $hasStrongMirSignal
-            || preg_match('/(?:^|[-_\/])(?:MAS|ST)(?:[-_\/]|$)/u', $upperName);
-        if (! $ocrBeatsWir
-            && $hasStrongWirSignal
-            && ! $filenameHasOtherRegister) {
-            $category = 'Work Inspection';
-            $source = 'filename';
-            $confidence = max($confidence, 0.92);
-        } elseif (! $ocrBeatsWir
-            && ! $filenameHasOtherRegister
-            && preg_match('/WORK\s*INSPECTION\s*REQUEST/i', $ocr)) {
-            $category = 'Work Inspection';
-            $source = 'ocr';
-            $confidence = max($confidence, 0.92);
-        } elseif ($hasStrongMirSignal
-            || (! $filenameHasOtherRegister && preg_match('/MATERIAL\s*INSPECTION\s*REQUEST/i', $ocr))) {
-            $category = 'Material Inspection Request';
-            $source = $hasStrongMirSignal ? 'filename' : 'ocr';
-            $confidence = max($confidence, 0.92);
-        } elseif (preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upperName)
-            || preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', substr($ocr, 0, 1500))) {
-            $category = 'MOM';
-            $source = preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upperName) ? 'filename' : 'ocr';
-            $confidence = max($confidence, 0.92);
-        }
+        // Filename register locks apply only when the page has no clear form title.
+        if ($formBanner === 'Other') {
+            $ocrBeatsWir = in_array($contentCategory, ['Testing And Commissioning', 'Prequalification', 'Payment Application', 'Variation'], true)
+                || in_array($ocrHeadlineCategory, ['Testing And Commissioning', 'Prequalification', 'Payment Application', 'Variation'], true);
+            $filenameHasOtherRegister = $hasStrongShopDrawingSignal
+                || $hasStrongMethodSignal
+                || $hasStrongMaterialSignal
+                || $hasStrongMirSignal
+                || preg_match('/(?:^|[-_\/])(?:MAS|ST)(?:[-_\/]|$)/u', $upperName);
+            if (! $ocrBeatsWir
+                && $hasStrongWirSignal
+                && ! $filenameHasOtherRegister) {
+                $category = 'Work Inspection';
+                $source = 'filename';
+                $confidence = max($confidence, 0.92);
+            } elseif (! $ocrBeatsWir
+                && ! $filenameHasOtherRegister
+                && preg_match('/WORK\s*INSPECTION\s*REQUEST/i', $ocr)) {
+                $category = 'Work Inspection';
+                $source = 'ocr';
+                $confidence = max($confidence, 0.92);
+            } elseif ($hasStrongMirSignal
+                || (! $filenameHasOtherRegister && preg_match('/MATERIAL\s*INSPECTION\s*REQUEST/i', $ocr))) {
+                $category = 'Material Inspection Request';
+                $source = $hasStrongMirSignal ? 'filename' : 'ocr';
+                $confidence = max($confidence, 0.92);
+            } elseif (preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upperName)
+                || preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', substr($ocr, 0, 1500))) {
+                $category = 'MOM';
+                $source = preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upperName) ? 'filename' : 'ocr';
+                $confidence = max($confidence, 0.92);
+            }
 
-        if ($hasStrongShopDrawingSignal
-            && ! preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upperName."\n".$ocr)) {
-            $category = 'Shop Drawing';
-            $source = 'filename';
-            $confidence = max($confidence, 0.92);
-        } elseif ($hasStrongMethodSignal
-            && (self::textLooksLikeMaterialSubmittal($ocr)
-                || $ocrHeadlineCategory === 'Material Submittal'
-                || $contentCategory === 'Material Submittal')) {
-            $category = 'Material Submittal';
-            $source = 'ocr';
-            $confidence = max($confidence, 0.90);
-        } elseif ($hasStrongMethodSignal) {
-            $category = 'Method Statement';
-            $source = 'filename';
-            $confidence = max($confidence, 0.92);
-        } elseif (preg_match('/(?:^|[-_\/])MAS(?:[-_\/]|$)/u', $upperName) && ! preg_match('/\bSAMPLE\b/i', $upperName)) {
-            $category = 'Material Submittal';
-            $source = 'filename';
-            $confidence = max($confidence, 0.90);
+            if ($hasStrongShopDrawingSignal
+                && ! preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upperName."\n".$ocr)) {
+                $category = 'Shop Drawing';
+                $source = 'filename';
+                $confidence = max($confidence, 0.92);
+            } elseif ($hasStrongMethodSignal) {
+                $category = 'Method Statement';
+                $source = 'filename';
+                $confidence = max($confidence, 0.92);
+            } elseif (preg_match('/(?:^|[-_\/])MAS(?:[-_\/]|$)/u', $upperName) && ! preg_match('/\bSAMPLE\b/i', $upperName)) {
+                $category = 'Material Submittal';
+                $source = 'filename';
+                $confidence = max($confidence, 0.90);
+            }
         }
 
         if ($ocr !== ''

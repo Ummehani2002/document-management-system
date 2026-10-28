@@ -190,11 +190,29 @@ test('tanseeq mas of concrete is material submittal not sample', function () {
     expect($result['document_category'])->toBe('Material Submittal');
 });
 
-test('tanseeq st for cast-in-situ is shop drawing not work inspection', function () {
+test('form title on the page wins over a conflicting filename code', function () {
+    $filename = 'TVD-86774-WIM-PAR-MS-CVL-005-R01.pdf';
+    $ocr = "MATERIAL SUBMITTALL\nSubmittal Nr: TVD-86774-WIM-PAR-MS-CVL-005-R01\nMaterial Description: Nivoplan plaster";
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+
+    expect($result['document_category'])->toBe('Material Submittal');
+    expect($result['category_source'])->toBe('ocr');
+});
+
+test('work inspection form title wins over st-for filename', function () {
     $filename = 'ST-LSC-0540-01_B ST for Cast-in-situ (Option- 2nos) for Hardscape works from Ms CCL.pdf';
     $ocr = "WORK INSPECTION REQUEST\nIR No.: 3501B-IR-L-1822\nRef.: SQM-LA-1187-2026-RPT-000033";
 
     $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+
+    expect($result['document_category'])->toBe('Work Inspection');
+});
+
+test('tanseeq st for filename stays shop drawing when the page is not a wir form', function () {
+    $filename = 'ST-LSC-0540-01_B ST for Cast-in-situ (Option- 2nos) for Hardscape works from Ms CCL.pdf';
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, null);
 
     expect($result['document_category'])->toBe('Shop Drawing');
 });

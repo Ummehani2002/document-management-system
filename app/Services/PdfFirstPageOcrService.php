@@ -40,6 +40,21 @@ class PdfFirstPageOcrService
     }
 
     /**
+     * Fast first-page text for Auto Upload folder choice. Does not run Tesseract.
+     */
+    public function extractFastText(string $pdfPath): string
+    {
+        $text = $this->extractWithPdftotextPageRange($pdfPath, 1, 2);
+        if (trim($text) !== '') {
+            return $text;
+        }
+
+        $text = $this->extractWithPdftotextPageRange($pdfPath, 1, 3);
+
+        return trim($text);
+    }
+
+    /**
      * Text extraction used for classification:
      * first page attempts, then a broader whole-document parser fallback.
      */
