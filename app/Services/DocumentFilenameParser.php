@@ -794,6 +794,34 @@ class DocumentFilenameParser
     /**
      * WIR and Tanseeq IR register codes (3501B-IR-L-1822). Do not treat MAT-IR as work inspection.
      */
+    protected static function filenameHasStructuredRegisterCode(string $upper): bool
+    {
+        return self::filenameHasWorkInspectionCode($upper)
+            || self::filenameHasMethodStatementCode($upper)
+            || self::filenameHasShopDrawingCode($upper)
+            || (bool) preg_match('/(?:^|[-_\/])(?:MAS|MAT|MIR|WIR|RFI|MST|MTS|MSS|SDR|SD)(?:[-_\/]|$)/u', $upper);
+    }
+
+    protected static function filenameHasMethodStatementCode(string $upper): bool
+    {
+        if (preg_match('/METHOD\s*STATEMENT|METHOD\s+OF\s+STATEMENT|\bMS\s*RA\b/u', $upper)) {
+            return true;
+        }
+
+        return (bool) preg_match('/(?:^|[-_\/])(?:MS|MST|MSS|MOS|MTS)(?:[-_\/]|$)/u', $upper);
+    }
+
+    protected static function filenameHasShopDrawingCode(string $upper): bool
+    {
+        if (preg_match('/SHOP\s*DRAWING|(?:^|[-_\/])(?:SD|SDR|SDS)(?:[-_\/]|$)/u', $upper)) {
+            return true;
+        }
+
+        // Tanseeq "ST for Cast-in-situ …" shop/setting-out sheets (not STREET / CAST).
+        return (bool) preg_match('/(?:^|[-_\/])ST(?:[-_\/]|$)/u', $upper)
+            && (bool) preg_match('/\bST\s+FOR\b/u', $upper);
+    }
+
     protected static function filenameHasWorkInspectionCode(string $upper): bool
     {
         if (preg_match('/WORK\s*INSPECTION|(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)/u', $upper)) {
@@ -913,11 +941,12 @@ class DocumentFilenameParser
         $contentCategory = $ocr !== '' ? self::guessSubfolderFromDocumentText($ocr) : 'Other';
         $ocrHeadlineCategory = $ocr !== '' ? self::guessSubfolderFromOcrHeadingsOnly($ocr) : 'Other';
         $upperName = strtoupper(pathinfo($filename, PATHINFO_FILENAME));
-        $hasStrongShopDrawingSignal = (bool) preg_match(
-            '/(?:^|[^A-Z0-9])(?:SD|SDR)(?:[^A-Z0-9]|$)|SHOP\s*DRAWING\s*SUBMITTAL|SHOP\s*DRAWING|\bDWG\b|(?:^|[^A-Z0-9])DS[-_]\d{2,}[-_]\d{2,}|CODE\s+[A-Z0-9]/iu',
-            $upperName
-        );
-        $hasStrongMethodSignal = (bool) preg_match('/(?:^|[^A-Z0-9])(?:MS|MST|MSS|MOS|MTS)(?:[^A-Z0-9]|$)|METHOD\s*STATEMENT/u', $upperName);
+        $hasStrongShopDrawingSignal = self::filenameHasShopDrawingCode($upperName)
+            || (bool) preg_match(
+                '/(?:^|[^A-Z0-9])(?:SD|SDR)(?:[^A-Z0-9]|$)|SHOP\s*DRAWING\s*SUBMITTAL|SHOP\s*DRAWING|\bDWG\b|(?:^|[^A-Z0-9])DS[-_]\d{2,}[-_]\d{2,}|CODE\s+[A-Z0-9]/iu',
+                $upperName
+            );
+        $hasStrongMethodSignal = self::filenameHasMethodStatementCode($upperName);
         $hasStrongMaterialSignal = (bool) preg_match(
             '/(?:^|[^A-Z0-9])(?:MAT|MB)(?:[^A-Z0-9]|$)|MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL|SUBMITTAL\s+TITLE\s*[:\-]\s*MATERIAL|(?:COMMENT|COMMENTS?)\s+ON\s+MATERIAL\s+SUBMITTAL|ENGINEER\s+COMMENT\s+ON\s+MATERIAL\s+SUBMITTAL/i',
             $upperName
@@ -1009,9 +1038,7 @@ class DocumentFilenameParser
         // Work Inspection / MIR are NOT overridable: WIR forms often mention "shop drawings" or TOC
         // in comments/checklists, which must not move the file out of Work Inspection.
         static $filenameCodesOverridableByOcr = [
-            'Shop Drawing',
             'Material Submittal',
-            'Method Statement',
             'Document Transmittal',
             'Engineers Instruction',
             'Request For Information',
@@ -1063,17 +1090,25 @@ class DocumentFilenameParser
         // a real T&C / prequal / payment title (sample T&C files still use a WIR register code).
         $ocrBeatsWir = in_array($contentCategory, ['Testing And Commissioning', 'Prequalification', 'Payment Application', 'Variation'], true)
             || in_array($ocrHeadlineCategory, ['Testing And Commissioning', 'Prequalification', 'Payment Application', 'Variation'], true);
+        $filenameHasOtherRegister = $hasStrongShopDrawingSignal
+            || $hasStrongMethodSignal
+            || $hasStrongMaterialSignal
+            || $hasStrongMirSignal
+            || preg_match('/(?:^|[-_\/])(?:MAS|ST)(?:[-_\/]|$)/u', $upperName);
         if (! $ocrBeatsWir
-            && (
-                $hasStrongWirSignal
-                || preg_match('/WORK\s*INSPECTION\s*REQUEST/i', $ocr)
-                || self::filenameHasWorkInspectionCode($upperName)
-            )) {
+            && $hasStrongWirSignal
+            && ! $filenameHasOtherRegister) {
             $category = 'Work Inspection';
-            $source = $hasStrongWirSignal ? 'filename' : 'ocr';
+            $source = 'filename';
+            $confidence = max($confidence, 0.92);
+        } elseif (! $ocrBeatsWir
+            && ! $filenameHasOtherRegister
+            && preg_match('/WORK\s*INSPECTION\s*REQUEST/i', $ocr)) {
+            $category = 'Work Inspection';
+            $source = 'ocr';
             $confidence = max($confidence, 0.92);
         } elseif ($hasStrongMirSignal
-            || preg_match('/MATERIAL\s*INSPECTION\s*REQUEST/i', $ocr)) {
+            || (! $filenameHasOtherRegister && preg_match('/MATERIAL\s*INSPECTION\s*REQUEST/i', $ocr))) {
             $category = 'Material Inspection Request';
             $source = $hasStrongMirSignal ? 'filename' : 'ocr';
             $confidence = max($confidence, 0.92);
@@ -1082,6 +1117,21 @@ class DocumentFilenameParser
             $category = 'MOM';
             $source = preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upperName) ? 'filename' : 'ocr';
             $confidence = max($confidence, 0.92);
+        }
+
+        if ($hasStrongShopDrawingSignal
+            && ! preg_match('/\bMOM\b|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|MINUTES\s+OF\s+MEETING/i', $upperName."\n".$ocr)) {
+            $category = 'Shop Drawing';
+            $source = 'filename';
+            $confidence = max($confidence, 0.92);
+        } elseif ($hasStrongMethodSignal) {
+            $category = 'Method Statement';
+            $source = 'filename';
+            $confidence = max($confidence, 0.92);
+        } elseif (preg_match('/(?:^|[-_\/])MAS(?:[-_\/]|$)/u', $upperName) && ! preg_match('/\bSAMPLE\b/i', $upperName)) {
+            $category = 'Material Submittal';
+            $source = 'filename';
+            $confidence = max($confidence, 0.90);
         }
 
         if ($ocr !== ''
@@ -1392,7 +1442,11 @@ class DocumentFilenameParser
         if (self::textLooksLikeTestingAndCommissioning($upper)) {
             return 'Testing And Commissioning';
         }
-        if (self::filenameHasWorkInspectionCode($upper) || preg_match('/WORK\s*INSPECTION\s*REQUEST/i', $upper)) {
+        if (preg_match('/WORK\s*INSPECTION\s*REQUEST|(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)/i', $upper)) {
+            return 'Work Inspection';
+        }
+        // IR register codes belong on short filenames (3501B-IR-L-1822), not random IR text in OCR.
+        if (mb_strlen($upper) < 240 && self::filenameHasWorkInspectionCode($upper)) {
             return 'Work Inspection';
         }
         if (preg_match('/MATERIAL\s*INSPECTION\s*REQUEST|(?:^|[^A-Z0-9])MIR(?:[^A-Z0-9]|$)/i', $upper)) {
@@ -1422,9 +1476,11 @@ class DocumentFilenameParser
             return 'Material Submittal';
         }
 
+        $hasStructuredRegisterCode = self::filenameHasStructuredRegisterCode($upper);
+
         // Prioritize clear letter/correspondence documents before generic short-code matches
         // like trailing "/MB" fragments in reference numbers.
-        if ($hasLetterToken && !$hasTransmittalToken) {
+        if ($hasLetterToken && ! $hasTransmittalToken && ! $hasStructuredRegisterCode) {
             return 'Incoming Or Outgoing Letter';
         }
 
@@ -1514,11 +1570,21 @@ class DocumentFilenameParser
         if (in_array('MTS', $codes, true) || in_array('MT', $codes, true)) {
             return 'Method Statement';
         }
+        if (self::filenameHasMethodStatementCode($upper)) {
+            return 'Method Statement';
+        }
         if (in_array('MAT', $codes, true)) {
             return 'Material Submittal';
         }
-        if (in_array('MSA', $codes, true) || in_array('MAS', $codes, true)) {
+        // MAS = Material Approval Submittal in Tanseeq/GCC registers (not a physical sample).
+        if (in_array('MAS', $codes, true) || preg_match('/MATERIAL\s+APPROVAL\s+SUBMITTAL|\bMAS\s+OF\b/i', $upper)) {
+            return 'Material Submittal';
+        }
+        if (in_array('MSA', $codes, true)) {
             return 'Material Sample';
+        }
+        if (self::filenameHasShopDrawingCode($upper)) {
+            return 'Shop Drawing';
         }
         if (in_array('MB', $codes, true)) {
             return 'Material Submittal';
@@ -1869,7 +1935,7 @@ class DocumentFilenameParser
             'Shop Drawing' => ['%-SD-%', '%-DS-%'],
             'Document Transmittal' => ['%-DTF-%', '%-TRS-%', '%-TRM-%'],
             'Request For Information' => ['%-RFI-%'],
-            'Method Statement' => ['%-MST-%', '%-MTS-%', '%-MSS-%'],
+            'Method Statement' => ['%-MST-%', '%-MTS-%', '%-MSS-%', '%-MS-%'],
             'As Built Drawing Submittal' => ['%-ASB-%', '%-ABS-%'],
             default => [],
         };

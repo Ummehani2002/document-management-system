@@ -116,7 +116,7 @@ test('sample register filenames map to the sharepoint folders', function (string
     ['RYM-PRO-POL-DT-0003 R.00 - Health.pdf', 'Document Transmittal'],
     ['DXB2-LOR-PSP-LTR-00001_Programme.pdf', 'Incoming Or Outgoing Letter'],
     ['PSE2024-10111-PRS-PAR-MIR-HLS-00001.pdf', 'Material Inspection Request'],
-    ['PSE20241019-WG-PRO-MAS-0001 - Code.pdf', 'Material Sample'],
+    ['PSE20241019-WG-PRO-MAS-0001 - Code.pdf', 'Material Submittal'],
     ['P158.01_MAT_INFRA2_CIV-0003-R1.pdf', 'Material Submittal'],
     ['1TB02012-012C20-PIC-MTS-0001[C4].pdf', 'Method Statement'],
     ['C1-C2-CSCEE-XLN-MEST-0055_R00.pdf', 'Method Statement'],
@@ -162,6 +162,41 @@ test('mat-ir material submittal is not classified as work inspection', function 
     $result = DocumentFilenameParser::classifyForAutomation($matFilename, null);
 
     expect($result['document_category'])->toBe('Material Submittal');
+});
+
+test('tanseeq sd filename stays shop drawing when ocr mentions rfi', function () {
+    $filename = 'PBET-SPML-GCL-LSC-SD-970647 EXPANSION & CONTROL JOINTS LAYOUT AND DETAILS SHEET 01 OF 03.pdf';
+    $ocr = "Drawing legend\nRFI = Request For Information\nSD = Shop Drawings\nExpansion joints";
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+
+    expect($result['document_category'])->toBe('Shop Drawing');
+});
+
+test('tanseeq ms filename stays method statement when ocr looks like a letter', function () {
+    $filename = 'TS-SPML-PBET-LSC-MS-0202-01_B MS RA for Cast-in-Situ Concrete Works at Hardscape areas.pdf';
+    $ocr = "TO: Engineer\nFROM: Contractor\nREF: SQM-LA-1187-2026-RPT-000033\nSUBJECT: Please find attached";
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+
+    expect($result['document_category'])->toBe('Method Statement');
+});
+
+test('tanseeq mas of concrete is material submittal not sample', function () {
+    $filename = 'LSC-MAS-0605-01_B MAS of Cast-In-Situ Concrete for Hardscape areas from Ms Tanseeq Projects LLC,GCL.pdf';
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, null);
+
+    expect($result['document_category'])->toBe('Material Submittal');
+});
+
+test('tanseeq st for cast-in-situ is shop drawing not work inspection', function () {
+    $filename = 'ST-LSC-0540-01_B ST for Cast-in-situ (Option- 2nos) for Hardscape works from Ms CCL.pdf';
+    $ocr = "WORK INSPECTION REQUEST\nIR No.: 3501B-IR-L-1822\nRef.: SQM-LA-1187-2026-RPT-000033";
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+
+    expect($result['document_category'])->toBe('Shop Drawing');
 });
 
 test('ir form ocr labels are not used as reference or subject', function () {
