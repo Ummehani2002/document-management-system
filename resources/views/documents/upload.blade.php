@@ -391,7 +391,9 @@
                     for (var i = 0; i < files.length; i++) {
                         var file = files[i];
                         var presignBody = buildPresignBody(file);
-                        var useChunked = file.size > directUploadMinBytes;
+                        // Always use Laravel → R2 multipart. Browser PUT to R2 needs CORS
+                        // and fails on Laravel Cloud until the bucket allows this origin.
+                        var useChunked = true;
 
                         if (useChunked) {
                             setUploadProgress('File ' + (i + 1) + '/' + files.length + ': starting…');
