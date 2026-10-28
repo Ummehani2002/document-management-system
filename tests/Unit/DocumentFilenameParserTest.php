@@ -147,3 +147,32 @@ test('shop drawing sketch submittal form goes to shop drawing', function () {
 
     expect($result['document_category'])->toBe('Shop Drawing');
 });
+
+test('tanseeq ir register filename goes to work inspection', function () {
+    $filename = '3501B-IR-L-1822_R0_B_20260904.pdf';
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, null);
+
+    expect($result['document_category'])->toBe('Work Inspection');
+    expect($result['confidence'])->toBeGreaterThanOrEqual(0.70);
+    expect($result['reference_no'])->toBe('3501B-IR-L-1822');
+});
+
+test('mat-ir material submittal is not classified as work inspection', function () use ($matFilename) {
+    $result = DocumentFilenameParser::classifyForAutomation($matFilename, null);
+
+    expect($result['document_category'])->toBe('Material Submittal');
+});
+
+test('ir form ocr labels are not used as reference or subject', function () {
+    $filename = '3501B-IR-L-2022_R0_B_20260907.pdf';
+    $ocr = "WORK INSPECTION REQUEST\nIR No.: 3501B-IR-L-2022\nDescription of Works: Softscape planting inspection\n"
+        ."Ref.: Contract Document Ref.\nSubject: Manufacturer / Supplier";
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($result['document_category'])->toBe('Work Inspection');
+    expect($meta['reference_no'])->toBe('3501B-IR-L-2022');
+    expect($meta['subject'])->toBe('Softscape planting inspection');
+});

@@ -709,6 +709,8 @@ class DocumentFilenameParser
             $normalized = self::normalizeOcrText($ocr);
 
             $referencePatterns = [
+                '/(?:^|\n)\s*(?:WIR|IR)\s*(?:NO\.?|NUMBER|#)\s*[:\-]\s*([^\n]{3,180})/i',
+                '/(?:^|\n)\s*INSPECTION\s*REQUEST\s*(?:NO\.?|NUMBER)\s*[:\-]\s*([^\n]{3,180})/i',
                 '/(?:^|\n)\s*REF(?:ERENCE)?\s*\.?\s*(?:NO\.?|NUMBER)?\s*[:\-]\s*([^\n]{3,180})/i',
                 '/(?:^|\n)\s*SUBMITTAL\s*(?:NO\.?|NUMBER)\s*[:\-]\s*([^\n]{3,180})/i',
                 '/(?:^|\n)\s*SUBMITTAL\s*(?:NR|NO|NUMBER)\.?\s*[:\-]\s*([^\n]{3,180})/i',
@@ -721,7 +723,7 @@ class DocumentFilenameParser
                 if (preg_match($re, $normalized, $m)) {
                     $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
                     $candidate = preg_replace('/\s*(?:REV(?:ISION)?|DATE)\s*[:\-].*$/i', '', $candidate) ?? $candidate;
-                    if ($candidate !== '') {
+                    if ($candidate !== '' && ! self::isGenericFormLabel($candidate)) {
                         $referenceNo = trim($candidate);
                         break;
                     }
@@ -732,6 +734,7 @@ class DocumentFilenameParser
                 // Multiline-friendly: capture current line and up to 2 continuation lines
                 // until another label-like line appears.
                 // Priority: Material Description should win over generic Submittal Title.
+                '/(?:^|\n)\s*DESCRIPTION\s+OF\s+WORKS?\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
                 '/(?:^|\n)\s*MATERIAL\s*DESCRIPTION\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
                 '/(?:^|\n)\s*MATERIALS?\s+FOR\s+INSPECTION\s*[:\-]?\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
                 '/(?:^|\n)\s*SUBMITTAL\s*TITLE\s*[:\-]\s*([^\n]{5,240}(?:\n(?!\s*[A-Z][A-Z0-9\s\/().-]{1,30}\s*:)[^\n]{1,220}){0,2})/i',
@@ -742,7 +745,7 @@ class DocumentFilenameParser
                 if (preg_match($re, $normalized, $m)) {
                     $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
                     $candidate = preg_replace('/\s*(?:REV(?:ISION)?|DATE)\s*[:\-].*$/i', '', $candidate) ?? $candidate;
-                    if ($candidate !== '') {
+                    if ($candidate !== '' && ! self::isGenericFormLabel($candidate)) {
                         $subject = trim($candidate);
                         break;
                     }
@@ -751,6 +754,11 @@ class DocumentFilenameParser
         }
 
         $nameWithoutExt = pathinfo($fileName, PATHINFO_FILENAME);
+        if ($referenceNo === '' || self::isGenericFormLabel($referenceNo)) {
+            if (preg_match('/^([A-Z0-9]+(?:-[A-Z0-9]+){2,})[_-]R(?:EV(?:ISION)?)?\.?\s*\d/i', $nameWithoutExt, $m)) {
+                $referenceNo = trim((string) $m[1]);
+            }
+        }
         if ($referenceNo === '' || $subject === '') {
             if (preg_match('/^\s*([A-Z0-9]+(?:-[A-Z0-9]+){1,})\s*-\s*(.+)\s*$/iu', $nameWithoutExt, $m)
                 || preg_match('/^\s*([A-Z0-9]+(?:-[A-Z0-9]+){1,})[ _]+(.+)\s*$/iu', $nameWithoutExt, $m)) {
@@ -763,11 +771,13 @@ class DocumentFilenameParser
             }
         }
 
-        $referenceNo = $referenceNo !== '' ? $referenceNo : $nameWithoutExt;
+        $referenceNo = $referenceNo !== '' && ! self::isGenericFormLabel($referenceNo)
+            ? $referenceNo
+            : $nameWithoutExt;
         $subject = $subject !== '' ? $subject : '—';
 
         $isRevisionTail = (bool) preg_match('/^(?:REV(?:ISION)?\s*)?[A-Z]?\d{1,3}(?:[._-][A-Z0-9]+)*(?:\s*\(\d+\))?$/i', $subject);
-        if ($isRevisionTail) {
+        if ($isRevisionTail || self::isGenericFormLabel($subject)) {
             $subject = '—';
         }
         // Ignore generic headers used as form titles, not real subject lines.
@@ -779,6 +789,33 @@ class DocumentFilenameParser
             'reference_no' => $referenceNo,
             'subject' => $subject,
         ];
+    }
+
+    /**
+     * WIR and Tanseeq IR register codes (3501B-IR-L-1822). Do not treat MAT-IR as work inspection.
+     */
+    protected static function filenameHasWorkInspectionCode(string $upper): bool
+    {
+        if (preg_match('/WORK\s*INSPECTION|(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)/u', $upper)) {
+            return true;
+        }
+
+        if (preg_match('/MAT-IR/u', $upper)) {
+            return false;
+        }
+
+        return (bool) preg_match('/(?:^|[-_\/])IR(?:[-_\/]|$)/u', $upper);
+    }
+
+    /**
+     * OCR often captures the printed form label instead of the filled-in value.
+     */
+    protected static function isGenericFormLabel(string $value): bool
+    {
+        return (bool) preg_match(
+            '/^(?:contract\s+document\s+ref\.?|manufacturer\s*\/?\s*supplier|material\s+description|submittal\s+title|document\s+type|document\s+ref\.?|reference(?:\s*(?:no\.?|number))?|subject|description)$/i',
+            trim($value)
+        );
     }
 
     /**
@@ -890,7 +927,7 @@ class DocumentFilenameParser
             $upperName
         );
         $hasStrongMirSignal = (bool) preg_match('/(?:^|[^A-Z0-9])MIR(?:[^A-Z0-9]|$)|MATERIAL\s*INSPECTION\s*REQUEST/u', $upperName);
-        $hasStrongWirSignal = (bool) preg_match('/(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)|WORK\s*INSPECTION/u', $upperName);
+        $hasStrongWirSignal = self::filenameHasWorkInspectionCode($upperName);
         $hasStrongEiSignal = (bool) preg_match('/(?:^|[^A-Z0-9])EI(?:[^A-Z0-9]|$)|ENGINEER\S*\s*INSTRUCTION/i', $upperName);
         $hasStrongRfiSignal = (bool) preg_match('/REQUEST\s*FOR\s*INFORMATION|(?:^|[^A-Z0-9])RFI(?:[^A-Z0-9]|$)/i', $upperName);
         $hasStrongBoqSignal = (bool) preg_match('/(?:^|[^A-Z0-9])BOQ(?:[^A-Z0-9]|$)|\bBILL\s+OF\s+QUANTITIES\b|\bBILL\s+OF\s+QUANTITY\b/i', $upperName);
@@ -1030,7 +1067,7 @@ class DocumentFilenameParser
             && (
                 $hasStrongWirSignal
                 || preg_match('/WORK\s*INSPECTION\s*REQUEST/i', $ocr)
-                || preg_match('/WORK\s*INSPECTION\s*REQUEST|(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)/i', $upperName)
+                || self::filenameHasWorkInspectionCode($upperName)
             )) {
             $category = 'Work Inspection';
             $source = $hasStrongWirSignal ? 'filename' : 'ocr';
@@ -1355,7 +1392,7 @@ class DocumentFilenameParser
         if (self::textLooksLikeTestingAndCommissioning($upper)) {
             return 'Testing And Commissioning';
         }
-        if (preg_match('/WORK\s*INSPECTION\s*REQUEST|(?:^|[^A-Z0-9])WIR(?:[^A-Z0-9]|$)/i', $upper)) {
+        if (self::filenameHasWorkInspectionCode($upper) || preg_match('/WORK\s*INSPECTION\s*REQUEST/i', $upper)) {
             return 'Work Inspection';
         }
         if (preg_match('/MATERIAL\s*INSPECTION\s*REQUEST|(?:^|[^A-Z0-9])MIR(?:[^A-Z0-9]|$)/i', $upper)) {
@@ -1392,7 +1429,7 @@ class DocumentFilenameParser
         }
 
         $codeMatches = [];
-        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|EI|RFI|BOQ|MTS|MST|MEST|MSS|MOS|MT|SDR|SDS|SD|DS|DWG|ASB|ABS|AB|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
+        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|EI|RFI|BOQ|MTS|MST|MEST|MSS|MOS|MT|SDR|SDS|SD|DS|DWG|ASB|ABS|AB|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR|IR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
         $codes = array_unique(array_map('strtoupper', $codeMatches[1] ?? []));
         $hasPrequalificationKeyword = (bool) preg_match('/PRE[\s\-]*QUALIF(?:ICATION|ICATIONS)?|\bPREQUAL\b|\bPREQ\b/i', $upper);
         $hasMethodKeyword = (bool) preg_match('/METHOD\s*STATEMENT|METHOD\s+OF\s+STATEMENT|METHOD\s*ST(?:\.|ATEMENT)?|STATEMENT\s+SUBMITTAL|\bMTS\b|\bMST\b|\bMSS\b|\bMOS\b/i', $upper);
@@ -1459,7 +1496,7 @@ class DocumentFilenameParser
         if (in_array('BOQ', $codes, true)) {
             return 'BOQ Bill Of Quantities';
         }
-        if (in_array('WIR', $codes, true)) {
+        if (in_array('WIR', $codes, true) || (in_array('IR', $codes, true) && ! in_array('MAT', $codes, true))) {
             return 'Work Inspection';
         }
         if (in_array('ASB', $codes, true) || in_array('ABS', $codes, true) || in_array('AB', $codes, true)) {
@@ -1828,7 +1865,7 @@ class DocumentFilenameParser
             'Material Submittal' => ['%-MAT-%', '%PIC-MAT%', '%-MB-%', '%-MAS-%'],
             'Material Inspection Request' => ['%-MIR-%', '%-MIRR-%'],
             'BOQ Bill Of Quantities' => ['%-BOQ-%'],
-            'Work Inspection' => ['%-WIR-%'],
+            'Work Inspection' => ['%-WIR-%', '%-IR-L-%', '%-IR-%'],
             'Shop Drawing' => ['%-SD-%', '%-DS-%'],
             'Document Transmittal' => ['%-DTF-%', '%-TRS-%', '%-TRM-%'],
             'Request For Information' => ['%-RFI-%'],
@@ -1877,6 +1914,13 @@ class DocumentFilenameParser
                             ->orWhere('file_name', 'not like', $pattern);
                     });
                 }
+            }
+
+            if (in_array('Work Inspection', $documentTypeFilters, true)) {
+                $outer->where(function ($exclude) {
+                    $exclude->where('folder_locked', true)
+                        ->orWhere('file_name', 'not like', '%-MAT-IR-%');
+                });
             }
         });
     }
