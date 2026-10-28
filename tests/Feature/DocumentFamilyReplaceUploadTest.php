@@ -7,6 +7,8 @@ use App\Models\Entity;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\DocumentFileVersioning;
+use App\Services\EntityContextService;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -46,23 +48,8 @@ class DocumentFamilyReplaceUploadTest extends TestCase
         $first = UploadedFile::fake()->create('PJE20231001-BK-SD-0001 Rev01 AAN.pdf', 40, 'application/pdf');
         $second = UploadedFile::fake()->create('PJE20231001-BK-SD-0001 REV-02 AAN.pdf', 48, 'application/pdf');
 
-        $this->actingAs($user)
-            ->post(route('documents.store'), [
-                'upload_mode' => 'auto',
-                'entity_id' => $entity->id,
-                'project_id' => $project->id,
-                'documents' => [$first],
-            ])
-            ->assertRedirect();
-
-        $this->actingAs($user)
-            ->post(route('documents.store'), [
-                'upload_mode' => 'auto',
-                'entity_id' => $entity->id,
-                'project_id' => $project->id,
-                'documents' => [$second],
-            ])
-            ->assertRedirect();
+        $this->postDocuments($user, $entity, $project, [$first]);
+        $this->postDocuments($user, $entity, $project, [$second]);
 
         $this->assertSame(1, Document::query()->where('project_id', $project->id)->count());
         $this->assertSame(
@@ -81,14 +68,7 @@ class DocumentFamilyReplaceUploadTest extends TestCase
         $rev01 = UploadedFile::fake()->create('SD-0002-R01-Plot B4 Ramp.pdf', 30, 'application/pdf');
         $rev02 = UploadedFile::fake()->create('SD-0002-R-02-Plot B4 Ramp.pdf', 36, 'application/pdf');
 
-        $this->actingAs($user)
-            ->post(route('documents.store'), [
-                'upload_mode' => 'auto',
-                'entity_id' => $entity->id,
-                'project_id' => $project->id,
-                'documents' => [$rev01, $rev02],
-            ])
-            ->assertRedirect();
+        $this->postDocuments($user, $entity, $project, [$rev01, $rev02]);
 
         $this->assertSame(1, Document::query()->where('project_id', $project->id)->count());
     }
@@ -97,13 +77,7 @@ class DocumentFamilyReplaceUploadTest extends TestCase
     {
         Storage::fake(config('filesystems.default'));
 
-        $user = User::factory()->create();
-        $entity = Entity::create(['name' => 'Acme']);
-        $projectA = Project::create([
-            'entity_id' => $entity->id,
-            'project_number' => 'PJE20231001',
-            'project_name' => 'Plot A',
-        ]);
+        [$user, $entity, $projectA] = $this->seedProject();
         $projectB = Project::create([
             'entity_id' => $entity->id,
             'project_number' => 'PJE20231002',
@@ -113,22 +87,42 @@ class DocumentFamilyReplaceUploadTest extends TestCase
         $fileA = UploadedFile::fake()->create('PJE20231001-BK-SD-0001 Rev01 AAN.pdf', 40, 'application/pdf');
         $fileB = UploadedFile::fake()->create('PJE20231001-BK-SD-0001 Rev01 AAN.pdf', 40, 'application/pdf');
 
-        $this->actingAs($user)->post(route('documents.store'), [
-            'upload_mode' => 'auto',
-            'entity_id' => $entity->id,
-            'project_id' => $projectA->id,
-            'documents' => [$fileA],
-        ])->assertRedirect();
-
-        $this->actingAs($user)->post(route('documents.store'), [
-            'upload_mode' => 'auto',
-            'entity_id' => $entity->id,
-            'project_id' => $projectB->id,
-            'documents' => [$fileB],
-        ])->assertRedirect();
+        $this->postDocuments($user, $entity, $projectA, [$fileA]);
+        $this->postDocuments($user, $entity, $projectB, [$fileB]);
 
         $this->assertSame(1, Document::query()->where('project_id', $projectA->id)->count());
         $this->assertSame(1, Document::query()->where('project_id', $projectB->id)->count());
+    }
+
+    public function test_same_filename_in_same_project_is_skipped_as_duplicate(): void
+    {
+        Storage::fake(config('filesystems.default'));
+
+        [$user, $entity, $project] = $this->seedProject();
+
+        $first = UploadedFile::fake()->create('P18S6G_N.PDF', 40, 'application/pdf');
+        $second = UploadedFile::fake()->create('P18S6G_N.PDF', 40, 'application/pdf');
+
+        $this->postDocuments($user, $entity, $project, [$first]);
+        $this->postDocuments($user, $entity, $project, [$second]);
+
+        $this->assertSame(1, Document::query()->where('project_id', $project->id)->count());
+    }
+
+    /**
+     * @param  list<UploadedFile>  $files
+     */
+    protected function postDocuments(User $user, Entity $entity, Project $project, array $files): void
+    {
+        $this->actingAs($user)
+            ->withSession([EntityContextService::SESSION_KEY => $entity->id])
+            ->post(route('documents.store'), [
+                'upload_mode' => 'auto',
+                'entity_id' => $entity->id,
+                'project_id' => $project->id,
+                'documents' => $files,
+            ])
+            ->assertRedirect();
     }
 
     /**
@@ -136,7 +130,9 @@ class DocumentFamilyReplaceUploadTest extends TestCase
      */
     protected function seedProject(): array
     {
+        $this->seed(RoleSeeder::class);
         $user = User::factory()->create();
+        $user->assignRole('Admin');
         $entity = Entity::create(['name' => 'Acme']);
         $project = Project::create([
             'entity_id' => $entity->id,

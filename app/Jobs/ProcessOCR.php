@@ -73,7 +73,7 @@ class ProcessOCR implements ShouldQueue
 
                 $document->update(['ocr_text' => $text]);
             } catch (\Throwable $e) {
-                \Log::warning('ProcessOCR text extraction failed (classification will still run by filename)', [
+                \Log::warning('ProcessOCR text extraction failed (folder will use whatever text is already stored)', [
                     'document_id' => $document->id,
                     'error' => $e->getMessage(),
                 ]);

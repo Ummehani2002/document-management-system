@@ -12,6 +12,8 @@ use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileReplacer;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
+use App\Services\OfficeDocumentTextExtractionService;
+use App\Services\PdfFirstPageOcrService;
 use App\Services\UserActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -130,18 +132,13 @@ class DocumentDirectUploadController extends Controller
         $category = 'Other';
         if ($uploadMode === 'manual') {
             $category = $manualSubfolder;
-        } else {
-            $result = DocumentFilenameParser::classifyForAutomation($filename, null);
-            $predicted = trim((string) ($result['document_category'] ?? 'Other'));
-            if ($predicted !== '' && in_array($predicted, $validSubfolders, true)) {
-                $category = $predicted;
-            }
         }
 
         $mainFolder = $uploadMode === 'manual'
             ? $manualMainFolder
             : (DocumentFilenameParser::mainFolderForDocumentType($category) ?? '');
-        if (! $this->access->canAccessFolder(Auth::user(), (int) $entity->id, $mainFolder, $category)) {
+        if ($uploadMode === 'manual'
+            && ! $this->access->canAccessFolder(Auth::user(), (int) $entity->id, $mainFolder, $category)) {
             return response()->json(['message' => 'You do not have permission to upload to this folder.'], 403);
         }
 
@@ -668,6 +665,20 @@ class DocumentDirectUploadController extends Controller
         $enableDeepDuplicateCheck = (bool) env('DOC_DEEP_DUP_CHECK', false);
 
         $uploadMode = (string) ($payload['upload_mode'] ?? 'auto');
+        $extractedText = null;
+
+        if ($uploadMode === 'auto') {
+            $extractedText = $this->extractStoredObjectText($disk, $key, $originalName);
+            $placed = $this->placeAutoUploadFromContents($disk, $key, $originalName, $entity, $project, $extractedText);
+            $category = $placed['category'];
+            $key = $placed['key'];
+            $mainFolder = DocumentFilenameParser::mainFolderForDocumentType($category) ?? '';
+            if (! $this->access->canAccessFolder(Auth::user(), (int) $entity->id, $mainFolder, $category)) {
+                Storage::disk($disk)->delete($key);
+
+                return response()->json(['message' => 'You do not have permission to upload to this folder.'], 403);
+            }
+        }
 
         if ($orphanDocumentId !== null && $orphanDocumentId > 0) {
             $document = Document::find($orphanDocumentId);
@@ -680,9 +691,11 @@ class DocumentDirectUploadController extends Controller
                 if ($uploadMode === 'manual') {
                     $document->document_type = $category;
                     $document->folder_locked = true;
+                } else {
+                    $document->document_type = $category;
                 }
                 $document->file_path = $key;
-                $document->ocr_text = null;
+                $document->ocr_text = $extractedText;
                 $document->modified_by_user_id = Auth::id();
                 $document->save();
                 UserActivityLogger::reattached($document, [
@@ -726,6 +739,16 @@ class DocumentDirectUploadController extends Controller
         if ($family->isNotEmpty()) {
             $survivor = DocumentFileVersioning::pickFamilySurvivor($family);
             if ($survivor !== null) {
+                if (! DocumentFileVersioning::isNewerFilename($displayName, (string) $survivor->file_name)) {
+                    Storage::disk($disk)->delete($key);
+
+                    return response()->json([
+                        'message' => 'Duplicate file skipped (this file is already in this project).',
+                        'duplicate' => true,
+                        'document_id' => $survivor->id,
+                    ]);
+                }
+
                 app(DocumentFileReplacer::class)->adoptStoredPath(
                     $survivor,
                     $key,
@@ -756,6 +779,7 @@ class DocumentDirectUploadController extends Controller
             'folder_locked' => $uploadMode === 'manual',
             'file_name' => $displayName,
             'file_path' => $key,
+            'ocr_text' => $extractedText,
             'modified_by_user_id' => Auth::id(),
         ]);
         UserActivityLogger::uploaded($document, [
@@ -771,6 +795,101 @@ class DocumentDirectUploadController extends Controller
         }
 
         return response()->json(['message' => 'File uploaded successfully.', 'document_id' => $document->id]);
+    }
+
+    /**
+     * Auto Upload: read the stored file, then choose the folder. Filename is only a fallback.
+     *
+     * @return array{category: string, key: string}
+     */
+    protected function placeAutoUploadFromContents(
+        string $disk,
+        string $key,
+        string $originalName,
+        Entity $entity,
+        Project $project,
+        ?string $extractedText
+    ): array {
+        $folderTree = DocumentFilenameParser::sidebarFolderTree();
+        $validSubfolders = array_values(array_unique(array_merge(
+            ['Other'],
+            ...array_values($folderTree)
+        )));
+
+        $ocr = is_string($extractedText) && trim($extractedText) !== '' ? trim($extractedText) : null;
+        $result = DocumentFilenameParser::classifyForAutomation($originalName, $ocr);
+        $category = trim((string) ($result['document_category'] ?? 'Other'));
+        if ($category === '' || ! in_array($category, $validSubfolders, true)) {
+            $category = 'Other';
+        }
+
+        $folderPath = 'documents/'
+            .Str::slug($entity->name).'/'
+            .Str::slug($project->project_number).'/'
+            .Str::slug($category);
+        $newKey = $folderPath.'/'.basename($key);
+        if ($newKey === $key) {
+            return ['category' => $category, 'key' => $key];
+        }
+
+        try {
+            Storage::disk($disk)->makeDirectory($folderPath);
+            Storage::disk($disk)->move($key, $newKey);
+            if (Storage::disk($disk)->exists($newKey)) {
+                $key = $newKey;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Auto upload folder move failed; keeping staging path', [
+                'from' => $key,
+                'to' => $newKey,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return ['category' => $category, 'key' => $key];
+    }
+
+    protected function extractStoredObjectText(string $disk, string $key, string $originalName): ?string
+    {
+        $ext = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+        if (! in_array($ext, ['pdf', 'docx', 'xlsx', 'doc', 'xls'], true)) {
+            return null;
+        }
+
+        $placeholder = tempnam(sys_get_temp_dir(), 'dms_up_');
+        if ($placeholder === false) {
+            return null;
+        }
+        $tempPath = $placeholder.'.'.$ext;
+        @unlink($placeholder);
+
+        try {
+            $contents = Storage::disk($disk)->get($key);
+            if (! is_string($contents) || $contents === '') {
+                return null;
+            }
+            file_put_contents($tempPath, $contents);
+
+            $text = '';
+            if ($ext === 'pdf') {
+                $text = trim(app(PdfFirstPageOcrService::class)->extractTextForClassification($tempPath));
+            } else {
+                $text = trim(app(OfficeDocumentTextExtractionService::class)->extractText($tempPath, $ext));
+            }
+
+            return $text !== '' ? $text : null;
+        } catch (\Throwable $e) {
+            Log::warning('Could not read uploaded file for folder classification', [
+                'key' => $key,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        } finally {
+            if (is_file($tempPath)) {
+                @unlink($tempPath);
+            }
+        }
     }
 
     protected function normalizeContentType(string $contentType, string $extension): string

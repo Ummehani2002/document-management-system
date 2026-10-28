@@ -101,7 +101,8 @@ class DocumentFilenameParser
 
         $normalized = self::normalizeOcrText($text);
         // Pre-qualification forms often say "laboratory testing" — that is not T&C.
-        if (self::textLooksLikePrequalification($normalized)) {
+        // A Material Submittal banner must not be stolen by a weak PRE-Q match.
+        if (self::textLooksLikePrequalification($normalized) && ! self::textLooksLikeMaterialSubmittal($normalized)) {
             return 'Prequalification';
         }
         // T&C often appears late ("Content of Request"); scan full OCR, not only first 14k chars.
@@ -257,7 +258,7 @@ class DocumentFilenameParser
                 continue;
             }
             $u = strtoupper($line);
-            if (preg_match('/MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL+/', $u)) {
+            if (preg_match('/MATERIAL\s*(?:TECHNICAL\s*|APPROVAL\s*)?SUBMITTAL+/', $u)) {
                 return 'Material Submittal';
             }
             if (preg_match('/^(?:SHOP\s*DRAWING|SKETCH\s*SUBMITTAL)/', $u)
@@ -291,6 +292,20 @@ class DocumentFilenameParser
             if (preg_match('/PRE[\s\-]*QUALIF/', $u)) {
                 return 'Prequalification';
             }
+            if (preg_match('/TYPE\s+OF\s+SUBMITTAL/', $u) && preg_match('/\bMAT\b|\bMATERIALS\b/', $u)) {
+                return 'Material Submittal';
+            }
+        }
+
+        if (preg_match('/TYPE\s+OF\s+SUBMITTAL/i', $head) && preg_match('/\bMAT\b|\bMATERIALS\b/i', $head)
+            && ! preg_match('/PRE[\s\-]*QUALIF/i', $head)) {
+            return 'Material Submittal';
+        }
+
+        $looksLikeLetterGreeting = (bool) preg_match('/\bDEAR\s+(?:SIR|MADAM|MR|MRS|MS)\b/iu', $head)
+            || ((bool) preg_match('/\bATTENTION\s*[:\-]/iu', $head) && (bool) preg_match('/\bSUBJECT\s*[:\-]/iu', $head));
+        if ($looksLikeLetterGreeting && self::looksLikeProjectLetter($head)) {
+            return 'Incoming Or Outgoing Letter';
         }
 
         return 'Other';
@@ -303,7 +318,7 @@ class DocumentFilenameParser
     protected static function guessSubfolderFromOcrHeadingsOnly(string $text): string
     {
         $normalized = self::normalizeOcrText($text);
-        if (self::textLooksLikePrequalification($normalized)) {
+        if (self::textLooksLikePrequalification($normalized) && ! self::textLooksLikeMaterialSubmittal($normalized)) {
             return 'Prequalification';
         }
         if (self::textLooksLikeTestingAndCommissioning($normalized)) {
@@ -372,7 +387,7 @@ class DocumentFilenameParser
 
     protected static function detectCategoryFromTitle(string $window): string
     {
-        if (self::textLooksLikePrequalification($window)) {
+        if (self::textLooksLikePrequalification($window) && ! self::textLooksLikeMaterialSubmittal($window)) {
             return 'Prequalification';
         }
         if (self::textLooksLikeTestingAndCommissioningLoose($window)) {
@@ -653,10 +668,11 @@ class DocumentFilenameParser
     {
         $u = strtoupper($text);
 
+        // Require a real pre-qualification title or register code.
+        // Do not match "Prepared", "Proscape", or "PAR" fragments on other forms.
         return (bool) preg_match(
             '/PRE[\s\-]*QUALIF(?:ICATION|ICATIONS)?'
             . '|\bPREQUAL(?:IFICATION)?\b'
-            . '|\bPRE[\s\-]*Q\b'
             . '|(?:^|[^A-Z0-9])(?:PREQ|PREQUL)(?:[^A-Z0-9]|$)'
             . '|(?:^|[^A-Z0-9])PQ[\s\-_]*\d+/u',
             $u
@@ -747,8 +763,9 @@ class DocumentFilenameParser
         $head = substr(self::normalizeOcrText($text), 0, 4000);
 
         return (bool) preg_match(
-            '/MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL+(?:\s+FORM)?'
+            '/MATERIAL\s*(?:TECHNICAL\s*|APPROVAL\s*)?SUBMITTAL+(?:\s+FORM)?'
             .'|(?:^|\n)\s*MATERIAL\s*SUBMITTAL+\b'
+            .'|TYPE\s+OF\s+SUBMITTAL[\s\S]{0,120}\bMAT\b'
             .'/iu',
             $head
         );
@@ -769,22 +786,23 @@ class DocumentFilenameParser
             $normalized = self::normalizeOcrText($ocr);
 
             $referencePatterns = [
-                '/(?:^|\n)\s*(?:WIR|IR)\s*(?:NO\.?|NUMBER|#)\s*[:\-]\s*([^\n]{3,180})/i',
-                '/(?:^|\n)\s*INSPECTION\s*REQUEST\s*(?:NO\.?|NUMBER)\s*[:\-]\s*([^\n]{3,180})/i',
-                '/(?:^|\n)\s*REF(?:ERENCE)?\s*\.?\s*(?:NO\.?|NUMBER)?\s*[:\-]\s*([^\n]{3,180})/i',
-                '/(?:^|\n)\s*SUBMITTAL\s*(?:NO\.?|NUMBER)\s*[:\-]\s*([^\n]{3,180})/i',
-                '/(?:^|\n)\s*SUBMITTAL\s*(?:NR|NO|NUMBER)\.?\s*[:\-]\s*([^\n]{3,180})/i',
-                '/(?:^|\n)\s*MIR\s*NO\.?\s*[:\-]\s*([^\n]{3,180})/i',
-                '/(?:^|\n)\s*DOC(?:UMENT)?\s*TRANS(?:\.|MITTAL)?\s*NO\.?\s*[:\-]\s*([^\n]{3,180})/i',
-                '/(?:^|\n)\s*DRAWING\s*REF(?:ERENCE)?\.?\s*[:\-]\s*([^\n]{3,180})/i',
-                '/(?:^|\n)\s*DRAWING\s*REF\.?\s*[:\-]\s*([^\n]{3,180})/i',
+                '/(?:^|\n)\s*(?:WIR|IR)\s*(?:NO\.?|NUMBER|#)\s*[:\-]?\s*(.{0,220})/is',
+                '/(?:^|\n)\s*INSPECTION\s*REQUEST\s*(?:NO\.?|NUMBER)\s*[:\-]?\s*(.{0,220})/is',
+                '/(?:^|\n)\s*REF(?:ERENCE)?\s*\.?\s*(?:NO\.?|NUMBER)\s*[:\-]?\s*(.{0,220})/is',
+                '/(?:^|\n)\s*REF(?:ERENCE)?\s*\.?\s*[:\-]\s*(.{0,220})/is',
+                '/(?:^|\n)\s*SUBMITTAL\s*(?:NO\.?|NUMBER)\s*[:\-]?\s*(.{0,220})/is',
+                '/(?:^|\n)\s*SUBMITTAL\s*(?:NR|NO|NUMBER)\.?\s*[:\-]?\s*(.{0,220})/is',
+                '/(?:^|\n)\s*MIR\s*NO\.?\s*[:\-]?\s*(.{0,220})/is',
+                '/(?:^|\n)\s*DOC(?:UMENT)?\s*TRANS(?:\.|MITTAL)?\s*NO\.?\s*[:\-]?\s*(.{0,220})/is',
             ];
             foreach ($referencePatterns as $re) {
-                if (preg_match($re, $normalized, $m)) {
-                    $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
-                    $candidate = preg_replace('/\s*(?:REV(?:ISION)?|DATE)\s*[:\-].*$/i', '', $candidate) ?? $candidate;
-                    $candidate = trim($candidate);
-                    if ($candidate !== '' && self::looksLikeRegisterCode($candidate)) {
+                if (preg_match($re, $normalized, $m, PREG_OFFSET_CAPTURE)) {
+                    $prefix = strtoupper(substr($normalized, max(0, (int) $m[0][1] - 16), 16));
+                    if (preg_match('/(?:CONTRACT|DRAWING|DWG|SPC|BQ|COC)\s*$/', trim($prefix))) {
+                        continue;
+                    }
+                    $candidate = self::firstFormReferenceIn((string) $m[1][0]);
+                    if ($candidate !== '') {
                         $referenceNo = $candidate;
                         break;
                     }
@@ -815,23 +833,37 @@ class DocumentFilenameParser
 
         $nameWithoutExt = pathinfo($fileName, PATHINFO_FILENAME);
         $fromName = self::splitFilenameReferenceAndSubject($nameWithoutExt);
-        if (self::looksLikeRegisterCode($fromName['reference_no'])) {
-            $referenceNo = $fromName['reference_no'];
-        } elseif ($referenceNo === '' || ! self::looksLikeRegisterCode($referenceNo)) {
-            $referenceNo = $fromName['reference_no'] !== '' ? $fromName['reference_no'] : $nameWithoutExt;
-        }
         $filenameSubject = self::cleanFilenameSubject($fromName['subject']);
         if (self::isJunkSubject($subject)) {
             $subject = '';
         }
+
+        if ($ocr === '') {
+            if (! self::looksLikeFormReference($referenceNo)) {
+                if (self::looksLikeFormReference($fromName['reference_no'])) {
+                    $referenceNo = $fromName['reference_no'];
+                } elseif ($referenceNo === '') {
+                    $referenceNo = $fromName['reference_no'] !== '' ? $fromName['reference_no'] : $nameWithoutExt;
+                }
+            }
+            $referenceNo = self::looksLikeFormReference($referenceNo)
+                ? $referenceNo
+                : (self::looksLikeFormReference($fromName['reference_no'])
+                    ? $fromName['reference_no']
+                    : (self::looksLikeFormReference($nameWithoutExt) ? $nameWithoutExt : ($referenceNo !== '' ? $referenceNo : $nameWithoutExt)));
+        } elseif (! self::looksLikeFormReference($referenceNo)) {
+            $splitRef = trim((string) ($fromName['reference_no'] ?? ''));
+            if (self::looksLikeFormReference($splitRef) && strcasecmp($splitRef, $nameWithoutExt) !== 0) {
+                $referenceNo = $splitRef;
+            }
+        }
+
         if ($subject === '' && $filenameSubject !== '' && ! self::isJunkSubject($filenameSubject)) {
             $subject = $filenameSubject;
         }
 
-        $referenceNo = self::looksLikeRegisterCode($referenceNo)
-            ? $referenceNo
-            : (self::looksLikeRegisterCode($nameWithoutExt) ? $nameWithoutExt : ($fromName['reference_no'] ?: $nameWithoutExt));
         $subject = $subject !== '' && ! self::isJunkSubject($subject) ? $subject : '—';
+        $referenceNo = $referenceNo !== '' ? $referenceNo : '—';
 
         return [
             'reference_no' => $referenceNo,
@@ -894,6 +926,60 @@ class DocumentFilenameParser
         );
     }
 
+    protected static function looksLikeFormReference(string $value): bool
+    {
+        return self::looksLikeRegisterCode($value) || self::looksLikeLetterReference($value);
+    }
+
+    protected static function firstFormReferenceIn(string $blob): string
+    {
+        $blob = trim($blob);
+        if ($blob === '') {
+            return '';
+        }
+
+        $found = [];
+        if (preg_match_all('/[A-Z0-9]+(?:[-_\/.][A-Z0-9]+){2,}/i', $blob, $m)) {
+            foreach ($m[0] as $token) {
+                $token = trim((string) $token);
+                if ($token === '' || self::looksLikeDateToken($token) || ! self::looksLikeFormReference($token)) {
+                    continue;
+                }
+                $found[] = $token;
+            }
+        }
+
+        if ($found === []) {
+            $direct = trim(preg_replace('/\s+/', ' ', strtok($blob, "\n") ?: $blob));
+            $direct = preg_replace('/\s*(?:REV(?:ISION)?|DATE|DISCIPLINE)\s*[:\-].*$/i', '', $direct) ?? $direct;
+            $direct = trim($direct);
+
+            return ($direct !== '' && self::looksLikeFormReference($direct)) ? $direct : '';
+        }
+
+        usort($found, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
+
+        return $found[0];
+    }
+
+    protected static function looksLikeDateToken(string $value): bool
+    {
+        return (bool) preg_match(
+            '/^\d{1,2}[-.\/](?:[A-Za-z]{3,}|\d{1,2})[-.\/]\d{2,4}$/',
+            trim($value)
+        );
+    }
+
+    protected static function looksLikeLetterReference(string $value): bool
+    {
+        $value = trim($value);
+
+        return $value !== '' && (bool) preg_match(
+            '/(?:\/|-)L\d{3,4}(?:\/|-)\d{2,4}\b|^[A-Z0-9]+(?:\/[A-Z0-9]+){2,}/i',
+            $value
+        );
+    }
+
     protected static function looksLikeRegisterCode(string $value): bool
     {
         $value = trim($value);
@@ -922,6 +1008,8 @@ class DocumentFilenameParser
     protected static function extractLabeledSubject(string $normalized): string
     {
         $labels = [
+            'TITLE\s*/\s*SUBJECT',
+            'TITLE\s*(?:AND|OR)\s*SUBJECT',
             'MATERIAL\s*DESCRIPTION',
             'DESCRIPTION\s+OF\s+MATERIALS?',
             'DRAWING\s*TITLE',
@@ -936,15 +1024,22 @@ class DocumentFilenameParser
             'TITLE\s+OF\s+METHOD\s+STATEMENT',
             'DESCRIPTION\s+OF\s+ACTIVITY',
             'ACTIVITY\s+DESCRIPTION',
+            'SUBJECT\s*[:\-]',
             'TITLE\s*[:\-]',
         ];
-        $stop = 'Specification(?:\s+Clause)?\s+Ref|Drawing\s+(?:No|Number|Ref(?:erence)?)|Manufacturer|Local\s+Supplier'
-            .'|Received(?:\s+by)?|Enclosures?|Contractor(?:\'s)?\s+Certification|B\.?O\.?Q\.?\s+Item'
-            .'|Section\s+\d|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bSubject\b|\bScale\s*[:\-]|\bRev(?:ision)?\s*[:\-]';
+        $stop = 'Specification(?:\s+Clause)?\s+Ref|Drawing\s+(?:No|Number|Ref(?:erence)?)|Local\s+Supplier'
+            .'|Received(?:\s+by)?|Enclosures?|Contractor(?:\'s)?\s+(?:Certification|Remarks)|B\.?O\.?Q\.?\s+Item'
+            .'|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref(?:\.?\s*No)?'
+            .'|Attachments?|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bScale\s*[:\-]|\bRev(?:ision)?\s*[:\-]'
+            .'|With\s+reference|Dear\s+Sir';
+        $descriptionStop = $stop.'|Manufacturer';
 
         foreach ($labels as $label) {
+            $useStop = preg_match('/TITLE\s*\/\s*SUBJECT|TITLE\s*(?:AND|OR)\s*SUBJECT/i', $label)
+                ? $stop
+                : $descriptionStop;
             if (! preg_match(
-                '/(?:^|\n)\s*'.$label.'\s*[:\-]?\s*(.+?)(?=(?:\n|\s+)(?:'.$stop.')|\z)/is',
+                '/(?:^|\n)\s*'.$label.'\s*[:\-]?\s*(.+?)(?=(?:\n|\s+)(?:'.$useStop.')|\z)/is',
                 $normalized,
                 $m
             )) {
@@ -967,7 +1062,7 @@ class DocumentFilenameParser
     protected static function trimSubjectAtNextFormField(string $subject): string
     {
         $cut = preg_split(
-            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?\.?|Manufacturer|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification)?|Section\s+\d|Submittal\s+N[ro]|LOA\s+N[ro]|\bDate\b)/i',
+            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|\bDate\b|With\s+reference)/i',
             $subject,
             2
         );
@@ -1285,14 +1380,40 @@ class DocumentFilenameParser
         $formBanner = $ocr !== '' ? self::extractFormBannerCategory($ocr) : 'Other';
 
         // Read the form title on the page first. Filename codes are only a fallback.
+        // Do not treat incidental body keywords (BOQ, RFI legend, letter-like labels) as the form title.
+        $insideCategory = 'Other';
         if ($formBanner !== 'Other') {
-            $category = $formBanner;
+            $insideCategory = $formBanner;
+        } elseif ($ocrHeadlineCategory !== 'Other'
+            && ! in_array($ocrHeadlineCategory, [
+                'Incoming Or Outgoing Letter',
+                'Request For Information',
+                'Engineers Instruction',
+                'BOQ Bill Of Quantities',
+                'Prequalification',
+            ], true)) {
+            $insideCategory = $ocrHeadlineCategory;
+        }
+
+        $incidentalContent = [
+            'BOQ Bill Of Quantities',
+            'Request For Information',
+            'Engineers Instruction',
+            'Incoming Or Outgoing Letter',
+            'Prequalification',
+        ];
+        if ($insideCategory !== 'Other') {
+            $category = $insideCategory;
             $source = 'ocr';
             $confidence = 0.93;
+        } elseif ($ocr !== '' && $contentCategory !== 'Other' && ! in_array($contentCategory, $incidentalContent, true)) {
+            $category = $contentCategory;
+            $source = 'ocr';
+            $confidence = 0.90;
         } elseif ($fileCategory !== 'Other') {
             $category = $fileCategory;
             $source = 'filename';
-            $confidence = $ocr !== '' ? 0.72 : 0.86;
+            $confidence = 0.86;
         } elseif ($contentCategory !== 'Other') {
             $category = $contentCategory;
             $source = 'ocr';
@@ -1314,6 +1435,7 @@ class DocumentFilenameParser
         // register code but full-window classification still finds a stronger type (e.g. T&C in body).
         // Work Inspection / MIR are NOT overridable: WIR forms often mention "shop drawings" or TOC
         // in comments/checklists, which must not move the file out of Work Inspection.
+        // If the page already has a form title, do not let filename-code rules move it.
         static $filenameCodesOverridableByOcr = [
             'Material Submittal',
             'Document Transmittal',
@@ -1327,7 +1449,8 @@ class DocumentFilenameParser
             'Material Submittal',
             'Payment Application',
         ];
-        if ($ocr !== ''
+        if ($insideCategory === 'Other'
+            && $ocr !== ''
             && $fileCategory !== 'Other'
             && in_array($fileCategory, $filenameCodesOverridableByOcr, true)) {
             $ocrOverride = 'Other';
@@ -1345,7 +1468,7 @@ class DocumentFilenameParser
             }
             if ($fileCategory === 'Material Submittal'
                 && ($hasStrongMaterialSignal || self::textLooksLikeMaterialSubmittal($ocr))
-                && $ocrOverride === 'BOQ Bill Of Quantities'
+                && in_array($ocrOverride, ['BOQ Bill Of Quantities', 'Prequalification'], true)
                 && ! $hasStrongBoqSignal) {
                 $ocrOverride = 'Other';
             }
@@ -1363,8 +1486,9 @@ class DocumentFilenameParser
             }
         }
 
-        // Filename register locks apply only when the page has no clear form title.
-        if ($formBanner === 'Other') {
+        // Filename register locks apply only when the page has no form title and
+        // we have not already classified from the document contents.
+        if ($insideCategory === 'Other' && $source !== 'ocr') {
             $ocrBeatsWir = in_array($contentCategory, ['Testing And Commissioning', 'Prequalification', 'Payment Application', 'Variation'], true)
                 || in_array($ocrHeadlineCategory, ['Testing And Commissioning', 'Prequalification', 'Payment Application', 'Variation'], true);
             $filenameHasOtherRegister = $hasStrongShopDrawingSignal
@@ -1412,7 +1536,8 @@ class DocumentFilenameParser
             }
         }
 
-        if ($ocr !== ''
+        if ($insideCategory === 'Other'
+            && $ocr !== ''
             && $fileCategory === 'Incoming Or Outgoing Letter'
             && ($ocrHeadlineCategory === 'Taking Over Certificate' || $contentCategory === 'Taking Over Certificate')) {
             $category = 'Taking Over Certificate';
@@ -1420,7 +1545,8 @@ class DocumentFilenameParser
             $confidence = max($confidence, 0.84);
         }
 
-        if ($ocr !== ''
+        if ($insideCategory === 'Other'
+            && $ocr !== ''
             && $fileCategory === 'Incoming Or Outgoing Letter'
             && ($ocrHeadlineCategory === 'Material Submittal' || $contentCategory === 'Material Submittal')) {
             $category = 'Material Submittal';
@@ -1428,7 +1554,8 @@ class DocumentFilenameParser
             $confidence = max($confidence, 0.84);
         }
 
-        if ($ocr !== ''
+        if ($insideCategory === 'Other'
+            && $ocr !== ''
             && $fileCategory === 'Incoming Or Outgoing Letter'
             && ($ocrHeadlineCategory === 'Engineers Instruction' || $contentCategory === 'Engineers Instruction')) {
             $category = 'Engineers Instruction';
@@ -1436,7 +1563,8 @@ class DocumentFilenameParser
             $confidence = max($confidence, 0.84);
         }
 
-        if ($ocr !== ''
+        if ($insideCategory === 'Other'
+            && $ocr !== ''
             && $fileCategory === 'Incoming Or Outgoing Letter'
             && ($ocrHeadlineCategory === 'Payment Application' || $contentCategory === 'Payment Application')) {
             $category = 'Payment Application';
@@ -1444,7 +1572,8 @@ class DocumentFilenameParser
             $confidence = max($confidence, 0.84);
         }
 
-        if ($ocr !== ''
+        if ($insideCategory === 'Other'
+            && $ocr !== ''
             && $fileCategory === 'Incoming Or Outgoing Letter'
             && ($ocrHeadlineCategory === 'Request For Information' || $contentCategory === 'Request For Information')) {
             $category = 'Request For Information';
@@ -1452,7 +1581,8 @@ class DocumentFilenameParser
             $confidence = max($confidence, 0.84);
         }
 
-        if ($ocr !== ''
+        if ($insideCategory === 'Other'
+            && $ocr !== ''
             && $fileCategory === 'Incoming Or Outgoing Letter'
             && ($ocrHeadlineCategory === 'BOQ Bill Of Quantities' || $contentCategory === 'BOQ Bill Of Quantities')) {
             $category = 'BOQ Bill Of Quantities';
@@ -1616,7 +1746,7 @@ class DocumentFilenameParser
         $hasTransmittalToken = (bool) preg_match('/\bDTF\b|\bDT\b|DOC\.?\s*TRANS|DOCUMENT\s*TRANSMITTAL|TRANSMITTAL\s*NOTE/i', $upper);
         // Register segment ...-L0002-24 sets letter heuristics; explicit material-submittal wording in the title must still win.
         $hasMaterialSubmittalKeyword = (bool) preg_match(
-            '/MATERIAL\s*(?:TECHNICAL\s*)?SUBMITTAL+|SUBMITTAL+\s+TITLE\s*[:\-]\s*MATERIAL|(?:COMMENT|COMMENTS?)\s+ON\s+MATERIAL\s+SUBMITTAL+|ENGINEER\s+COMMENT\s+ON\s+MATERIAL\s+SUBMITTAL+/i',
+            '/MATERIAL\s*(?:TECHNICAL\s*|APPROVAL\s*)?SUBMITTAL+|SUBMITTAL+\s+TITLE\s*[:\-]\s*MATERIAL|(?:COMMENT|COMMENTS?)\s+ON\s+MATERIAL\s+SUBMITTAL+|ENGINEER\s+COMMENT\s+ON\s+MATERIAL\s+SUBMITTAL+|TYPE\s+OF\s+SUBMITTAL[\s\S]{0,80}\bMAT\b/i',
             $upper
         );
 
@@ -1714,7 +1844,7 @@ class DocumentFilenameParser
         if (preg_match('/\bMOM\b|MINUTES\s*OF\s*(?:PROGRESS\s+)?MEETING|MINUTESOFMEETING/i', $upper)) {
             return 'MOM';
         }
-        if (self::textLooksLikePrequalification($upper)) {
+        if (self::textLooksLikePrequalification($upper) && ! $hasMaterialSubmittalKeyword) {
             return 'Prequalification';
         }
         if (self::textLooksLikeTestingAndCommissioning($upper)) {
@@ -2119,20 +2249,9 @@ class DocumentFilenameParser
      * Human-readable folder column: "Main folder / Subfolder" using stored document_type or filename parse.
      */
     /**
-     * Resolve the best "sub folder" label to display for a row, preferring
-     * a category derived from the filename (and OCR text when available)
-     * so the UI stays correct even when the stored document_type is stale,
-     * empty, or wrong.
-     *
-     * Rules, in order:
-     *  1. If OCR text is present and classifyForAutomation (or payment-body heuristics)
-     *     yield a confident category (>= 0.70), or a clear payment application from OCR,
-     *     use that.
-     *  2. Otherwise, parse the filename; if that yields only the generic letter bucket but the
-     *     stored document_type is a more specific subfolder (e.g. after reclassification),
-     *     prefer the stored value so the UI matches the database until OCR is available.
-     *  3. Otherwise, use the filename parse when it is non-Other.
-     *  4. Otherwise, fall back to the stored document_type.
+     * Resolve the best "sub folder" label to display for a row from the page
+     * contents when OCR is available. Filename is only used before the file
+     * has been read, or when the page has no form title.
      *
      * Rows locked by a manual upload always show the stored document_type.
      */
@@ -2144,23 +2263,25 @@ class DocumentFilenameParser
             return $type;
         }
 
-        if ($fileName !== null && $fileName !== '') {
-            $ocr = is_string($ocrText) && $ocrText !== '' ? $ocrText : null;
-            if ($ocr !== null) {
-                $auto = self::classifyForAutomation($fileName, $ocr);
-                $autoCat = (string) ($auto['document_category'] ?? '');
-                $autoConf = (float) ($auto['confidence'] ?? 0);
-                if ($autoCat === 'Incoming Or Outgoing Letter' && self::textLooksLikePaymentApplication($ocr)) {
-                    return 'Payment Application';
-                }
-                if ($autoCat !== '' && $autoCat !== 'Other' && $autoConf >= 0.70) {
-                    return $autoCat;
-                }
-                if (self::textLooksLikePaymentApplication($ocr)) {
-                    return 'Payment Application';
-                }
+        $ocr = is_string($ocrText) && trim($ocrText) !== '' ? $ocrText : null;
+        if ($ocr !== null && $fileName !== null && $fileName !== '') {
+            $auto = self::classifyForAutomation($fileName, $ocr);
+            $autoCat = (string) ($auto['document_category'] ?? '');
+            $autoConf = (float) ($auto['confidence'] ?? 0);
+            if ($autoCat === 'Incoming Or Outgoing Letter' && self::textLooksLikePaymentApplication($ocr)) {
+                return 'Payment Application';
+            }
+            if ($autoCat !== '' && $autoCat !== 'Other' && $autoConf >= 0.70) {
+                return $autoCat;
+            }
+            if (self::textLooksLikePaymentApplication($ocr)) {
+                return 'Payment Application';
             }
 
+            return $type;
+        }
+
+        if ($fileName !== null && $fileName !== '') {
             $parsed = self::parse($fileName);
             $cat = $parsed['document_category'] ?? null;
             if ($cat !== null && $cat !== '' && $cat !== 'Other') {

@@ -14,6 +14,7 @@ use App\Services\EntityContextService;
 use App\Services\CompanyEmailDomain;
 use App\Services\DocumentDeletionService;
 use App\Services\DocumentFilenameParser;
+use App\Services\OfficeDocumentTextExtractionService;
 use App\Services\PdfFirstPageOcrService;
 use App\Services\DocumentFileReplacer;
 use App\Services\DocumentFileVersioning;
@@ -246,12 +247,11 @@ class DocumentController extends Controller
             $targetProject = $project;
             $category = 'Other';
 
+            $extractedText = $this->extractUploadTextForClassification($file, $originalName);
             if ($uploadMode === 'manual') {
                 $category = $manualSubfolder;
             } else {
-                // In auto mode, keep prediction lightweight so upload returns quickly.
-                // OCR-based refinement still runs after upload via ProcessOCR.
-                $category = $this->predictUploadCategory($file, $originalName, $validSubfolders);
+                $category = $this->predictUploadCategory($file, $originalName, $validSubfolders, $extractedText);
             }
 
             $mainFolder = $uploadMode === 'manual'
@@ -405,6 +405,11 @@ class DocumentController extends Controller
                     continue;
                 }
 
+                if (! DocumentFileVersioning::isNewerFilename($originalName, (string) $survivor->file_name)) {
+                    $skippedDuplicates++;
+                    continue;
+                }
+
                 $replaced = app(DocumentFileReplacer::class)->replaceIncomingUpload(
                     $survivor,
                     $file,
@@ -463,6 +468,7 @@ class DocumentController extends Controller
                 'folder_locked' => $uploadMode === 'manual',
                 'file_name'     => $storedFileName,
                 'file_path'     => $path,
+                'ocr_text'      => $extractedText,
                 'modified_by_user_id' => Auth::id(),
             ]);
             UserActivityLogger::uploaded($document, ['upload_mode' => $uploadMode]);
@@ -1510,9 +1516,12 @@ class DocumentController extends Controller
      *
      * @param  array<int, string>  $validSubfolders
      */
-    protected function predictUploadCategory($file, string $originalName, array $validSubfolders): string
+    protected function predictUploadCategory($file, string $originalName, array $validSubfolders, ?string $extractedText = null): string
     {
-        $ocr = $this->extractUploadTextForClassification($file, $originalName);
+        $ocr = $extractedText;
+        if ($ocr === null) {
+            $ocr = $this->extractUploadTextForClassification($file, $originalName);
+        }
         $result = DocumentFilenameParser::classifyForAutomation($originalName, $ocr);
         $predicted = trim((string) ($result['document_category'] ?? 'Other'));
         if ($predicted === '' || ! in_array($predicted, $validSubfolders, true)) {
@@ -1530,12 +1539,14 @@ class DocumentController extends Controller
         }
 
         $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-        if ($ext !== 'pdf') {
+        if (! in_array($ext, ['pdf', 'docx', 'xlsx', 'doc', 'xls'], true)) {
             return null;
         }
 
         try {
-            $text = trim(app(PdfFirstPageOcrService::class)->extractFastText($path));
+            $text = $ext === 'pdf'
+                ? trim(app(PdfFirstPageOcrService::class)->extractTextForClassification($path))
+                : trim(app(OfficeDocumentTextExtractionService::class)->extractText($path, $ext));
 
             return $text !== '' ? $text : null;
         } catch (\Throwable $e) {

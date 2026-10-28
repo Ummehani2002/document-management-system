@@ -190,6 +190,21 @@ test('tanseeq mas of concrete is material submittal not sample', function () {
     expect($result['document_category'])->toBe('Material Submittal');
 });
 
+test('contractor letter goes to incoming or outgoing letter from the page text', function () {
+    $filename = 'P18S6G_N.PDF';
+    $ocr = "Date: 08.09.2023\nRef.: PSE20231012/NSK/SO/L0089/23\n"
+        ."Attention : Mr. George El Khoury - Sr. Project Manager\nDear Sir,\n"
+        ."Subject : Changes in the play Equipment's, Fitness Equipment's, Landscape Furniture's\n"
+        ."With reference to the aforementioned subject";
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($result['document_category'])->toBe('Incoming Or Outgoing Letter');
+    expect($meta['reference_no'])->toBe('PSE20231012/NSK/SO/L0089/23');
+    expect($meta['subject'])->toBe("Changes in the play Equipment's, Fitness Equipment's, Landscape Furniture's");
+});
+
 test('form title on the page wins over a conflicting filename code', function () {
     $filename = 'TVD-86774-WIM-PAR-MS-CVL-005-R01.pdf';
     $ocr = "MATERIAL SUBMITTALL\nSubmittal Nr: TVD-86774-WIM-PAR-MS-CVL-005-R01\nMaterial Description: Nivoplan plaster";
@@ -198,6 +213,19 @@ test('form title on the page wins over a conflicting filename code', function ()
 
     expect($result['document_category'])->toBe('Material Submittal');
     expect($result['category_source'])->toBe('ocr');
+});
+
+test('material submittal form wins over a shop drawing filename code', function () {
+    $filename = 'PBET-SPML-GCL-LSC-SD-970647 EXPANSION.pdf';
+    $ocr = "MATERIAL SUBMITTAL\nSubmittal Nr: TVD-86774-WIM-PAR-MS-CVL-005-R01\nMaterial Description: Nivoplan plaster";
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($result['document_category'])->toBe('Material Submittal');
+    expect($result['category_source'])->toBe('ocr');
+    expect($meta['reference_no'])->toBe('TVD-86774-WIM-PAR-MS-CVL-005-R01');
+    expect($meta['subject'])->toBe('Nivoplan plaster');
 });
 
 test('work inspection form title wins over st-for filename', function () {
@@ -217,13 +245,16 @@ test('tanseeq st for filename stays shop drawing when the page is not a wir form
     expect($result['document_category'])->toBe('Shop Drawing');
 });
 
-test('register-only filename keeps full reference and takes subject from drawing title', function () {
+test('ir form number is used as reference instead of the filename stem', function () {
     $filename = '3501B-IR-L-1822_R0_B_20260904.pdf';
     $ocr = "WORK INSPECTION REQUEST\nIR No.: 3501B-IR-L-1822\nDrawing Title: Softscape planting — Zone A\nDate: 04/09/2026";
 
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('3501B-IR-L-1822_R0_B_20260904');
+    expect($result['document_category'])->toBe('Work Inspection');
+    expect($result['reference_no'])->toBe('3501B-IR-L-1822');
+    expect($meta['reference_no'])->toBe('3501B-IR-L-1822');
     expect($meta['subject'])->toBe('Softscape planting — Zone A');
 });
 
@@ -250,7 +281,7 @@ test('material description from the file is used as subject', function () {
 
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('LSC-MAS-0605-01_B');
+    expect($meta['reference_no'])->toBe('LSC-MAS-0605-01');
     expect($meta['subject'])->toBe('Cast-in-situ concrete for hardscape areas');
 });
 
@@ -416,6 +447,38 @@ test('ir form ocr labels are not used as reference or subject', function () {
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
     expect($result['document_category'])->toBe('Work Inspection');
-    expect($meta['reference_no'])->toBe('3501B-IR-L-2022_R0_B_20260907');
+    expect($meta['reference_no'])->toBe('3501B-IR-L-2022');
     expect($meta['subject'])->toBe('Softscape planting inspection');
+});
+
+test('arada material submittal form is not prequalification and uses title subject', function () {
+    $filename = 'JH-LSC-MAT-HLS-PSC-PAR-0134_01_B1.pdf';
+    $ocr = "ARADA PARSONS PROSCAPE\nProject: Jouri Hills at Jumeirah Golf Estate\nMATERIAL SUBMITTAL\n"
+        ."Contract: Landscape Works\nRef. No: Date: 14-March-2026 Rev: 01\n"
+        ."JH-LSC-MAT-HLS-PSC-PAR-0134\n"
+        ."Contract Ref: ARADA/JH/CONT/6883\nConsultant Parsons Overseas Limited\n"
+        ."Contractor: Proscape LLC\nType of Submittal MAT Materials (Refer to attached Material Checklist Form)\n"
+        ."Title / Subject\nMaterial Submittal for P02 - Pavcrete 700 Exposed Aggregate Topping Color: 605 Sabalight Grey (25mm Topping) "
+        ."with 100 mm Thk Concrete (With 30/10 Concrete Mix) at Parks, Pools and Sikka Areas.\n"
+        ."Section A - Submittal Details\nDWG Ref: 351704-PAR-P121-LA-LS-DR-210005\n"
+        ."Prepared by: Mr. Prabhakar Misra\nDesignation: Project Manager";
+
+    $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($result['document_category'])->toBe('Material Submittal');
+    expect($result['category_source'])->toBe('ocr');
+    expect($meta['reference_no'])->toBe('JH-LSC-MAT-HLS-PSC-PAR-0134');
+    expect($meta['subject'])->toStartWith('Material Submittal for P02 - Pavcrete 700 Exposed Aggregate Topping');
+    expect(DocumentFilenameParser::folderSubLabel('Prequalification', $filename, $ocr))->toBe('Material Submittal');
+});
+
+test('after the page is read the full filename is not used as the reference', function () {
+    $filename = 'JH-LSC-MAT-HLS-PSC-PAR-0134_01_B1.pdf';
+    $ocr = "MATERIAL SUBMITTAL\nType of Submittal MAT\nTitle / Subject\nPavcrete topping\nSection A - Submittal Details";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->not->toBe('JH-LSC-MAT-HLS-PSC-PAR-0134_01_B1');
+    expect($meta['subject'])->toStartWith('Pavcrete topping');
 });
