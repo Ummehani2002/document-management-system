@@ -12,7 +12,9 @@ class IndexDocumentOcr extends Command
         {--sync : Run OCR synchronously instead of dispatching to queue}
         {--force : Re-run OCR even when ocr_text is already stored}
         {--project= : Limit to project_id}
-        {--id=* : Limit to document id(s), repeatable}';
+        {--id=* : Limit to document id(s), repeatable}
+        {--limit= : Max documents to process in this run}
+        {--max-seconds= : Stop after this many seconds and queue the rest}';
 
     protected $description = 'Index PDF/Office text into ocr_text so keyword search can match words inside the file.';
 
@@ -53,13 +55,31 @@ class IndexDocumentOcr extends Command
             return self::SUCCESS;
         }
 
+        $limit = max(0, (int) $this->option('limit'));
+        $maxSeconds = $this->option('max-seconds');
+        $maxSeconds = $maxSeconds === null || $maxSeconds === false || $maxSeconds === ''
+            ? ($this->option('sync') && ! $this->option('force') ? 90 : 0)
+            : max(0, (int) $maxSeconds);
+
         if ($this->option('sync')) {
+            config(['ocr.search_pages' => 1]);
             $this->info("Processing {$count} document(s) now (sync)...");
             $ok = 0;
             $empty = 0;
             $failed = 0;
+            $queued = 0;
+            $started = microtime(true);
 
             foreach ($idsToProcess as $id) {
+                $timedOut = $maxSeconds > 0 && (microtime(true) - $started) >= $maxSeconds;
+                $hitLimit = $limit > 0 && ($ok + $empty + $failed) >= $limit;
+                if ($timedOut || $hitLimit) {
+                    ProcessOCR::dispatch((int) $id);
+                    $queued++;
+
+                    continue;
+                }
+
                 try {
                     (new ProcessOCR((int) $id))->handle();
                     $doc = Document::find($id);
@@ -79,7 +99,10 @@ class IndexDocumentOcr extends Command
                 gc_collect_cycles();
             }
 
-            $this->info("Done. Indexed={$ok}, empty={$empty}, failed={$failed}.");
+            if ($queued > 0) {
+                $this->warn("Queued {$queued} remaining document(s) so deploy does not time out.");
+            }
+            $this->info("Done. Indexed={$ok}, empty={$empty}, failed={$failed}, queued={$queued}.");
         } else {
             foreach ($idsToProcess as $id) {
                 ProcessOCR::dispatch((int) $id);
