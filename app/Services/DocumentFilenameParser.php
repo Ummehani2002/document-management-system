@@ -1047,6 +1047,7 @@ class DocumentFilenameParser
             'TITLE\s*(?:AND|OR)\s*SUBJECT',
             'MATERIAL\s*DESCRIPTION',
             'DESCRIPTION\s+OF\s+MATERIALS?',
+            'ITEM\s+DESCRIPTION',
             'DRAWING\s*TITLE',
             'TITLE\s+OF\s+(?:THE\s+)?DRAWING',
             'DRAWING\s*DESCRIPTION',
@@ -1054,7 +1055,9 @@ class DocumentFilenameParser
             'WORK\s*DESCRIPTION',
             'NATURE\s+OF\s+WORKS?',
             'SCOPE\s+OF\s+WORKS?',
+            'LOCATION\s+OF\s+WORKS?',
             'MATERIALS?\s+FOR\s+INSPECTION',
+            'NATURE\s+OF\s+INSPECTION',
             'METHOD\s*STATEMENT\s*TITLE',
             'TITLE\s+OF\s+METHOD\s+STATEMENT',
             'DESCRIPTION\s+OF\s+ACTIVITY',
@@ -1070,11 +1073,11 @@ class DocumentFilenameParser
         $descriptionStop = $stop.'|Manufacturer';
 
         foreach ($labels as $label) {
-            $useStop = preg_match('/TITLE\s*\/\s*SUBJECT|TITLE\s*(?:AND|OR)\s*SUBJECT/i', $label)
+            $useStop = preg_match('~TITLE\s*/\s*SUBJECT|TITLE\s*(?:AND|OR)\s*SUBJECT~i', $label)
                 ? $stop
                 : $descriptionStop;
             if (! preg_match(
-                '/(?:^|\n)\s*'.$label.'\s*[:\-]?\s*(.+?)(?=(?:\n|\s+)(?:'.$useStop.')|\z)/is',
+                '~(?:^|\n)\s*'.$label.'\s*[:\-]?\s*(.+?)(?=(?:\n|\s+)(?:'.$useStop.')|\z)~is',
                 $normalized,
                 $m
             )) {
@@ -1179,6 +1182,23 @@ class DocumentFilenameParser
         $name = trim($nameWithoutExt);
         if ($name === '') {
             return ['reference_no' => '', 'subject' => ''];
+        }
+
+        // Tanseeq: 3501B-IR-L-1822_R0_B_20260904
+        // 3501B-MAR-L-026 R1_B_20260213 - Graphic Paving
+        if (preg_match(
+            '/^([A-Z0-9]+(?:-[A-Z0-9]+)+)[_\s]+R\d+_B(?:_\d{6,8})?(?:\s*-\s*(.+?))?(?:\s*\(\d+\))?$/iu',
+            $name,
+            $m
+        )) {
+            $ref = trim((string) $m[1]);
+            $right = self::cleanFilenameSubject(trim((string) ($m[2] ?? '')));
+            if (self::looksLikeRegisterCode($ref)) {
+                return [
+                    'reference_no' => $ref,
+                    'subject' => ($right !== '' && self::looksLikeDescriptiveSubject($right)) ? $right : '',
+                ];
+            }
         }
 
         // TVD-86774-WIM-PAR-MS-MEP-001-R00 Material Submittal…

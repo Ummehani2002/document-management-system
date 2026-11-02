@@ -261,7 +261,7 @@ test('ir form number is used as reference instead of the filename stem', functio
 test('register-only filename has no subject when the file has not been read', function () {
     $meta = DocumentFilenameParser::extractReferenceAndSubject(null, '3501B-IR-L-1822_R0_B_20260904.pdf');
 
-    expect($meta['reference_no'])->toBe('3501B-IR-L-1822_R0_B_20260904');
+    expect($meta['reference_no'])->toBe('3501B-IR-L-1822');
     expect($meta['subject'])->toBe('—');
 });
 
@@ -481,4 +481,22 @@ test('after the page is read the full filename is not used as the reference', fu
 
     expect($meta['reference_no'])->not->toBe('JH-LSC-MAT-HLS-PSC-PAR-0134_01_B1');
     expect($meta['subject'])->toStartWith('Pavcrete topping');
+});
+
+test('tanseeq revision filenames keep the register and take the title as subject', function () {
+    $meta = DocumentFilenameParser::extractReferenceAndSubject(
+        null,
+        '3501B-MAR-L-026 R1_B_20260213 - PT-03 Graphic Paving. In-situ Concrete (STREETBOND SB120) (2).pdf'
+    );
+
+    expect($meta['reference_no'])->toBe('3501B-MAR-L-026');
+    expect($meta['subject'])->toBe('PT-03 Graphic Paving. In-situ Concrete (STREETBOND SB120)');
+});
+
+test('title slash subject on the form is read even when ocr text is present', function () {
+    $ocr = "MATERIAL SUBMITTAL\nTitle / Subject\nGraphic Paving in-situ concrete\nSection A - Submittal Details";
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, '3501B-MAR-L-026 R1_B_20260213.pdf');
+
+    expect($meta['reference_no'])->toBe('3501B-MAR-L-026');
+    expect($meta['subject'])->toBe('Graphic Paving in-situ concrete');
 });
