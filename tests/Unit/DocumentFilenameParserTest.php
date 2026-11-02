@@ -258,6 +258,22 @@ test('ir form number is used as reference instead of the filename stem', functio
     expect($meta['subject'])->toBe('Softscape planting — Zone A');
 });
 
+test('work inspection subject comes from description of item area to be inspected', function () {
+    $filename = '3501B-IR-L-1822_R0_B_20260904.pdf';
+    $ocr = "WORK INSPECTION REQUEST\nIR No.: 3501B-IR-L-1822\n"
+        ."Description of item / area to be inspected\n"
+        ."Work inspection for Acrylic modified epoxy paint for Graphic paving (PT-03) works as per the attached highlighted drawings & photos in Area A\n"
+        ."Location of Works: Zone 3\nDrawing Title: Softscape planting — Zone A";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->toBe('3501B-IR-L-1822');
+    expect($meta['subject'])->toStartWith('Work inspection for Acrylic modified epoxy paint for Graphic paving (PT-03)');
+    expect($meta['subject'])->toContain('Area A');
+    expect($meta['subject'])->not->toContain('Location of Works');
+    expect($meta['subject'])->not->toBe('Softscape planting — Zone A');
+});
+
 test('register-only filename has no subject when the file has not been read', function () {
     $meta = DocumentFilenameParser::extractReferenceAndSubject(null, '3501B-IR-L-1822_R0_B_20260904.pdf');
 

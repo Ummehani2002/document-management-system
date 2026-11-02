@@ -1047,7 +1047,14 @@ class DocumentFilenameParser
             return $fromTitleAndDescription;
         }
 
+        $fromInspectionItem = self::extractInspectionItemDescriptionField($normalized);
+        if ($fromInspectionItem !== '') {
+            return $fromInspectionItem;
+        }
+
         $labels = [
+            'DESCRIPTION\s+OF\s+ITEM\s*/\s*AREA\s+TO\s+BE\s+INSPECTED',
+            'AREA\s+TO\s+BE\s+INSPECTED',
             'TITLE\s*/\s*SUBJECT',
             'TITLE\s*(?:AND|OR)\s*SUBJECT',
             'MATERIAL\s*DESCRIPTION',
@@ -1075,7 +1082,8 @@ class DocumentFilenameParser
             .'|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref(?:\.?\s*No)?'
             .'|Attachments?|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bScale\s*[:\-]|\bRev(?:ision)?\s*[:\-]'
             .'|With\s+reference|Dear\s+Sir';
-        $descriptionStop = $stop.'|Manufacturer|Purpose\s*(?:&(?:amp;)?|AND)\s*Location|Submittal\s+Checklist|Table\s+of\s+Contents';
+        $descriptionStop = $stop.'|Manufacturer|Purpose\s*(?:&(?:amp;)?|AND)\s*Location|Submittal\s+Checklist|Table\s+of\s+Contents'
+            .'|Location\s+of\s+(?:the\s+)?(?:item|works?|area)|Nature\s+of\s+Inspection|Requested\s+(?:by|date)|Inspection\s+Date';
 
         foreach ($labels as $label) {
             if (! preg_match(
@@ -1133,6 +1141,44 @@ class DocumentFilenameParser
 
         $candidate = trim(preg_replace('/\s+/', ' ', $chunk) ?? '');
         $candidate = trim($candidate, " \t:-");
+        if ($candidate === '' || self::isJunkSubject($candidate)) {
+            return '';
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * WIR/IR: only the Description of item / area to be inspected box.
+     */
+    protected static function extractInspectionItemDescriptionField(string $normalized): string
+    {
+        if (! preg_match(
+            '~(?:^|\n)\s*DESCRIPTION\s+OF\s+ITEM\s*/\s*AREA\s+TO\s+BE\s+INSPECTED\s*[:\-]?\s*~i',
+            $normalized,
+            $m,
+            PREG_OFFSET_CAPTURE
+        )) {
+            return '';
+        }
+
+        $start = (int) $m[0][1] + strlen($m[0][0]);
+        $chunk = substr($normalized, $start, 700);
+        $nextField = 'Location\s+of\s+(?:the\s+)?(?:item|works?|area)'
+            .'|Drawing\s*(?:No|Number|Title|Ref)'
+            .'|Nature\s+of\s+Inspection'
+            .'|Requested\s+(?:by|date)'
+            .'|Inspection\s+Date'
+            .'|Type\s+of\s+Inspection'
+            .'|Name\s+of\s+Inspector'
+            .'|Submitted\s+by'
+            .'|Received\s+(?:by|from)'
+            .'|Table\s+of\s+Contents';
+        $parts = preg_split('~(?:\n|\s+)(?:'.$nextField.')~i', $chunk, 2);
+        $chunk = (string) ($parts[0] ?? $chunk);
+
+        $candidate = trim(preg_replace('/\s+/', ' ', $chunk) ?? '');
+        $candidate = trim($candidate, " \t:-_");
         if ($candidate === '' || self::isJunkSubject($candidate)) {
             return '';
         }
