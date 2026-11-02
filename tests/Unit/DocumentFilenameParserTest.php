@@ -516,3 +516,37 @@ test('title and description on the form is used as the subject', function () {
         'PT-03 Graphic Paving, In-situ Concrete (STREETBOND SB120) , 120mm thick, Color 1: SR Irish Cream, Color 2: SR Sun Baked Clay, Color 3: Cobalt Blue, Color 4: Gun Metal'
     );
 });
+
+test('title and description is not replaced by the rest of the pdf', function () {
+    $filename = '3501B-MAR-L-026 R1_B_20260213 - PT-03 Graphic Paving. In-situ Concrete (STREETBOND SB120) (2).pdf';
+    $ocr = "TECHNICAL SUBMISSION\nProject No. 3501B Sub. Ref. MAR\n"
+        ."Title & Description : Contract Doc. Ref. :\n"
+        ."PT-03 Graphic Paving, In-situ Concrete (STREETBOND SB120) ,\n"
+        ."120mm thick, Color 1: SR Irish Cream, Color 2: SR Sun Baked Clay,\n"
+        ."Color 3: Cobalt Blue, Color 4: Gun Metal\n"
+        ."Purpose & Location : Ground, First & Second Floor\n"
+        ."Manufacturer/ Supplier : M/s. GAF / TANSEEQ PROJECTS L.L.C\n"
+        ."MATERIAL SUBMITTAL Table of Contents 1. COMPANY PROFILE .......... 3 2. TRADE LICENSE\n"
+        ."4 3. PROJECT REFERENCE LIST .......... 5 4. PROJECT SPECIFICATION";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->toBe('3501B-MAR-L-026');
+    expect($meta['subject'])->toBe(
+        'PT-03 Graphic Paving, In-situ Concrete (STREETBOND SB120) , 120mm thick, Color 1: SR Irish Cream, Color 2: SR Sun Baked Clay, Color 3: Cobalt Blue, Color 4: Gun Metal'
+    );
+    expect($meta['subject'])->not->toContain('Table of Contents');
+    expect($meta['subject'])->not->toContain('COMPANY PROFILE');
+});
+
+test('table of contents pages are not used as the subject', function () {
+    $filename = '3501B-MAR-L-026 R1_B_20260213 - PT-03 Graphic Paving. In-situ Concrete (STREETBOND SB120) (2).pdf';
+    $ocr = "Manufacturer Supplier STREETBOND SB120 GAF TANSEEQ PROJECTS L.L.C MATERIAL SUBMITTAL "
+        ."Table of Contents 1. COMPANY PROFILE .......... 3 2. TRADE LICENSE .......... 4 "
+        ."3. PROJECT REFERENCE LIST .......... 5";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['subject'])->toBe('PT-03 Graphic Paving. In-situ Concrete (STREETBOND SB120)');
+    expect($meta['subject'])->not->toContain('Table of Contents');
+});

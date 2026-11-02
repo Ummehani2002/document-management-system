@@ -1042,8 +1042,12 @@ class DocumentFilenameParser
      */
     protected static function extractLabeledSubject(string $normalized): string
     {
+        $fromTitleAndDescription = self::extractTitleAndDescriptionField($normalized);
+        if ($fromTitleAndDescription !== '') {
+            return $fromTitleAndDescription;
+        }
+
         $labels = [
-            'TITLE\s*(?:&(?:amp;)?|AND)\s*DESCRIPTION',
             'TITLE\s*/\s*SUBJECT',
             'TITLE\s*(?:AND|OR)\s*SUBJECT',
             'MATERIAL\s*DESCRIPTION',
@@ -1071,15 +1075,11 @@ class DocumentFilenameParser
             .'|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref(?:\.?\s*No)?'
             .'|Attachments?|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bScale\s*[:\-]|\bRev(?:ision)?\s*[:\-]'
             .'|With\s+reference|Dear\s+Sir';
-        $descriptionStop = $stop.'|Manufacturer';
-        $titleDescriptionStop = $stop.'|Manufacturer|Quantity|Brand(?:\s+Name)?|Country\s+of\s+Origin';
+        $descriptionStop = $stop.'|Manufacturer|Purpose\s*(?:&(?:amp;)?|AND)\s*Location|Submittal\s+Checklist|Table\s+of\s+Contents';
 
         foreach ($labels as $label) {
-            $useStop = preg_match('~TITLE\s*(?:/|&(?:amp;)?|AND|OR)\s*(?:SUBJECT|DESCRIPTION)~i', $label)
-                ? $titleDescriptionStop
-                : $descriptionStop;
             if (! preg_match(
-                '~(?:^|\n)\s*'.$label.'\s*[:\-]?\s*(.+?)(?=(?:\n|\s+)(?:'.$useStop.')|\z)~is',
+                '~(?:^|\n)\s*'.$label.'\s*[:\-]?\s*(.{1,700}?)(?=(?:\n|\s+)(?:'.$descriptionStop.')|\z)~is',
                 $normalized,
                 $m
             )) {
@@ -1097,12 +1097,56 @@ class DocumentFilenameParser
     }
 
     /**
+     * MAR/technical submission: only the Title & Description box, not later pages.
+     */
+    protected static function extractTitleAndDescriptionField(string $normalized): string
+    {
+        if (! preg_match(
+            '~(?:^|\n)\s*TITLE\s*(?:&(?:amp;)?|＆|AND|/|\+)\s*DESCRIPTION\s*[:\-]?\s*~i',
+            $normalized,
+            $m,
+            PREG_OFFSET_CAPTURE
+        )) {
+            return '';
+        }
+
+        $start = (int) $m[0][1] + strlen($m[0][0]);
+        $chunk = substr($normalized, $start, 900);
+        $nextField = 'Purpose\s*(?:&(?:amp;)?|AND)\s*Location'
+            .'|Manufacturer\s*/?\s*Supplier'
+            .'|Spec(?:ification)?\.?\s*Sec(?:tion)?'
+            .'|Submittal\s+Checklist'
+            .'|Contractor\'?s?\s+Confirmation'
+            .'|BOQ\s*Item'
+            .'|Drawing\s*Ref'
+            .'|Sub\s*Contractor'
+            .'|Received\s+(?:by|from)'
+            .'|Submitted\s+by'
+            .'|Table\s+of\s+Contents';
+        $parts = preg_split('~(?:\n|\s+)(?:'.$nextField.')~i', $chunk, 2);
+        $chunk = (string) ($parts[0] ?? $chunk);
+        $chunk = preg_replace(
+            '~\s*Contract\s+Doc(?:ument)?\.?\s*Ref(?:erence)?\.?\s*[:\-]?\s*~i',
+            ' ',
+            $chunk
+        ) ?? $chunk;
+
+        $candidate = trim(preg_replace('/\s+/', ' ', $chunk) ?? '');
+        $candidate = trim($candidate, " \t:-");
+        if ($candidate === '' || self::isJunkSubject($candidate)) {
+            return '';
+        }
+
+        return $candidate;
+    }
+
+    /**
      * Table OCR often continues into the next label (Specification, Drawing Ref, Manufacturer).
      */
     protected static function trimSubjectAtNextFormField(string $subject): string
     {
         $cut = preg_split(
-            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|\bDate\b|With\s+reference)/i',
+            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|Purpose\s*(?:&|AND)\s*Location|Manufacturer\s*\/?\s*Supplier|Submittal\s+Checklist|Table\s+of\s+Contents|\bDate\b|With\s+reference)/i',
             $subject,
             2
         );
@@ -1148,6 +1192,9 @@ class DocumentFilenameParser
         if (preg_match('/^(?:date|ref(?:erence)?)\s*[:\-]/i', $value)) {
             return true;
         }
+        if (self::looksLikeContentsDump($value)) {
+            return true;
+        }
 
         $withoutCodes = preg_replace(
             '/[A-Z]{2,}-\d{3,}(?:-[A-Z0-9]+)+|\d{1,2}-[A-Za-z]{3}-\d{2,4}|\b\d{4,}\b/',
@@ -1172,6 +1219,27 @@ class DocumentFilenameParser
         }
 
         return $real === 0 || ($real <= 1 && $tiny >= 2);
+    }
+
+    /**
+     * Attached catalogues / later PDF pages must not become the Search subject.
+     */
+    protected static function looksLikeContentsDump(string $value): bool
+    {
+        if (preg_match('/table\s+of\s+contents|company\s+profile|trade\s+license|project\s+reference\s+list|technical\s+data\s+sheets|compliance\s+statement/i', $value)) {
+            return true;
+        }
+        if (preg_match('/\.{4,}\s*\d+/', $value)) {
+            return true;
+        }
+        if (preg_match('/^(?:manufacturer|supplier)\b/i', $value) && preg_match('/material\s+submittal|tanseeq|company\s+profile/i', $value)) {
+            return true;
+        }
+        if (mb_strlen($value) > 420) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
