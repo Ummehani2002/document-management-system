@@ -1038,11 +1038,12 @@ class DocumentFilenameParser
     }
 
     /**
-     * Read Material Description / Drawing Title / Description of Works until the next form box.
+     * Read Title & Description / Material Description / Drawing Title until the next form box.
      */
     protected static function extractLabeledSubject(string $normalized): string
     {
         $labels = [
+            'TITLE\s*(?:&(?:amp;)?|AND)\s*DESCRIPTION',
             'TITLE\s*/\s*SUBJECT',
             'TITLE\s*(?:AND|OR)\s*SUBJECT',
             'MATERIAL\s*DESCRIPTION',
@@ -1071,10 +1072,11 @@ class DocumentFilenameParser
             .'|Attachments?|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bScale\s*[:\-]|\bRev(?:ision)?\s*[:\-]'
             .'|With\s+reference|Dear\s+Sir';
         $descriptionStop = $stop.'|Manufacturer';
+        $titleDescriptionStop = $stop.'|Manufacturer|Quantity|Brand(?:\s+Name)?|Country\s+of\s+Origin';
 
         foreach ($labels as $label) {
-            $useStop = preg_match('~TITLE\s*/\s*SUBJECT|TITLE\s*(?:AND|OR)\s*SUBJECT~i', $label)
-                ? $stop
+            $useStop = preg_match('~TITLE\s*(?:/|&(?:amp;)?|AND|OR)\s*(?:SUBJECT|DESCRIPTION)~i', $label)
+                ? $titleDescriptionStop
                 : $descriptionStop;
             if (! preg_match(
                 '~(?:^|\n)\s*'.$label.'\s*[:\-]?\s*(.+?)(?=(?:\n|\s+)(?:'.$useStop.')|\z)~is',

@@ -500,3 +500,19 @@ test('title slash subject on the form is read even when ocr text is present', fu
     expect($meta['reference_no'])->toBe('3501B-MAR-L-026');
     expect($meta['subject'])->toBe('Graphic Paving in-situ concrete');
 });
+
+test('title and description on the form is used as the subject', function () {
+    $filename = '3501B-MAR-L-026 R1_B_20260213 - PT-03 Graphic Paving. In-situ Concrete (STREETBOND SB120) (2).pdf';
+    $ocr = "MATERIAL APPROVAL REQUEST\nRef. No.: 3501B-MAR-L-026\n"
+        ."Title & Description : PT-03 Graphic Paving, In-situ Concrete (STREETBOND SB120) ,\n"
+        ."120mm thick, Color 1: SR Irish Cream, Color 2: SR Sun Baked Clay,\n"
+        ."Color 3: Cobalt Blue, Color 4: Gun Metal\n"
+        ."Specification Clause Ref. SECTION 32 13 13";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->toBe('3501B-MAR-L-026');
+    expect($meta['subject'])->toBe(
+        'PT-03 Graphic Paving, In-situ Concrete (STREETBOND SB120) , 120mm thick, Color 1: SR Irish Cream, Color 2: SR Sun Baked Clay, Color 3: Cobalt Blue, Color 4: Gun Metal'
+    );
+});
