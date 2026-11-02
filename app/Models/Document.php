@@ -75,11 +75,17 @@ class Document extends Model
      */
     public function getDisplayFolderAttribute(): string
     {
-        return DocumentFilenameParser::folderSubLabel(
-            $this->document_type,
-            $this->file_name,
-            $this->ocr_text,
-            (bool) $this->folder_locked
-        );
+        try {
+            return DocumentFilenameParser::folderSubLabel(
+                $this->document_type,
+                $this->file_name,
+                $this->ocr_text,
+                (bool) $this->folder_locked
+            );
+        } catch (\Throwable $e) {
+            $type = trim((string) $this->document_type);
+
+            return $type !== '' ? $type : '—';
+        }
     }
 }

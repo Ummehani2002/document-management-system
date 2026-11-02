@@ -628,9 +628,24 @@ class DocumentFilenameParser
     /**
      * Normalize OCR output for safer keyword/code matching across noisy layouts.
      */
+    protected static function sanitizeOcrText(string $text): string
+    {
+        $text = str_replace("\0", '', $text);
+        if (function_exists('mb_scrub')) {
+            return mb_scrub($text, 'UTF-8');
+        }
+        if (! mb_check_encoding($text, 'UTF-8')) {
+            $converted = @iconv('UTF-8', 'UTF-8//IGNORE', $text);
+
+            return is_string($converted) ? $converted : '';
+        }
+
+        return $text;
+    }
+
     protected static function normalizeOcrText(string $text): string
     {
-        $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+        $normalized = str_replace(["\r\n", "\r"], "\n", self::sanitizeOcrText($text));
         $normalized = preg_replace('/[ \t]+/', ' ', $normalized) ?? $normalized;
 
         // Join OCR outputs like "M A T E R I A L S" into "MATERIALS".
@@ -778,10 +793,30 @@ class DocumentFilenameParser
      */
     public static function extractReferenceAndSubject(?string $ocrText, string $fileName): array
     {
+        try {
+            return self::extractReferenceAndSubjectFromText($ocrText, $fileName);
+        } catch (\Throwable $e) {
+            $name = pathinfo($fileName, PATHINFO_FILENAME);
+
+            return [
+                'reference_no' => $name !== '' ? $name : '—',
+                'subject' => '—',
+            ];
+        }
+    }
+
+    /**
+     * @return array{reference_no:string, subject:string}
+     */
+    protected static function extractReferenceAndSubjectFromText(?string $ocrText, string $fileName): array
+    {
         $referenceNo = '';
         $subject = '';
 
-        $ocr = trim((string) $ocrText);
+        $ocr = trim(self::sanitizeOcrText((string) $ocrText));
+        if (strlen($ocr) > 25000) {
+            $ocr = substr($ocr, 0, 25000);
+        }
         if ($ocr !== '') {
             $normalized = self::normalizeOcrText($ocr);
 
@@ -1304,7 +1339,10 @@ class DocumentFilenameParser
     public static function classifyForAutomation(string $filename, ?string $ocrText): array
     {
         $fileCategory = self::parse($filename)['document_category'] ?? 'Other';
-        $ocr = trim((string) $ocrText);
+        $ocr = trim(self::sanitizeOcrText((string) $ocrText));
+        if (strlen($ocr) > 25000) {
+            $ocr = substr($ocr, 0, 25000);
+        }
         $contentCategory = $ocr !== '' ? self::guessSubfolderFromDocumentText($ocr) : 'Other';
         $ocrHeadlineCategory = $ocr !== '' ? self::guessSubfolderFromOcrHeadingsOnly($ocr) : 'Other';
         $upperName = strtoupper(pathinfo($filename, PATHINFO_FILENAME));
@@ -2302,20 +2340,32 @@ class DocumentFilenameParser
 
     public static function folderDisplayLabel(?string $documentType, ?string $fileName = null, ?string $ocrText = null, bool $folderLocked = false): string
     {
-        $type = self::resolveSubLabel($documentType, $fileName, $ocrText, $folderLocked);
-        if ($type === null) {
-            return '—';
-        }
-        $main = self::mainFolderForDocumentType($type);
+        try {
+            $type = self::resolveSubLabel($documentType, $fileName, $ocrText, $folderLocked);
+            if ($type === null) {
+                return '—';
+            }
+            $main = self::mainFolderForDocumentType($type);
 
-        return $main !== null ? $main.' / '.$type : $type;
+            return $main !== null ? $main.' / '.$type : $type;
+        } catch (\Throwable $e) {
+            $type = $documentType !== null && trim($documentType) !== '' ? trim($documentType) : null;
+
+            return $type ?? '—';
+        }
     }
 
     public static function folderSubLabel(?string $documentType, ?string $fileName = null, ?string $ocrText = null, bool $folderLocked = false): string
     {
-        $type = self::resolveSubLabel($documentType, $fileName, $ocrText, $folderLocked);
+        try {
+            $type = self::resolveSubLabel($documentType, $fileName, $ocrText, $folderLocked);
 
-        return $type !== null && $type !== '' ? $type : '—';
+            return $type !== null && $type !== '' ? $type : '—';
+        } catch (\Throwable $e) {
+            $type = $documentType !== null && trim($documentType) !== '' ? trim($documentType) : null;
+
+            return $type !== null && $type !== '' ? $type : '—';
+        }
     }
 
     /**
