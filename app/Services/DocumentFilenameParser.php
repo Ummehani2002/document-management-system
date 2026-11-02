@@ -1105,12 +1105,12 @@ class DocumentFilenameParser
     }
 
     /**
-     * MAR/technical submission: only the Title & Description box, not later pages.
+     * MAR/MIR/technical submission: only the Title & Description box, not later pages.
      */
     protected static function extractTitleAndDescriptionField(string $normalized): string
     {
         if (! preg_match(
-            '~(?:^|\n)\s*TITLE\s*(?:&(?:amp;)?|＆|AND|/|\+)\s*DESCRIPTION\s*[:\-]?\s*~i',
+            '~TITLE\s*(?:&(?:amp;)?|＆|AND|/|\+|8)\s*DESCR[I1]PTION\s*[:\-]?\s*~i',
             $normalized,
             $m,
             PREG_OFFSET_CAPTURE
@@ -1119,33 +1119,27 @@ class DocumentFilenameParser
         }
 
         $start = (int) $m[0][1] + strlen($m[0][0]);
-        $chunk = substr($normalized, $start, 900);
-        $nextField = 'Purpose\s*(?:&(?:amp;)?|AND)\s*Location'
-            .'|Manufacturer\s*/?\s*Supplier'
-            .'|Spec(?:ification)?\.?\s*Sec(?:tion)?'
-            .'|Submittal\s+Checklist'
-            .'|Contractor\'?s?\s+Confirmation'
-            .'|BOQ\s*Item'
-            .'|Drawing\s*Ref'
-            .'|Sub\s*Contractor'
-            .'|Received\s+(?:by|from)'
-            .'|Submitted\s+by'
-            .'|Table\s+of\s+Contents';
-        $parts = preg_split('~(?:\n|\s+)(?:'.$nextField.')~i', $chunk, 2);
-        $chunk = (string) ($parts[0] ?? $chunk);
-        $chunk = preg_replace(
-            '~\s*Contract\s+Doc(?:ument)?\.?\s*Ref(?:erence)?\.?\s*[:\-]?\s*~i',
-            ' ',
-            $chunk
-        ) ?? $chunk;
+        $chunk = substr($normalized, $start, 2200);
 
-        $candidate = trim(preg_replace('/\s+/', ' ', $chunk) ?? '');
-        $candidate = trim($candidate, " \t:-");
-        if ($candidate === '' || self::isJunkSubject($candidate)) {
-            return '';
-        }
-
-        return $candidate;
+        return self::collectSubjectFromFieldWindow($chunk, [
+            'Purpose\s*(?:&(?:amp;)?|AND)\s*Location',
+            'Manufacturer\s*/?\s*Supplier',
+            'Spec(?:ification)?\.?\s*Sec(?:tion)?(?:\s*and\s*Clause)?',
+            'Submittal\s+Checklist',
+            'Contractor\'?s?\s+Confirmation',
+            'BOQ\s*Item',
+            'Drawing\s*Ref',
+            'Sub\s*Contractor',
+            'Attached\s+MAR\s*Ref',
+            'You\s+are\s+hereby',
+            'Inspection\s+Date',
+            'Item\s+No',
+            'Received\s+(?:by|from)',
+            'Submitted\s+by',
+            'Table\s+of\s+Contents',
+            'Contract\s+Doc(?:ument)?\.?\s*Ref(?:erence)?',
+            'Specification(?:\s+Clause)?\s+Ref',
+        ]);
     }
 
     /**
@@ -1154,7 +1148,7 @@ class DocumentFilenameParser
     protected static function extractInspectionItemDescriptionField(string $normalized): string
     {
         if (! preg_match(
-            '~(?:^|\n)\s*DESCRIPTION\s+OF\s+ITEM\s*/\s*AREA\s+TO\s+BE\s+INSPECTED\s*[:\-]?\s*~i',
+            '~DESCRIPTION\s+OF\s+ITEM\s*/\s*AREA\s+TO\s+BE\s+INSPECTED\s*[:\-]?\s*~i',
             $normalized,
             $m,
             PREG_OFFSET_CAPTURE
@@ -1163,22 +1157,58 @@ class DocumentFilenameParser
         }
 
         $start = (int) $m[0][1] + strlen($m[0][0]);
-        $chunk = substr($normalized, $start, 700);
-        $nextField = 'Location\s+of\s+(?:the\s+)?(?:item|works?|area)'
-            .'|Drawing\s*(?:No|Number|Title|Ref)'
-            .'|Nature\s+of\s+Inspection'
-            .'|Requested\s+(?:by|date)'
-            .'|Inspection\s+Date'
-            .'|Type\s+of\s+Inspection'
-            .'|Name\s+of\s+Inspector'
-            .'|Submitted\s+by'
-            .'|Received\s+(?:by|from)'
-            .'|Table\s+of\s+Contents';
-        $parts = preg_split('~(?:\n|\s+)(?:'.$nextField.')~i', $chunk, 2);
-        $chunk = (string) ($parts[0] ?? $chunk);
+        $chunk = substr($normalized, $start, 1600);
 
-        $candidate = trim(preg_replace('/\s+/', ' ', $chunk) ?? '');
-        $candidate = trim($candidate, " \t:-_");
+        return self::collectSubjectFromFieldWindow($chunk, [
+            'Location\s+of\s+(?:the\s+)?(?:item|works?|area)',
+            'Drawing\s*(?:No|Number|Title|Ref)',
+            'Nature\s+of\s+Inspection',
+            'Requested\s+(?:by|date)',
+            'Inspection\s+Date',
+            'Type\s+of\s+Inspection',
+            'Name\s+of\s+Inspector',
+            'Submitted\s+by',
+            'Received\s+(?:by|from)',
+            'Table\s+of\s+Contents',
+        ]);
+    }
+
+    /**
+     * Two-column forms often put the next label immediately after the field name.
+     * Skip those labels until the filled-in wording, then stop at the next box.
+     *
+     * @param  list<string>  $stopLabels
+     */
+    protected static function collectSubjectFromFieldWindow(string $chunk, array $stopLabels): string
+    {
+        $stop = implode('|', $stopLabels);
+        $chunk = preg_replace('~Contract\s+Doc(?:ument)?\.?\s*Ref(?:erence)?\.?\s*[:\-]?~i', "\n", $chunk) ?? $chunk;
+        $chunk = preg_replace('~(?<=\S)\s+(?=(?:'.$stop.')\b)~i', "\n", $chunk) ?? $chunk;
+
+        $collected = [];
+        foreach (preg_split('/\n+/', $chunk) ?: [] as $line) {
+            $line = trim(preg_replace('/\s+/', ' ', $line) ?? '');
+            $line = trim($line, " \t:-");
+            if ($line === '') {
+                continue;
+            }
+
+            $isStop = (bool) preg_match('~^(?:'.$stop.')\b~i', $line);
+            if ($isStop) {
+                if ($collected !== []) {
+                    break;
+                }
+                continue;
+            }
+
+            $collected[] = $line;
+            if (mb_strlen(implode(' ', $collected)) > 400) {
+                break;
+            }
+        }
+
+        $candidate = trim(implode(' ', $collected));
+        $candidate = self::cleanOcrSubject($candidate);
         if ($candidate === '' || self::isJunkSubject($candidate)) {
             return '';
         }

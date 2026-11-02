@@ -555,6 +555,27 @@ test('title and description is not replaced by the rest of the pdf', function ()
     expect($meta['subject'])->not->toContain('COMPANY PROFILE');
 });
 
+test('material inspection request subject comes from title and description', function () {
+    $filename = '3501B-MIR-L-061_R0_B_20260819.pdf';
+    $ocr = "MATERIAL INSPECTION REQUEST\nProject No. 3501B Sub. Ref. MIR Contractor Ref. 061\n"
+        ."Title & Description : Contract Doc. Ref. :\n"
+        ."Purpose & Location : Landscape areas\n"
+        ."Spec. Sec. and Clause : Fluid applied resinous flooring 096700\n"
+        ."Manufacturer/ Supplier : M/s. TANSEEQ PROJECTS L.L.C\n"
+        ."Material Inspection for (PT-03) Graphic Paving, In-situ Concrete (STREETBOND SB120)\n"
+        ."Color 1: SR Irish Cream, Color 2: SR Sun Baked Clay, Color 3: Cobalt Blue, Color 4: Gun Metal, Color 5: Avocado (Green)\n"
+        ."You are hereby Requested to Inspect Material as Listed below:\n"
+        ."Inspection Date: 01-Aug-2026";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->toBe('3501B-MIR-L-061');
+    expect($meta['subject'])->toStartWith('Material Inspection for (PT-03) Graphic Paving');
+    expect($meta['subject'])->toContain('Avocado (Green)');
+    expect($meta['subject'])->not->toContain('Landscape areas');
+    expect($meta['subject'])->not->toContain('You are hereby');
+});
+
 test('table of contents pages are not used as the subject', function () {
     $filename = '3501B-MAR-L-026 R1_B_20260213 - PT-03 Graphic Paving. In-situ Concrete (STREETBOND SB120) (2).pdf';
     $ocr = "Manufacturer Supplier STREETBOND SB120 GAF TANSEEQ PROJECTS L.L.C MATERIAL SUBMITTAL "
