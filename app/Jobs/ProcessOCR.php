@@ -63,15 +63,22 @@ class ProcessOCR implements ShouldQueue
 
                 $text = '';
                 if ($ext === 'pdf') {
-                    $text = app(PdfFirstPageOcrService::class)->extractTextForSearch($tempPath);
+                    // Classification path OCRs page 1 of Sharp/scanned forms (Flate+DCT JPEGs).
+                    $ocr = app(PdfFirstPageOcrService::class);
+                    $text = $ocr->extractTextForClassification($tempPath);
                     if (trim($text) === '') {
-                        $text = app(PdfFirstPageOcrService::class)->extractTextForClassification($tempPath);
+                        $text = $ocr->extractTextForSearch($tempPath);
                     }
                 } elseif (in_array($ext, ['docx', 'xlsx', 'doc', 'xls'], true)) {
                     $text = app(OfficeDocumentTextExtractionService::class)->extractText($tempPath, $ext);
                 }
 
                 $document->update(['ocr_text' => $text]);
+                \Log::info('ProcessOCR stored text', [
+                    'document_id' => $document->id,
+                    'chars' => strlen(trim($text)),
+                    'has_material_description' => (bool) preg_match('/Material\s+Description/i', $text),
+                ]);
             } catch (\Throwable $e) {
                 \Log::warning('ProcessOCR text extraction failed (folder will use whatever text is already stored)', [
                     'document_id' => $document->id,

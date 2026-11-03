@@ -946,13 +946,7 @@ class DocumentDirectUploadController extends Controller
 
     protected function dispatchProcessOcr(int $documentId, bool $preserveFolder = false): void
     {
-        $sync = config('queue.default') === 'sync';
-        $envSync = filter_var(env('DMS_OCR_SYNC_ON_UPLOAD', false), FILTER_VALIDATE_BOOLEAN);
-        if ($sync || $envSync) {
-            (new ProcessOCR($documentId, $preserveFolder))->handle();
-
-            return;
-        }
-        ProcessOCR::dispatch($documentId, $preserveFolder)->afterResponse();
+        // Always OCR in-process so scanned MIR/IR subjects are stored without a queue worker.
+        (new ProcessOCR($documentId, $preserveFolder))->handle();
     }
 }

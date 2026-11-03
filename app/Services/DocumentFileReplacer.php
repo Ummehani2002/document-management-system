@@ -181,16 +181,8 @@ class DocumentFileReplacer
 
     protected function dispatchProcessOcr(int $documentId, bool $preserveFolder = false): void
     {
-        $inline = config('queue.default') === 'sync'
-            || filter_var(env('DMS_OCR_SYNC_ON_UPLOAD', false), FILTER_VALIDATE_BOOL);
-
         try {
-            if ($inline) {
-                (new ProcessOCR($documentId, $preserveFolder))->handle();
-
-                return;
-            }
-            ProcessOCR::dispatch($documentId, $preserveFolder)->afterResponse();
+            (new ProcessOCR($documentId, $preserveFolder))->handle();
         } catch (\Throwable $e) {
             Log::warning('ProcessOCR after file replace failed', [
                 'document_id' => $documentId,

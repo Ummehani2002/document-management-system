@@ -15,7 +15,7 @@ class IndexDocumentOcr extends Command
         {--project= : Limit to project_id}
         {--id=* : Limit to document id(s), repeatable}
         {--limit= : Max documents to process in this run}
-        {--max-seconds= : Stop after this many seconds and queue the rest}';
+        {--max-seconds= : Stop after this many seconds (remaining are skipped, not queued)}';
 
     protected $description = 'Index PDF/Office text into ocr_text so keyword search can match words inside the file.';
 
@@ -48,10 +48,11 @@ class IndexDocumentOcr extends Command
             });
         }
 
-        $idsToProcess = $query->orderBy('id')->pluck('id');
+        // Newest first so recent MIR/IR uploads get Subject filled during the deploy window.
+        $idsToProcess = $query->orderByDesc('id')->pluck('id');
         if (! $this->option('force') && empty($ids) && ! $this->option('project')) {
-            $idsToProcess = $idsToProcess
-                ->merge($this->idsMissingFormSubject())
+            $idsToProcess = $this->idsMissingFormSubject()
+                ->merge($idsToProcess)
                 ->unique()
                 ->values();
         }
@@ -65,24 +66,23 @@ class IndexDocumentOcr extends Command
         $limit = max(0, (int) $this->option('limit'));
         $maxSeconds = $this->option('max-seconds');
         $maxSeconds = $maxSeconds === null || $maxSeconds === false || $maxSeconds === ''
-            ? ($this->option('sync') && ! $this->option('force') ? 90 : 0)
+            ? ($this->option('sync') && ! $this->option('force') ? 180 : 0)
             : max(0, (int) $maxSeconds);
 
         if ($this->option('sync')) {
             config(['ocr.search_pages' => 1]);
-            $this->info("Processing {$count} document(s) now (sync)...");
+            $this->info("Processing {$count} document(s) now (sync, newest first)...");
             $ok = 0;
             $empty = 0;
             $failed = 0;
-            $queued = 0;
+            $skipped = 0;
             $started = microtime(true);
 
             foreach ($idsToProcess as $id) {
                 $timedOut = $maxSeconds > 0 && (microtime(true) - $started) >= $maxSeconds;
                 $hitLimit = $limit > 0 && ($ok + $empty + $failed) >= $limit;
                 if ($timedOut || $hitLimit) {
-                    ProcessOCR::dispatch((int) $id);
-                    $queued++;
+                    $skipped++;
 
                     continue;
                 }
@@ -93,7 +93,12 @@ class IndexDocumentOcr extends Command
                     $hasText = $doc && trim((string) $doc->ocr_text) !== '';
                     if ($hasText) {
                         $ok++;
-                        $this->line("  Indexed document id: {$id}");
+                        $meta = DocumentFilenameParser::extractReferenceAndSubject(
+                            (string) $doc->ocr_text,
+                            (string) $doc->file_name
+                        );
+                        $subject = $meta['subject'] ?? '—';
+                        $this->line("  Indexed document id: {$id} subject=".mb_substr($subject, 0, 80));
                     } else {
                         $empty++;
                         $this->warn("  Document id: {$id} — no text extracted (scanned PDF / OCR tools unavailable).");
@@ -106,10 +111,10 @@ class IndexDocumentOcr extends Command
                 gc_collect_cycles();
             }
 
-            if ($queued > 0) {
-                $this->warn("Queued {$queued} remaining document(s) so deploy does not time out.");
+            if ($skipped > 0) {
+                $this->warn("Skipped {$skipped} remaining document(s) (time/limit). Re-run: php artisan documents:index-ocr --sync");
             }
-            $this->info("Done. Indexed={$ok}, empty={$empty}, failed={$failed}, queued={$queued}.");
+            $this->info("Done. Indexed={$ok}, empty={$empty}, failed={$failed}, skipped={$skipped}.");
         } else {
             foreach ($idsToProcess as $id) {
                 ProcessOCR::dispatch((int) $id);
@@ -123,7 +128,8 @@ class IndexDocumentOcr extends Command
     }
 
     /**
-     * Forms whose stored text is labels-only (no Title & Description value).
+     * Forms whose stored text is missing, or labels-only (no Title/Description / Material Description).
+     * Newest first.
      *
      * @return \Illuminate\Support\Collection<int, int>
      */
@@ -131,37 +137,38 @@ class IndexDocumentOcr extends Command
     {
         $ids = collect();
 
+        // Newest first; cap so deploy stays within the Cloud time budget.
         Document::query()
-            ->whereNotNull('ocr_text')
-            ->where('ocr_text', '!=', '')
-            ->orderBy('id')
-            ->select(['id', 'file_name', 'ocr_text'])
-            ->chunkById(50, function ($docs) use ($ids) {
-                foreach ($docs as $doc) {
-                    if ($this->needsFormSubjectOcr($doc)) {
-                        $ids->push((int) $doc->id);
-                    }
+            ->orderByDesc('id')
+            ->limit(400)
+            ->get(['id', 'file_name', 'ocr_text'])
+            ->each(function (Document $doc) use ($ids) {
+                if ($this->needsFormSubjectOcr($doc)) {
+                    $ids->push((int) $doc->id);
                 }
             });
 
-        return $ids;
+        return $ids->unique()->values();
     }
 
     protected function needsFormSubjectOcr(Document $doc): bool
     {
-        $fromInside = DocumentFilenameParser::extractReferenceAndSubject(
-            (string) $doc->ocr_text,
-            'document.pdf'
+        $ocr = trim((string) $doc->ocr_text);
+        $haystack = strtoupper($doc->file_name.' '.$ocr);
+        $looksLikeForm = (bool) preg_match(
+            '/(?:^|[-_\s])(?:IR|MAR|MIR|WIR|MS|MAS|MAT|MST|SD|SDR)(?:[-_\s]|$)|TITLE.{0,20}(?:DESCRIPTION|SUBJECT)|DESCRIPTION OF ITEM|DESCRIPTION OF MATERIAL|MATERIAL DESCRIPTION|MATERIAL INSPECTION REQUEST|WORK INSPECTION REQUEST|MATERIAL SUBMITTAL|TECHNICAL SUBMISSION|MATERIAL APPROVAL/i',
+            $haystack
         );
-        if (($fromInside['subject'] ?? '—') !== '—') {
+        if (! $looksLikeForm) {
             return false;
         }
 
-        $haystack = strtoupper($doc->file_name.' '.$doc->ocr_text);
+        if ($ocr === '') {
+            return true;
+        }
 
-        return (bool) preg_match(
-            '/(?:^|[-_\s])(?:IR|MAR|MIR|WIR|MS|MAS|MAT|MST|SD|SDR)(?:[-_\s]|$)|TITLE.{0,20}(?:DESCRIPTION|SUBJECT)|DESCRIPTION OF ITEM|DESCRIPTION OF MATERIAL|MATERIAL INSPECTION REQUEST|WORK INSPECTION REQUEST|MATERIAL SUBMITTAL|TECHNICAL SUBMISSION|MATERIAL APPROVAL/i',
-            $haystack
-        );
+        $fromInside = DocumentFilenameParser::extractReferenceAndSubject($ocr, 'document.pdf');
+
+        return ($fromInside['subject'] ?? '—') === '—';
     }
 }

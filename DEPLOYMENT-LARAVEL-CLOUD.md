@@ -175,10 +175,10 @@ Use **plain `composer install`** only if the line above fails. Do **not** put `C
 
 ```bash
 php artisan migrate --force
-php artisan documents:index-ocr --sync --max-seconds=60
+php artisan documents:index-ocr --sync --max-seconds=180
 ```
 
-The second line indexes a short burst of PDFs that don’t have text yet, then queues the rest so Cloud deploys do not hit the 10-minute timeout. New uploads are indexed during the upload request.  
+The second line OCRs newest documents first (including scanned MIR/IR forms) for up to 3 minutes so Search Subject fills in. New uploads are OCR’d during the upload request.  
 Do **not** add `php artisan queue:restart` or `php artisan storage:link`.
 
 ---

@@ -128,16 +128,8 @@ class DocumentVersionSaver
 
     protected function dispatchProcessOcr(int $documentId): void
     {
-        $inline = config('queue.default') === 'sync'
-            || filter_var(env('DMS_OCR_SYNC_ON_UPLOAD', false), FILTER_VALIDATE_BOOL);
-
         try {
-            if ($inline) {
-                (new ProcessOCR($documentId))->handle();
-
-                return;
-            }
-            ProcessOCR::dispatch($documentId)->afterResponse();
+            (new ProcessOCR($documentId))->handle();
         } catch (\Throwable $e) {
             Log::warning('ProcessOCR after version save failed', [
                 'document_id' => $documentId,
