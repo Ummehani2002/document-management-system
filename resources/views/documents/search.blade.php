@@ -1622,32 +1622,20 @@
     @endif
 </script>
 
-{{-- Browser OCR for scanned forms (Cloud has no Tesseract). Reads Title/Description from page 1. --}}
+{{-- Browser OCR for scanned forms (Cloud has no Tesseract). Reads Title/Subject from page 1–2. --}}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="{{ asset('js/dms-pdf-ocr.js') }}"></script>
 <script>
 (function () {
     var csrf = document.querySelector('meta[name="csrf-token"]');
     csrf = csrf ? csrf.getAttribute('content') : '';
-    if (typeof pdfjsLib === 'undefined' || typeof Tesseract === 'undefined') {
+    if (!window.DmsPdfOcr) {
         return;
     }
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
     function cellsNeedingOcr() {
         return Array.prototype.slice.call(document.querySelectorAll('.doc-subject-cell[data-needs-ocr="1"]'));
-    }
-
-    async function ocrFirstPage(viewUrl) {
-        var pdf = await pdfjsLib.getDocument({ url: viewUrl, withCredentials: true }).promise;
-        var page = await pdf.getPage(1);
-        var viewport = page.getViewport({ scale: 2 });
-        var canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
-        var result = await Tesseract.recognize(canvas, 'eng');
-        return String((result && result.data && result.data.text) || '').trim();
     }
 
     async function fillSubject(cell) {
@@ -1660,7 +1648,7 @@
         cell.textContent = 'Reading…';
         cell.removeAttribute('data-needs-ocr');
         try {
-            var text = await ocrFirstPage(viewUrl);
+            var text = await window.DmsPdfOcr.extractPdfFormText(viewUrl, { maxPages: 2 });
             if (text.length < 20) {
                 cell.textContent = '—';
                 return;

@@ -73,11 +73,26 @@ class ProcessOCR implements ShouldQueue
                     $text = app(OfficeDocumentTextExtractionService::class)->extractText($tempPath, $ext);
                 }
 
-                $document->update(['ocr_text' => $text]);
+                $existing = trim((string) ($document->ocr_text ?? ''));
+                $text = trim((string) $text);
+                // Never wipe browser/upload OCR with an empty Cloud extraction.
+                if ($text === '' && $existing !== '') {
+                    $text = $existing;
+                } elseif ($text !== '' && $existing !== '' && strlen($existing) > strlen($text)) {
+                    $existingHasSubject = app(\App\Services\PdfFirstPageOcrService::class)
+                        ->textYieldsFormSubject($existing);
+                    $newHasSubject = app(\App\Services\PdfFirstPageOcrService::class)
+                        ->textYieldsFormSubject($text);
+                    if ($existingHasSubject && ! $newHasSubject) {
+                        $text = $existing;
+                    }
+                }
+
+                $document->update(['ocr_text' => $text !== '' ? $text : null]);
                 \Log::info('ProcessOCR stored text', [
                     'document_id' => $document->id,
-                    'chars' => strlen(trim($text)),
-                    'has_material_description' => (bool) preg_match('/Material\s+Description/i', $text),
+                    'chars' => strlen($text),
+                    'has_title_subject' => (bool) preg_match('/Title\s*[\/&]\s*Subject|Title\s*&\s*Description|Material\s+Description/i', $text),
                 ]);
             } catch (\Throwable $e) {
                 \Log::warning('ProcessOCR text extraction failed (folder will use whatever text is already stored)', [

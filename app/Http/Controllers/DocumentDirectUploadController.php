@@ -389,6 +389,7 @@ class DocumentDirectUploadController extends Controller
 
         $validated = $request->validate([
             'token' => 'required|string|min:10',
+            'ocr_text' => 'nullable|string|max:200000',
         ]);
 
         try {
@@ -527,7 +528,7 @@ class DocumentDirectUploadController extends Controller
             'orphan_document_id' => isset($payload['orphan_document_id']) ? (int) $payload['orphan_document_id'] : null,
         ];
 
-        return $this->finalizeUploadedObject($finalize, $finalKey);
+        return $this->finalizeUploadedObject($finalize, $finalKey, $validated['ocr_text'] ?? null);
     }
 
     public function presign(Request $request): JsonResponse
@@ -601,6 +602,7 @@ class DocumentDirectUploadController extends Controller
     {
         $validated = $request->validate([
             'token' => 'required|string|min:10',
+            'ocr_text' => 'nullable|string|max:200000',
         ]);
 
         try {
@@ -637,13 +639,13 @@ class DocumentDirectUploadController extends Controller
             return response()->json(['message' => 'Uploaded size did not match declared size; partial file removed.'], 422);
         }
 
-        return $this->finalizeUploadedObject($payload, $key);
+        return $this->finalizeUploadedObject($payload, $key, $validated['ocr_text'] ?? null);
     }
 
     /**
      * @param  array<string, mixed>  $payload
      */
-    protected function finalizeUploadedObject(array $payload, string $key): JsonResponse
+    protected function finalizeUploadedObject(array $payload, string $key, ?string $clientOcrText = null): JsonResponse
     {
         $disk = (string) ($payload['disk'] ?? 's3');
 
@@ -665,10 +667,12 @@ class DocumentDirectUploadController extends Controller
         $enableDeepDuplicateCheck = (bool) env('DOC_DEEP_DUP_CHECK', false);
 
         $uploadMode = (string) ($payload['upload_mode'] ?? 'auto');
-        $extractedText = null;
+        $extractedText = $this->normalizeClientOcrText($clientOcrText);
 
         if ($uploadMode === 'auto') {
-            $extractedText = $this->extractStoredObjectText($disk, $key, $originalName);
+            if ($extractedText === null) {
+                $extractedText = $this->extractStoredObjectText($disk, $key, $originalName);
+            }
             $placed = $this->placeAutoUploadFromContents($disk, $key, $originalName, $entity, $project, $extractedText);
             $category = $placed['category'];
             $key = $placed['key'];
@@ -678,6 +682,8 @@ class DocumentDirectUploadController extends Controller
 
                 return response()->json(['message' => 'You do not have permission to upload to this folder.'], 403);
             }
+        } elseif ($extractedText === null) {
+            $extractedText = $this->extractStoredObjectText($disk, $key, $originalName);
         }
 
         if ($orphanDocumentId !== null && $orphanDocumentId > 0) {
@@ -847,6 +853,20 @@ class DocumentDirectUploadController extends Controller
         }
 
         return ['category' => $category, 'key' => $key];
+    }
+
+    protected function normalizeClientOcrText(?string $text): ?string
+    {
+        $text = trim((string) $text);
+        if (mb_strlen($text) < 20) {
+            return null;
+        }
+        $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]+/', ' ', $text) ?? $text;
+        if (mb_strlen($text) > 50000) {
+            $text = mb_substr($text, 0, 50000);
+        }
+
+        return $text;
     }
 
     protected function extractStoredObjectText(string $disk, string $key, string $originalName): ?string

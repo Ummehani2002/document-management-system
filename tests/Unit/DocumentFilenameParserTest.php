@@ -517,6 +517,23 @@ test('title slash subject on the form is read even when ocr text is present', fu
     expect($meta['subject'])->toBe('Graphic Paving in-situ concrete');
 });
 
+test('material submittal title subject pavcrete wording is the subject', function () {
+    $filename = 'JH-LSC-MAT-HLS-PSC-PAR-0134_01_B1.pdf';
+    $ocr = "MATERIAL SUBMITTAL\nRef. No: JH-LSC-MAT-HLS-PSC-PAR-0134\nType of Submittal MAT\n"
+        ."Title / Subject\n"
+        ."Material Submittal for P02 - Pavcrete 700 Exposed Aggregate Topping Color: 605 Sabalight Grey "
+        ."(25mm Topping) with 100 mm Thk Concrete (With 30/10 Concrete Mix) at Parks, Pools and Sikka Areas.\n"
+        ."Pavcrete Manufacturer/Supplier: M/s. Creative Concrete\n"
+        ."Section A – Submittal Details\nDWG Ref: 351704-PAR";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->toBe('JH-LSC-MAT-HLS-PSC-PAR-0134');
+    expect($meta['subject'])->toStartWith('Material Submittal for P02 - Pavcrete 700');
+    expect($meta['subject'])->toContain('Sabalight Grey');
+    expect($meta['subject'])->not->toContain('Section A');
+});
+
 test('title slash description is the subject for every document type', function () {
     $cases = [
         "MATERIAL INSPECTION REQUEST\nTitle / Description\nSoftscape soil mix Zone B\nPurpose & Location : Landscape",

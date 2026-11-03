@@ -171,6 +171,9 @@
         <p id="upload-status-text" style="display:none; margin-top:8px; color:#334155;">Uploading... please wait.</p>
     </form>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+    <script src="{{ asset('js/dms-pdf-ocr.js') }}"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var selectedUploadMode = @json($selectedUploadMode);
@@ -388,9 +391,31 @@
                         }
                     }
 
+                    async function readPdfOcrText(file) {
+                        if (!/\.pdf$/i.test(file.name || '')) {
+                            return '';
+                        }
+                        if (!window.DmsPdfOcr || typeof window.DmsPdfOcr.extractPdfFormText !== 'function') {
+                            return '';
+                        }
+                        try {
+                            return await window.DmsPdfOcr.extractPdfFormText(file, {
+                                maxPages: 2,
+                                onProgress: function (msg) {
+                                    setUploadProgress('File reading: ' + msg);
+                                }
+                            });
+                        } catch (err) {
+                            console.warn('PDF OCR skipped', err);
+                            return '';
+                        }
+                    }
+
                     for (var i = 0; i < files.length; i++) {
                         var file = files[i];
                         var presignBody = buildPresignBody(file);
+                        setUploadProgress('File ' + (i + 1) + '/' + files.length + ': reading Title/Subject…');
+                        var ocrText = await readPdfOcrText(file);
                         // Always use Laravel → R2 multipart. Browser PUT to R2 needs CORS
                         // and fails on Laravel Cloud until the bucket allows this origin.
                         var useChunked = true;
@@ -454,7 +479,7 @@
                                 }
                             }
 
-                            setUploadProgress('File ' + (i + 1) + '/' + files.length + ': finalizing on server (usually quick)…');
+                            setUploadProgress('File ' + (i + 1) + '/' + files.length + ': saving with Title/Subject…');
                             var finRes;
                             try {
                                 finRes = await fetch(chunkFinishUrl, {
@@ -466,7 +491,7 @@
                                         'X-Requested-With': 'XMLHttpRequest'
                                     },
                                     credentials: 'same-origin',
-                                    body: JSON.stringify({ token: chunkToken })
+                                    body: JSON.stringify({ token: chunkToken, ocr_text: ocrText || null })
                                 });
                             } catch (err) {
                                 throw new Error('Chunk finish: ' + (err && err.message ? err.message : String(err)));
@@ -532,7 +557,7 @@
                                     'X-Requested-With': 'XMLHttpRequest'
                                 },
                                 credentials: 'same-origin',
-                                body: JSON.stringify({ token: presignJson.token })
+                                body: JSON.stringify({ token: presignJson.token, ocr_text: ocrText || null })
                             });
                         } catch (err) {
                             throw new Error('Step 3 (register): ' + (err && err.message ? err.message : String(err)));

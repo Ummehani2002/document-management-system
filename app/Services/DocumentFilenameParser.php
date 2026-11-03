@@ -1310,7 +1310,10 @@ class DocumentFilenameParser
                 continue;
             }
 
-            $isStop = (bool) preg_match('~^(?:'.$stop.')\b~i', $line);
+            $isStop = (bool) preg_match('~^(?:'.$stop.')\b~i', $line)
+                || (bool) preg_match('~Manufacturer\s*/?\s*Supplier\s*:~i', $line)
+                || (bool) preg_match('~^Section\s+[A-Z0-9]~i', $line)
+                || (bool) preg_match('~^(?:Installer|Concrete\s+Manufacturer)\s*:~i', $line);
             if ($isStop) {
                 if ($collected !== []) {
                     break;
