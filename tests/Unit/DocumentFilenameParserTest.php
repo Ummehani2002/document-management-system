@@ -592,6 +592,21 @@ test('mir title description geotextile wording is used as the subject', function
     expect($meta['subject'])->not->toBe('Tree pits');
 });
 
+test('arada mir material description field is used as the subject', function () {
+    $filename = 'JH-LSC-MIR-SLS-PSC-PAR-0003_00_B.pdf';
+    $ocr = "Rel.No: JH-LSC-MIR-SLS-PSC-PAR-0003\nSection A — Material Details\n"
+        ."Material Description: Material Inspection request Geotextile as per attached\n"
+        ."Delivery note\n"
+        ."Matericl Submittal Ref: JH-LSC-MAT-SLS-PSC-PAR-0015_02_B Drawing Ref:\n"
+        ."Material Approval Code: B - Approved as Noted";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->toBe('JH-LSC-MIR-SLS-PSC-PAR-0003');
+    expect($meta['subject'])->toBe('Material Inspection request Geotextile as per attached Delivery note');
+    expect($meta['subject'])->not->toContain('Submittal Ref');
+});
+
 test('mir description of material is used as the subject', function () {
     $filename = 'JH-LSC-MIR-SLS-PSC-PAR-0003_00_B.pdf';
     $ocr = "MATERIAL INSPECTION REQUEST\nMIR No.: JH-LSC-MIR-SLS-PSC-PAR-0003\n"

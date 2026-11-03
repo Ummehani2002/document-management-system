@@ -534,6 +534,8 @@ class PdfFirstPageOcrService
     }
 
     /**
+     * Pull page images from scanned PDFs (raw JPEG or FlateDecode+DCTDecode Sharp scans).
+     *
      * @return list<string>
      */
     protected function extractEmbeddedJpegs(string $pdfPath, string $tempDir, int $max): array
@@ -548,6 +550,19 @@ class PdfFirstPageOcrService
             return [];
         }
 
+        $paths = $this->extractRawJpegMarkers($binary, $tempDir, $max);
+        if ($paths !== []) {
+            return $paths;
+        }
+
+        return $this->extractFlateDctJpegs($binary, $tempDir, $max);
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function extractRawJpegMarkers(string $binary, string $tempDir, int $max): array
+    {
         $paths = [];
         $offset = 0;
         $length = strlen($binary);
@@ -571,6 +586,111 @@ class PdfFirstPageOcrService
         }
 
         return $paths;
+    }
+
+    /**
+     * Sharp/scanner PDFs often wrap JPEG pages as /Filter [/FlateDecode /DCTDecode].
+     *
+     * @return list<string>
+     */
+    protected function extractFlateDctJpegs(string $binary, string $tempDir, int $max): array
+    {
+        $paths = [];
+        $offset = 0;
+        $length = strlen($binary);
+
+        while (count($paths) < $max && $offset < $length) {
+            $streamPos = strpos($binary, 'stream', $offset);
+            if ($streamPos === false) {
+                break;
+            }
+
+            $dictStart = strrpos(substr($binary, max(0, $streamPos - 800), min(800, $streamPos)), '<<');
+            if ($dictStart === false) {
+                $offset = $streamPos + 6;
+
+                continue;
+            }
+            $dictStart = max(0, $streamPos - 800) + $dictStart;
+            $dict = substr($binary, $dictStart, $streamPos - $dictStart);
+            $offset = $streamPos + 6;
+
+            if (
+                stripos($dict, '/DCTDecode') === false
+                && ! (stripos($dict, '/Subtype') !== false && stripos($dict, '/Image') !== false && stripos($dict, '/FlateDecode') !== false)
+            ) {
+                continue;
+            }
+
+            $dataStart = $streamPos + 6;
+            if (isset($binary[$dataStart]) && $binary[$dataStart] === "\r") {
+                $dataStart++;
+            }
+            if (isset($binary[$dataStart]) && $binary[$dataStart] === "\n") {
+                $dataStart++;
+            }
+
+            $endPos = strpos($binary, 'endstream', $dataStart);
+            if ($endPos === false) {
+                break;
+            }
+
+            $raw = substr($binary, $dataStart, $endPos - $dataStart);
+            if (str_ends_with($raw, "\r\n")) {
+                $raw = substr($raw, 0, -2);
+            } elseif (str_ends_with($raw, "\n") || str_ends_with($raw, "\r")) {
+                $raw = substr($raw, 0, -1);
+            }
+
+            $jpeg = null;
+            if (str_starts_with($raw, "\xFF\xD8\xFF")) {
+                $jpeg = $raw;
+            } elseif (stripos($dict, '/FlateDecode') !== false) {
+                $inflated = $this->inflatePdfFlate($raw);
+                if ($inflated !== null) {
+                    $jpgStart = strpos($inflated, "\xFF\xD8\xFF");
+                    if ($jpgStart !== false) {
+                        $jpgEnd = strrpos($inflated, "\xFF\xD9");
+                        $jpeg = $jpgEnd !== false
+                            ? substr($inflated, $jpgStart, $jpgEnd - $jpgStart + 2)
+                            : substr($inflated, $jpgStart);
+                    }
+                }
+            }
+
+            if (! is_string($jpeg) || strlen($jpeg) < 20000) {
+                continue;
+            }
+
+            $path = $tempDir.'/flate-dct-'.count($paths).'.jpg';
+            file_put_contents($path, $jpeg);
+            $paths[] = $path;
+            $offset = $endPos + 9;
+        }
+
+        return $paths;
+    }
+
+    protected function inflatePdfFlate(string $data): ?string
+    {
+        $try = @gzuncompress($data);
+        if (is_string($try) && $try !== '') {
+            return $try;
+        }
+
+        $try = @gzinflate($data);
+        if (is_string($try) && $try !== '') {
+            return $try;
+        }
+
+        if (strlen($data) > 2) {
+            $try = @gzinflate(substr($data, 2));
+            if (is_string($try) && $try !== '') {
+                return $try;
+            }
+        }
+
+        return null;
     }
 
     protected function tesseractBinary(): ?string

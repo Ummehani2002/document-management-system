@@ -823,6 +823,7 @@ class DocumentFilenameParser
             $referencePatterns = [
                 '/(?:^|\n)\s*(?:WIR|IR)\s*(?:NO\.?|NUMBER|#)\s*[:\-]?\s*(.{0,220})/is',
                 '/(?:^|\n)\s*INSPECTION\s*REQUEST\s*(?:NO\.?|NUMBER)\s*[:\-]?\s*(.{0,220})/is',
+                '/(?:^|\n)\s*REL\.?\s*NO\.?\s*[:\-]?\s*(.{0,220})/is',
                 '/(?:^|\n)\s*REF(?:ERENCE)?\s*\.?\s*(?:NO\.?|NUMBER)\s*[:\-]?\s*(.{0,220})/is',
                 '/(?:^|\n)\s*REF(?:ERENCE)?\s*\.?\s*[:\-]\s*(.{0,220})/is',
                 '/(?:^|\n)\s*SUBMITTAL\s*(?:NO\.?|NUMBER)\s*[:\-]?\s*(.{0,220})/is',
@@ -1266,16 +1267,20 @@ class DocumentFilenameParser
         $chunk = substr($normalized, $start, 1600);
 
         return self::collectSubjectFromFieldWindow($chunk, [
-            'Material\s+Approval\s*(?:No|Number|Ref)?',
+            'Material\s+Approval\s*(?:No|Number|Ref|Code)?',
+            'Materi(?:al|cl)\s+Submittal\s+Ref',
             'Material\s+Quantity',
             'Technical\s+Submittal',
+            'Drawing\s*Ref',
             'Specification(?:\s+Clause)?\s+Ref',
             'Specification\s+or\s+Contract',
+            'Section\s+[A-Z]',
             'Manufacturer',
             'Supplier',
             'Area\s*/?\s*Location',
             'Purpose\s*(?:&(?:amp;)?|AND)\s*Location',
             'You\s+are\s+hereby',
+            'The\s+Contractor\s+hereby',
             'Inspection\s+Date',
             'Item\s+No',
             'Received\s+(?:by|from)',
