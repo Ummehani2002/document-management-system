@@ -1052,6 +1052,11 @@ class DocumentFilenameParser
             return $fromInspectionItem;
         }
 
+        $fromDescriptionOfMaterial = self::extractDescriptionOfMaterialField($normalized);
+        if ($fromDescriptionOfMaterial !== '') {
+            return $fromDescriptionOfMaterial;
+        }
+
         $labels = [
             'DESCRIPTION\s+OF\s+ITEM\s*/\s*AREA\s+TO\s+BE\s+INSPECTED',
             'AREA\s+TO\s+BE\s+INSPECTED',
@@ -1105,12 +1110,14 @@ class DocumentFilenameParser
     }
 
     /**
-     * MAR/MIR/technical submission: only the Title & Description box, not later pages.
+     * Every form type: capture only the Title / Description (or Title & Description) box.
      */
     protected static function extractTitleAndDescriptionField(string $normalized): string
     {
+        // OCR variants: Title / Description, Title & Description, Title and Description,
+        // Title Description, TITLE8DESCRIPTION, Title/Subject.
         if (! preg_match(
-            '~TITLE\s*(?:&(?:amp;)?|＆|AND|/|\+|8)\s*DESCR[I1]PTION\s*[:\-]?\s*~i',
+            '~T[I1L]TLE\s*(?:&(?:amp;)?|＆|AND|OR|/|\+|8|\-)?\s*(?:DESCR[I1]PT[I1]ON|SUBJECT)\s*[:\-]?\s*~i',
             $normalized,
             $m,
             PREG_OFFSET_CAPTURE
@@ -1139,6 +1146,17 @@ class DocumentFilenameParser
             'Table\s+of\s+Contents',
             'Contract\s+Doc(?:ument)?\.?\s*Ref(?:erence)?',
             'Specification(?:\s+Clause)?\s+Ref',
+            'Material\s+Quantity',
+            'Material\s+Approval',
+            'Description\s+of\s+Works?',
+            'Location\s+of\s+(?:the\s+)?(?:item|works?|area)',
+            'Nature\s+of\s+Inspection',
+            'Requested\s+(?:by|date)',
+            'Discipline',
+            'Project\s*:',
+            'Client\s*:',
+            'Consultant\s*:',
+            'Main\s+Contractor',
         ]);
     }
 
@@ -1170,6 +1188,43 @@ class DocumentFilenameParser
             'Submitted\s+by',
             'Received\s+(?:by|from)',
             'Table\s+of\s+Contents',
+        ]);
+    }
+
+    /**
+     * MIR / material forms: Description of Material / Material Description box.
+     */
+    protected static function extractDescriptionOfMaterialField(string $normalized): string
+    {
+        if (! preg_match(
+            '~(?:DESCRIPTION\s+OF\s+MATERIALS?|MATERIAL\s*DESCRIPTION)\s*[:\-]?\s*~i',
+            $normalized,
+            $m,
+            PREG_OFFSET_CAPTURE
+        )) {
+            return '';
+        }
+
+        $start = (int) $m[0][1] + strlen($m[0][0]);
+        $chunk = substr($normalized, $start, 1600);
+
+        return self::collectSubjectFromFieldWindow($chunk, [
+            'Material\s+Approval\s*(?:No|Number|Ref)?',
+            'Material\s+Quantity',
+            'Technical\s+Submittal',
+            'Specification(?:\s+Clause)?\s+Ref',
+            'Specification\s+or\s+Contract',
+            'Manufacturer',
+            'Supplier',
+            'Area\s*/?\s*Location',
+            'Purpose\s*(?:&(?:amp;)?|AND)\s*Location',
+            'You\s+are\s+hereby',
+            'Inspection\s+Date',
+            'Item\s+No',
+            'Received\s+(?:by|from)',
+            'Submitted\s+by',
+            'Table\s+of\s+Contents',
+            'Contract\s+Doc(?:ument)?\.?\s*Ref(?:erence)?',
         ]);
     }
 
@@ -1334,6 +1389,22 @@ class DocumentFilenameParser
         // 3501B-MAR-L-026 R1_B_20260213 - Graphic Paving
         if (preg_match(
             '/^([A-Z0-9]+(?:-[A-Z0-9]+)+)[_\s]+R\d+_B(?:_\d{6,8})?(?:\s*-\s*(.+?))?(?:\s*\(\d+\))?$/iu',
+            $name,
+            $m
+        )) {
+            $ref = trim((string) $m[1]);
+            $right = self::cleanFilenameSubject(trim((string) ($m[2] ?? '')));
+            if (self::looksLikeRegisterCode($ref)) {
+                return [
+                    'reference_no' => $ref,
+                    'subject' => ($right !== '' && self::looksLikeDescriptiveSubject($right)) ? $right : '',
+                ];
+            }
+        }
+
+        // Arada/Parsons: JH-LSC-MIR-SLS-PSC-PAR-0003_00_B / …_01_B1
+        if (preg_match(
+            '/^([A-Z0-9]+(?:-[A-Z0-9]+)+)_\d{2}_B\d?(?:\s*-\s*(.+?))?(?:\s*\(\d+\))?$/iu',
             $name,
             $m
         )) {

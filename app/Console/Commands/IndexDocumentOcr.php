@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\ProcessOCR;
 use App\Models\Document;
+use App\Services\DocumentFilenameParser;
 use Illuminate\Console\Command;
 
 class IndexDocumentOcr extends Command
@@ -48,6 +49,12 @@ class IndexDocumentOcr extends Command
         }
 
         $idsToProcess = $query->orderBy('id')->pluck('id');
+        if (! $this->option('force') && empty($ids) && ! $this->option('project')) {
+            $idsToProcess = $idsToProcess
+                ->merge($this->idsMissingFormSubject())
+                ->unique()
+                ->values();
+        }
         $count = $idsToProcess->count();
         if ($count === 0) {
             $this->info('No documents need indexing. Use --force to re-process documents that already have text.');
@@ -113,5 +120,48 @@ class IndexDocumentOcr extends Command
         $this->comment('Tip: run php artisan documents:reclassify to move rows into the folder suggested by OCR.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Forms whose stored text is labels-only (no Title & Description value).
+     *
+     * @return \Illuminate\Support\Collection<int, int>
+     */
+    protected function idsMissingFormSubject()
+    {
+        $ids = collect();
+
+        Document::query()
+            ->whereNotNull('ocr_text')
+            ->where('ocr_text', '!=', '')
+            ->orderBy('id')
+            ->select(['id', 'file_name', 'ocr_text'])
+            ->chunkById(50, function ($docs) use ($ids) {
+                foreach ($docs as $doc) {
+                    if ($this->needsFormSubjectOcr($doc)) {
+                        $ids->push((int) $doc->id);
+                    }
+                }
+            });
+
+        return $ids;
+    }
+
+    protected function needsFormSubjectOcr(Document $doc): bool
+    {
+        $fromInside = DocumentFilenameParser::extractReferenceAndSubject(
+            (string) $doc->ocr_text,
+            'document.pdf'
+        );
+        if (($fromInside['subject'] ?? '—') !== '—') {
+            return false;
+        }
+
+        $haystack = strtoupper($doc->file_name.' '.$doc->ocr_text);
+
+        return (bool) preg_match(
+            '/(?:^|[-_\s])(?:IR|MAR|MIR|WIR|MS|MAS|MAT|MST|SD|SDR)(?:[-_\s]|$)|TITLE.{0,20}(?:DESCRIPTION|SUBJECT)|DESCRIPTION OF ITEM|DESCRIPTION OF MATERIAL|MATERIAL INSPECTION REQUEST|WORK INSPECTION REQUEST|MATERIAL SUBMITTAL|TECHNICAL SUBMISSION|MATERIAL APPROVAL/i',
+            $haystack
+        );
     }
 }

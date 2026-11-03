@@ -27,13 +27,20 @@ class PdfFirstPageOcrService
      */
     public function extractTextForSearch(string $pdfPath): string
     {
-        $layer = $this->extractEmbeddedText($pdfPath);
+        $layer = $this->mergeText(
+            $this->extractEmbeddedText($pdfPath),
+            $this->extractAcroFormText($pdfPath)
+        );
 
-        if ($this->isUsableText($layer) && ! $this->shouldSupplementWithOcr($layer)) {
+        $needsOcr = $this->shouldSupplementWithOcr($layer)
+            || ($this->looksLikeSubjectForm($layer) && ! $this->textYieldsFormSubject($layer));
+        if ($this->isUsableText($layer) && ! $needsOcr) {
             return $this->limitText($layer);
         }
 
-        $ocrPages = max(1, (int) config('ocr.search_pages', 10));
+        $ocrPages = ($this->looksLikeSubjectForm($layer) && ! $this->textYieldsFormSubject($layer))
+            ? 1
+            : max(1, (int) config('ocr.search_pages', 10));
         $ocr = $this->extractWithLocalOcr($pdfPath, $ocrPages);
 
         return $this->limitText($this->mergeText($layer, $ocr));
@@ -61,21 +68,31 @@ class PdfFirstPageOcrService
     public function extractTextForClassification(string $pdfPath): string
     {
         $text = $this->extractWithPdftotextPageRange($pdfPath, 1, 2);
-        if (trim($text) !== '') {
-            return $text;
+        if (trim($text) === '') {
+            $text = $this->extractWithPdftotextPageRange($pdfPath, 1, 3);
+        }
+        if (trim($text) === '') {
+            $smalot = $this->extractWithSmalot($pdfPath, 3);
+            if (trim($smalot) !== '') {
+                $text = $smalot;
+            }
         }
 
-        $text = $this->extractWithPdftotextPageRange($pdfPath, 1, 3);
-        if (trim($text) !== '') {
-            return $text;
+        $text = $this->mergeText($text, $this->extractAcroFormText($pdfPath));
+
+        if (
+            ! $this->textYieldsFormSubject($text)
+            && ($this->shouldSupplementWithOcr($text) || $this->looksLikeSubjectForm($text) || trim($text) === '')
+        ) {
+            $ocr = $this->extractWithLocalOcr($pdfPath, 1);
+            $text = $this->mergeText($text, $ocr);
         }
 
-        $text = $this->extractWithSmalot($pdfPath, 3);
         if (trim($text) !== '') {
             return $this->limitText($text, 20000);
         }
 
-        return $this->extractFirstPageText($pdfPath);
+        return $this->limitText($this->extractFirstPageText($pdfPath), 20000);
     }
 
     /**
@@ -247,18 +264,88 @@ class PdfFirstPageOcrService
         return '';
     }
 
-    protected function extractWithPdftotextPageRange(string $pdfPath, int $fromPage, int $toPage): string
+    /**
+     * GAJ/Tanseeq/Arada inspection and submittal forms that store the subject in a labeled box.
+     */
+    public function looksLikeSubjectForm(string $text): bool
     {
-        try {
-            return $this->makePdfToText()
-                ->setPdf($pdfPath)
-                ->setOptions(['-f '.max(1, $fromPage), '-l '.max($fromPage, $toPage)])
-                ->text();
-        } catch (\Throwable $e) {
-            \Log::debug('PdfFirstPageOcr: page-range pdftotext failed', ['path' => $pdfPath, 'error' => $e->getMessage()]);
+        return (bool) preg_match(
+            '/TITLE.{0,20}(?:DESCRIPTION|SUBJECT)|DESCRIPTION OF ITEM|DESCRIPTION OF MATERIAL|MATERIAL INSPECTION REQUEST|WORK INSPECTION REQUEST|MATERIAL (?:APPROVAL\s+)?SUBMITTAL|TECHNICAL SUBMISSION|MATERIAL APPROVAL REQUEST/i',
+            $text
+        );
+    }
 
+    /**
+     * True when page text already contains a form subject (Title & Description, etc).
+     * Uses a dummy filename so a title in the file name does not count.
+     */
+    public function textYieldsFormSubject(string $text): bool
+    {
+        if (trim($text) === '') {
+            return false;
+        }
+
+        try {
+            $meta = DocumentFilenameParser::extractReferenceAndSubject($text, 'document.pdf');
+
+            return isset($meta['subject']) && $meta['subject'] !== '' && $meta['subject'] !== '—';
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Filled PDF form values often live in AcroForm widgets, not the text layer.
+     */
+    protected function extractAcroFormText(string $pdfPath): string
+    {
+        $size = is_file($pdfPath) ? (int) filesize($pdfPath) : 0;
+        if ($size <= 0 || $size > 15_000_000) {
             return '';
         }
+
+        $raw = @file_get_contents($pdfPath);
+        if (! is_string($raw) || $raw === '') {
+            return '';
+        }
+
+        $values = [];
+        if (preg_match_all('/\/V\s*\(((?:\\\\.|[^\\\\)]){8,800})\)/', $raw, $matches)) {
+            foreach ($matches[1] as $value) {
+                $decoded = stripcslashes((string) $value);
+                $decoded = trim(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]+/', ' ', $decoded) ?? $decoded);
+                if (strlen($decoded) < 8 || ! preg_match('/[A-Za-z]{3,}/', $decoded)) {
+                    continue;
+                }
+                $values[] = $decoded;
+            }
+        }
+
+        return trim(implode("\n", array_slice(array_unique($values), 0, 40)));
+    }
+
+    protected function extractWithPdftotextPageRange(string $pdfPath, int $fromPage, int $toPage): string
+    {
+        $from = max(1, $fromPage);
+        $to = max($from, $toPage);
+        foreach ([['-layout', '-f '.$from, '-l '.$to], ['-f '.$from, '-l '.$to]] as $options) {
+            try {
+                $text = $this->makePdfToText()
+                    ->setPdf($pdfPath)
+                    ->setOptions($options)
+                    ->text();
+                if (trim((string) $text) !== '') {
+                    return (string) $text;
+                }
+            } catch (\Throwable $e) {
+                \Log::debug('PdfFirstPageOcr: page-range pdftotext failed', [
+                    'path' => $pdfPath,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return '';
     }
 
     protected function extractWithPdftotextAll(string $pdfPath): string

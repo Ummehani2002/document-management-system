@@ -517,6 +517,23 @@ test('title slash subject on the form is read even when ocr text is present', fu
     expect($meta['subject'])->toBe('Graphic Paving in-situ concrete');
 });
 
+test('title slash description is the subject for every document type', function () {
+    $cases = [
+        "MATERIAL INSPECTION REQUEST\nTitle / Description\nSoftscape soil mix Zone B\nPurpose & Location : Landscape",
+        "WORK INSPECTION REQUEST\nTitle & Description\nAcrylic paint for Graphic paving (PT-03)\nPurpose & Location : Area A",
+        "SHOP DRAWING SUBMITTAL\nTitle/Description : Hardscape paving layout sheet 3\nSpec. Sec. and Clause : 32 13 13",
+        "METHOD STATEMENT\nTitle Description\nInstallation of STREETBOND SB120\nDiscipline : Landscape",
+    ];
+
+    foreach ($cases as $ocr) {
+        $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, 'any-register-code.pdf');
+        expect($meta['subject'])->not->toBe('—');
+        expect($meta['subject'])->not->toContain('Purpose & Location');
+        expect($meta['subject'])->not->toContain('Spec. Sec');
+        expect($meta['subject'])->not->toContain('Discipline');
+    }
+});
+
 test('title and description on the form is used as the subject', function () {
     $filename = '3501B-MAR-L-026 R1_B_20260213 - PT-03 Graphic Paving. In-situ Concrete (STREETBOND SB120) (2).pdf';
     $ocr = "MATERIAL APPROVAL REQUEST\nRef. No.: 3501B-MAR-L-026\n"
@@ -553,6 +570,25 @@ test('title and description is not replaced by the rest of the pdf', function ()
     );
     expect($meta['subject'])->not->toContain('Table of Contents');
     expect($meta['subject'])->not->toContain('COMPANY PROFILE');
+});
+
+test('arada mir filename keeps the register without revision tail', function () {
+    $meta = DocumentFilenameParser::extractReferenceAndSubject(null, 'JH-LSC-MIR-SLS-PSC-PAR-0003_00_B.pdf');
+
+    expect($meta['reference_no'])->toBe('JH-LSC-MIR-SLS-PSC-PAR-0003');
+    expect($meta['subject'])->toBe('—');
+});
+
+test('mir description of material is used as the subject', function () {
+    $filename = 'JH-LSC-MIR-SLS-PSC-PAR-0003_00_B.pdf';
+    $ocr = "MATERIAL INSPECTION REQUEST\nMIR No.: JH-LSC-MIR-SLS-PSC-PAR-0003\n"
+        ."Description of Material:\nSoftscape planting soil mix for Zone B\n"
+        ."Material Quantity: 12 m3\nManufacturer: Local supplier";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->toBe('JH-LSC-MIR-SLS-PSC-PAR-0003');
+    expect($meta['subject'])->toBe('Softscape planting soil mix for Zone B');
 });
 
 test('material inspection request subject comes from title and description', function () {
