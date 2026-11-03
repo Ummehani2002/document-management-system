@@ -1047,6 +1047,11 @@ class DocumentFilenameParser
             return $fromTitleAndDescription;
         }
 
+        $fromMirDescription = self::extractMaterialInspectionDescriptionPhrase($normalized);
+        if ($fromMirDescription !== '') {
+            return $fromMirDescription;
+        }
+
         $fromInspectionItem = self::extractInspectionItemDescriptionField($normalized);
         if ($fromInspectionItem !== '') {
             return $fromInspectionItem;
@@ -1128,7 +1133,7 @@ class DocumentFilenameParser
         $start = (int) $m[0][1] + strlen($m[0][0]);
         $chunk = substr($normalized, $start, 2200);
 
-        return self::collectSubjectFromFieldWindow($chunk, [
+        $fromWindow = self::collectSubjectFromFieldWindow($chunk, [
             'Purpose\s*(?:&(?:amp;)?|AND)\s*Location',
             'Manufacturer\s*/?\s*Supplier',
             'Spec(?:ification)?\.?\s*Sec(?:tion)?(?:\s*and\s*Clause)?',
@@ -1158,6 +1163,58 @@ class DocumentFilenameParser
             'Consultant\s*:',
             'Main\s+Contractor',
         ]);
+        if ($fromWindow !== '') {
+            // Prefer the real MIR wording when OCR put a short location (e.g. Tree pits) first.
+            $mirPhrase = self::extractMaterialInspectionDescriptionPhrase($chunk);
+            if ($mirPhrase !== '' && mb_strlen($mirPhrase) > mb_strlen($fromWindow)) {
+                return $mirPhrase;
+            }
+
+            return $fromWindow;
+        }
+
+        return self::extractMaterialInspectionDescriptionPhrase($chunk);
+    }
+
+    /**
+     * MIR Title/Description often reads: "Material Inspection request Geotextile as per attached Delivery note".
+     */
+    protected static function extractMaterialInspectionDescriptionPhrase(string $normalized): string
+    {
+        if (! preg_match_all(
+            '~Material\s+Inspection\s+(?:request|for)\s+[^\n]{3,240}(?:\n[^\n]{0,80})?~i',
+            $normalized,
+            $matches
+        )) {
+            return '';
+        }
+
+        $best = '';
+        foreach ($matches[0] as $raw) {
+            $candidate = trim(preg_replace('/\s+/', ' ', (string) $raw));
+            $candidate = preg_split(
+                '/\s+(?:Purpose\s*(?:&|AND)\s*Location|Manufacturer\s*\/?\s*Supplier|Spec(?:ification)?\.?\s*Sec|You\s+are\s+hereby|Inspection\s+Date|Item\s+No|Contract\s+Doc|Project\s*No|Sub\.?\s*Ref|Client\s*:|Consultant\s*:)/i',
+                $candidate,
+                2
+            )[0] ?? $candidate;
+            $candidate = trim((string) $candidate);
+            $candidate = self::cleanOcrSubject($candidate);
+            if ($candidate === '' || self::isJunkSubject($candidate)) {
+                continue;
+            }
+            // Skip the form banner line ("Material Inspection Request Project No…").
+            if (preg_match('/^Material\s+Inspection\s+Request\s+(?:Project|Sub\.?|Client|Date|Rev)\b/i', $candidate)) {
+                continue;
+            }
+            if (
+                preg_match('/as\s+per\s+attached|Delivery\s+note|Geotextile|Graphic\s+Paving|In-situ|STREETBOND|\(PT-\d+\)/i', $candidate)
+                || mb_strlen($candidate) > mb_strlen($best)
+            ) {
+                $best = $candidate;
+            }
+        }
+
+        return $best;
     }
 
     /**
@@ -1253,6 +1310,16 @@ class DocumentFilenameParser
                 if ($collected !== []) {
                     break;
                 }
+                continue;
+            }
+
+            // Skip short location-only cells (e.g. "Tree pits") when a longer description follows.
+            if (
+                $collected === []
+                && mb_strlen($line) <= 24
+                && ! preg_match('/Material\s+Inspection|Geotextile|as\s+per\s+attached|Delivery\s+note|Graphic\s+Paving|In-situ/i', $line)
+                && preg_match('/Material\s+Inspection\s+(?:request|for)\s+/i', $chunk)
+            ) {
                 continue;
             }
 

@@ -579,6 +579,19 @@ test('arada mir filename keeps the register without revision tail', function () 
     expect($meta['subject'])->toBe('—');
 });
 
+test('mir title description geotextile wording is used as the subject', function () {
+    $filename = 'JH-LSC-MIR-SLS-PSC-PAR-0003_00_B.pdf';
+    $ocr = "MATERIAL INSPECTION REQUEST\nTitle & Description : Contract Doc. Ref. :\n"
+        ."Purpose & Location : Tree pits\n"
+        ."Material Inspection request Geotextile as per attached\nDelivery note\n"
+        ."Manufacturer/ Supplier : M/s. Local\nYou are hereby Requested to Inspect";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['subject'])->toBe('Material Inspection request Geotextile as per attached Delivery note');
+    expect($meta['subject'])->not->toBe('Tree pits');
+});
+
 test('mir description of material is used as the subject', function () {
     $filename = 'JH-LSC-MIR-SLS-PSC-PAR-0003_00_B.pdf';
     $ocr = "MATERIAL INSPECTION REQUEST\nMIR No.: JH-LSC-MIR-SLS-PSC-PAR-0003\n"
