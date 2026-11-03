@@ -707,8 +707,17 @@
                                             <div style="color:#b91c1c; font-size:0.8rem; margin-top:4px;">File unavailable in storage</div>
                                         @endif
                                     </td>
-                                    <td>{{ $referenceNo }}</td>
-                                    <td>{{ $subject }}</td>
+                                    <td class="doc-ref-cell" data-doc-id="{{ $doc->id }}">{{ $referenceNo }}</td>
+                                    <td
+                                        class="doc-subject-cell"
+                                        data-doc-id="{{ $doc->id }}"
+                                        data-file-name="{{ $doc->file_name }}"
+                                        @if(!empty($doc->file_available) && $subject === '—' && preg_match('/\.pdf$/i', (string) $doc->file_name))
+                                            data-needs-ocr="1"
+                                            data-view-url="{{ route('documents.view', ['id' => $doc->id, 'proxy' => 1]) }}"
+                                            data-ocr-url="{{ route('documents.ocr-text', ['id' => $doc->id]) }}"
+                                        @endif
+                                    >{{ $subject }}</td>
                                     <td>{{ $doc->discipline ?: '—' }}</td>
                                     <td>{{ $doc->project?->project_number ?? '—' }}</td>
                                     <td>{{ $doc->project?->project_name ?? '—' }}</td>
@@ -858,8 +867,17 @@
                                     <div style="color:#b91c1c; font-size:0.8rem; margin-top:4px;">File unavailable in storage</div>
                                 @endif
                             </td>
-                            <td>{{ $referenceNo }}</td>
-                            <td>{{ $subject }}</td>
+                            <td class="doc-ref-cell" data-doc-id="{{ $doc->id }}">{{ $referenceNo }}</td>
+                            <td
+                                class="doc-subject-cell"
+                                data-doc-id="{{ $doc->id }}"
+                                data-file-name="{{ $doc->file_name }}"
+                                @if(!empty($doc->file_available) && $subject === '—' && preg_match('/\.pdf$/i', (string) $doc->file_name))
+                                    data-needs-ocr="1"
+                                    data-view-url="{{ route('documents.view', ['id' => $doc->id, 'proxy' => 1]) }}"
+                                    data-ocr-url="{{ route('documents.ocr-text', ['id' => $doc->id]) }}"
+                                @endif
+                            >{{ $subject }}</td>
                             <td>{{ $doc->display_folder }}</td>
                             <td>{{ $doc->project?->project_number ?? '—' }}@if($doc->project) — {{ $doc->project->project_name }}@endif</td>
                             <td>{{ format_model_datetime($doc, 'updated_at') }}</td>
@@ -1602,6 +1620,88 @@
             }
         });
     @endif
+</script>
+
+{{-- Browser OCR for scanned forms (Cloud has no Tesseract). Reads Title/Description from page 1. --}}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+(function () {
+    var csrf = document.querySelector('meta[name="csrf-token"]');
+    csrf = csrf ? csrf.getAttribute('content') : '';
+    if (typeof pdfjsLib === 'undefined' || typeof Tesseract === 'undefined') {
+        return;
+    }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    function cellsNeedingOcr() {
+        return Array.prototype.slice.call(document.querySelectorAll('.doc-subject-cell[data-needs-ocr="1"]'));
+    }
+
+    async function ocrFirstPage(viewUrl) {
+        var pdf = await pdfjsLib.getDocument({ url: viewUrl, withCredentials: true }).promise;
+        var page = await pdf.getPage(1);
+        var viewport = page.getViewport({ scale: 2 });
+        var canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+        var result = await Tesseract.recognize(canvas, 'eng');
+        return String((result && result.data && result.data.text) || '').trim();
+    }
+
+    async function fillSubject(cell) {
+        var viewUrl = cell.getAttribute('data-view-url');
+        var ocrUrl = cell.getAttribute('data-ocr-url');
+        var docId = cell.getAttribute('data-doc-id');
+        if (!viewUrl || !ocrUrl) {
+            return;
+        }
+        cell.textContent = 'Reading…';
+        cell.removeAttribute('data-needs-ocr');
+        try {
+            var text = await ocrFirstPage(viewUrl);
+            if (text.length < 20) {
+                cell.textContent = '—';
+                return;
+            }
+            var response = await fetch(ocrUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ ocr_text: text })
+            });
+            if (!response.ok) {
+                throw new Error('save failed');
+            }
+            var data = await response.json();
+            cell.textContent = data.subject || '—';
+            var refCell = document.querySelector('.doc-ref-cell[data-doc-id="' + docId + '"]');
+            if (refCell && data.reference_no) {
+                refCell.textContent = data.reference_no;
+            }
+        } catch (e) {
+            cell.textContent = '—';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var queue = cellsNeedingOcr();
+        if (!queue.length) {
+            return;
+        }
+        (async function run() {
+            for (var i = 0; i < queue.length; i++) {
+                await fillSubject(queue[i]);
+            }
+        })();
+    });
+})();
 </script>
 
 @endsection

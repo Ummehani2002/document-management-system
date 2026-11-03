@@ -97,6 +97,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/documents/{id}/download', [DocumentController::class, 'download'])->name('documents.download')->where('id', '[0-9]+');
     Route::get('/download/pdf/{id}', [DocumentController::class, 'download'])->where('id', '[0-9]+');
     Route::get('/documents/{id}/view', [DocumentController::class, 'viewPdf'])->name('documents.view')->where('id', '[0-9]+');
+    Route::post('/documents/{id}/ocr-text', [DocumentController::class, 'storeOcrText'])->name('documents.ocr-text')->where('id', '[0-9]+');
     Route::get('/documents/{id}/preview-url', [DocumentController::class, 'previewUrl'])->name('documents.preview-url')->where('id', '[0-9]+');
     Route::get('/download/pdf/{id}/view', [DocumentController::class, 'viewPdf'])->where('id', '[0-9]+');
     Route::get('/documents/{id}/versions', [DocumentController::class, 'versions'])->name('documents.versions')->where('id', '[0-9]+');

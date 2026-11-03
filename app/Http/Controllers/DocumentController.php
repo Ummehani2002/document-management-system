@@ -772,8 +772,6 @@ class DocumentController extends Controller
                     ->map(fn ($group) => $group->first()?->user);
             }
 
-            $this->ocrBlankSubjectsOnPage($collection);
-
             $collection->transform(function (Document $document) use ($activityUsers, $familyCounts) {
                 $document->file_available = $this->resolveDocumentLocation((string) $document->file_path) !== null;
 
@@ -1485,58 +1483,33 @@ class DocumentController extends Controller
     }
 
     /**
-     * When Search shows a form PDF with a blank Subject, OCR that file now (max 2 per page)
-     * so Title/Description / Material Description appears without a separate re-upload.
-     *
-     * @param  \Illuminate\Support\Collection<int, Document>  $documents
+     * Store browser-side OCR text (Laravel Cloud has no Tesseract binary).
      */
-    protected function ocrBlankSubjectsOnPage($documents): void
+    public function storeOcrText(Request $request, int $id)
     {
-        if (! app(PdfFirstPageOcrService::class)->canOcrImages()) {
-            Log::warning('Search OCR skipped: no OCR engine (need node + tesseract.js or tesseract binary)');
+        $document = Document::find($id);
+        $this->authorizeDocument($document);
 
-            return;
+        $data = $request->validate([
+            'ocr_text' => ['required', 'string', 'min:20', 'max:200000'],
+        ]);
+
+        $text = trim((string) $data['ocr_text']);
+        $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]+/', ' ', $text) ?? $text;
+        if (mb_strlen($text) > 50000) {
+            $text = mb_substr($text, 0, 50000);
         }
 
-        $done = 0;
-        foreach ($documents as $document) {
-            if ($done >= 2) {
-                break;
-            }
-            if (! $this->documentNeedsSubjectOcr($document)) {
-                continue;
-            }
+        $document->ocr_text = $text;
+        $document->save();
 
-            try {
-                @set_time_limit(120);
-                (new ProcessOCR((int) $document->id, true))->handle();
-                $document->refresh();
-                $done++;
-            } catch (\Throwable $e) {
-                Log::warning('Search-time OCR failed', [
-                    'document_id' => $document->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-    }
+        $meta = DocumentFilenameParser::extractReferenceAndSubject($text, (string) $document->file_name);
 
-    protected function documentNeedsSubjectOcr(Document $document): bool
-    {
-        $name = (string) $document->file_name;
-        if (! preg_match('/\.pdf$/i', $name)) {
-            return false;
-        }
-        if (! preg_match('/(?:^|[-_\s])(?:IR|MAR|MIR|WIR|MS|MAS|MAT|MST|SD|SDR)(?:[-_\s]|$)/i', $name)) {
-            return false;
-        }
-
-        $meta = DocumentFilenameParser::extractReferenceAndSubject(
-            $document->ocr_text,
-            $name
-        );
-
-        return ($meta['subject'] ?? '—') === '—';
+        return response()->json([
+            'ok' => true,
+            'reference_no' => $meta['reference_no'] ?? '—',
+            'subject' => $meta['subject'] ?? '—',
+        ]);
     }
 
     protected function supportsOcrFullText(): bool
