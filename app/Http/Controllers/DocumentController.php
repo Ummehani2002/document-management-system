@@ -772,6 +772,8 @@ class DocumentController extends Controller
                     ->map(fn ($group) => $group->first()?->user);
             }
 
+            $this->ocrBlankSubjectsOnPage($collection);
+
             $collection->transform(function (Document $document) use ($activityUsers, $familyCounts) {
                 $document->file_available = $this->resolveDocumentLocation((string) $document->file_path) !== null;
 
@@ -1474,15 +1476,67 @@ class DocumentController extends Controller
     }
 
     /**
-     * Run first-pass OCR in-process when the queue is "sync" or DMS_OCR_SYNC_ON_UPLOAD=true,
-     * so local installs without queue:work still get ocr_text and reclassification.
-     * Otherwise queue after the HTTP response.
+     * Always OCR in-process so scanned MIR/IR subjects are stored without a queue worker.
      * Manual uploads set $preserveFolder so OCR text is stored but the chosen folder is kept.
      */
     protected function dispatchProcessOcr(int $documentId, bool $preserveFolder = false): void
     {
-        // Always OCR in-process so scanned MIR/IR subjects are stored without a queue worker.
         (new ProcessOCR($documentId, $preserveFolder))->handle();
+    }
+
+    /**
+     * When Search shows a form PDF with a blank Subject, OCR that file now (max 2 per page)
+     * so Title/Description / Material Description appears without a separate re-upload.
+     *
+     * @param  \Illuminate\Support\Collection<int, Document>  $documents
+     */
+    protected function ocrBlankSubjectsOnPage($documents): void
+    {
+        if (! app(PdfFirstPageOcrService::class)->canOcrImages()) {
+            Log::warning('Search OCR skipped: no OCR engine (need node + tesseract.js or tesseract binary)');
+
+            return;
+        }
+
+        $done = 0;
+        foreach ($documents as $document) {
+            if ($done >= 2) {
+                break;
+            }
+            if (! $this->documentNeedsSubjectOcr($document)) {
+                continue;
+            }
+
+            try {
+                @set_time_limit(120);
+                (new ProcessOCR((int) $document->id, true))->handle();
+                $document->refresh();
+                $done++;
+            } catch (\Throwable $e) {
+                Log::warning('Search-time OCR failed', [
+                    'document_id' => $document->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    protected function documentNeedsSubjectOcr(Document $document): bool
+    {
+        $name = (string) $document->file_name;
+        if (! preg_match('/\.pdf$/i', $name)) {
+            return false;
+        }
+        if (! preg_match('/(?:^|[-_\s])(?:IR|MAR|MIR|WIR|MS|MAS|MAT|MST|SD|SDR)(?:[-_\s]|$)/i', $name)) {
+            return false;
+        }
+
+        $meta = DocumentFilenameParser::extractReferenceAndSubject(
+            $document->ocr_text,
+            $name
+        );
+
+        return ($meta['subject'] ?? '—') === '—';
     }
 
     protected function supportsOcrFullText(): bool

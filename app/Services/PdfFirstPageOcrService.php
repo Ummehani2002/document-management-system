@@ -703,9 +703,17 @@ class PdfFirstPageOcrService
 
     protected function nodeBinary(): ?string
     {
+        $recorded = trim((string) @file_get_contents(storage_path('app/ocr-node-path.txt')));
+        if ($recorded !== '' && is_file($recorded)) {
+            return $recorded;
+        }
+
         $configured = $this->binary('node', 'OCR_NODE_BINARY', 'node_binary', [
             base_path('bin/runtime-node'),
             base_path('bin/runtime-node.exe'),
+            '/usr/local/bin/node',
+            '/usr/bin/node',
+            '/opt/nodejs/bin/node',
         ]);
         if ($configured) {
             return $configured;

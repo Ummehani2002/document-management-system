@@ -3,8 +3,9 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
-        "dev": "vite"
+        "build": "node scripts/record-ocr-node.mjs && vite build",
+        "dev": "vite",
+        "ocr:record-node": "node scripts/record-ocr-node.mjs"
     },
     "dependencies": {
         "tesseract.js": "^5.1.1"

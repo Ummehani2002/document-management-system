@@ -22,6 +22,7 @@
 /bin/runtime-node
 /bin/runtime-node.exe
 /storage/app/tessdata-cache
+/storage/app/ocr-node-path.txt
 Homestead.json
 Homestead.yaml
 Thumbs.db

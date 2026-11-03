@@ -169,6 +169,9 @@ npm run build
 php artisan optimize
 ```
 
+`npm run build` also records the Node path used for **tesseract.js** OCR of scanned MIR/IR PDFs (writes `storage/app/ocr-node-path.txt`). Do not use `npm ci --omit=dev` alone without installing production deps — `tesseract.js` must be present at runtime.
+
+
 Use **plain `composer install`** only if the line above fails. Do **not** put `COMPOSER_DEV_MODE` in the **Environment variables** panel if you see errors like `.env: line X: COMPOSER_DEV_MODE: command not found`; set it inline in the build command instead.
 
 4. **Deploy commands** — use:
