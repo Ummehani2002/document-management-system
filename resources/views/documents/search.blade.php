@@ -5,28 +5,124 @@
 <h2>Search Documents</h2>
 
 <style>
-    .dms-header-filters th {
-        padding-top: 4px;
-        padding-bottom: 8px;
-        vertical-align: top;
+    .dms-col-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .dms-col-header > span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .dms-col-filterable {
+        position: relative;
+    }
+
+    .dms-col-filter-btn {
+        flex: 0 0 auto;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: none;
+        border-radius: 2px;
+        background: transparent;
+        color: #605e5c;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+    }
+
+    .dms-col-filter-btn:hover,
+    .dms-col-filter-btn[aria-expanded="true"] {
+        background: #edebe9;
+        color: #201f1e;
+    }
+
+    .dms-col-filter-btn.is-active {
+        color: #0078d4;
+        background: #deecf9;
+    }
+
+    .dms-col-filter-btn svg {
+        width: 12px;
+        height: 12px;
+        display: block;
+    }
+
+    .dms-col-filter-menu {
+        display: none;
+        position: absolute;
+        top: calc(100% - 2px);
+        left: 0;
+        z-index: 40;
+        width: 240px;
+        padding: 12px;
+        background: #fff;
+        border: 1px solid #e1dfdd;
+        border-radius: 2px;
+        box-shadow: 0 6.4px 14.4px rgba(0, 0, 0, 0.13), 0 1.2px 3.6px rgba(0, 0, 0, 0.11);
+        text-align: left;
         font-weight: 400;
     }
 
-    .dms-header-filters input {
-        width: 100%;
-        min-width: 0;
-        box-sizing: border-box;
-        padding: 5px 8px;
-        margin: 0;
-        font-size: 0.8rem;
-        border: 1px solid #cbd5e1;
-        border-radius: 4px;
-        background: #fff;
+    .dms-col-filter-menu.is-open {
+        display: block;
     }
 
-    .dms-header-filters input:focus {
+    .dms-col-filter-menu label {
+        display: block;
+        margin: 0 0 6px;
+        font-size: 0.75rem;
+        color: #605e5c;
+    }
+
+    .dms-col-filter-menu input {
+        width: 100%;
+        box-sizing: border-box;
+        margin: 0 0 10px;
+        padding: 6px 8px;
+        border: 1px solid #8a8886;
+        border-radius: 2px;
+        font-size: 0.85rem;
+    }
+
+    .dms-col-filter-menu input:focus {
         outline: none;
-        border-color: #64748b;
+        border-color: #0078d4;
+    }
+
+    .dms-col-filter-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    .dms-col-filter-actions button {
+        margin: 0;
+        padding: 4px 12px;
+        border-radius: 2px;
+        font-size: 0.8rem;
+        cursor: pointer;
+    }
+
+    .dms-col-filter-actions .dms-filter-clear {
+        background: #fff;
+        border: 1px solid #8a8886;
+        color: #323130;
+    }
+
+    .dms-col-filter-actions .dms-filter-apply {
+        background: #0078d4;
+        border: 1px solid #0078d4;
+        color: #fff;
     }
 
     .doc-actions-menu {
@@ -701,30 +797,17 @@
                         <thead>
                             <tr>
                                 <th class="bulk-col"><input type="checkbox" class="bulk-select-all" aria-label="Select all documents"></th>
-                                <th>Name</th>
-                                <th>Reference No</th>
-                                <th>Subject</th>
+                                @include('documents.partials.column-filter-th', ['label' => 'Name', 'filterKey' => 'filter_name'])
+                                @include('documents.partials.column-filter-th', ['label' => 'Reference No', 'filterKey' => 'filter_reference'])
+                                @include('documents.partials.column-filter-th', ['label' => 'Subject', 'filterKey' => 'filter_subject'])
                                 <th>Project Discipline</th>
-                                <th>Project Number</th>
+                                @include('documents.partials.column-filter-th', ['label' => 'Project Number', 'filterKey' => 'filter_project'])
                                 <th>Project Name</th>
                                 <th>Project Client</th>
                                 <th>Project Consultant</th>
                                 <th>Modified</th>
                                 <th>Modified By</th>
                                 <th class="text-center" style="width: 48px;"></th>
-                            </tr>
-                            <tr class="dms-header-filters" data-header-filters>
-                                <th class="bulk-col"></th>
-                                <th><input type="search" name="filter_name" value="{{ request('filter_name') }}" placeholder="Filter name" aria-label="Filter by name"></th>
-                                <th><input type="search" name="filter_reference" value="{{ request('filter_reference') }}" placeholder="Filter ref" aria-label="Filter by reference"></th>
-                                <th><input type="search" name="filter_subject" value="{{ request('filter_subject') }}" placeholder="Filter subject" aria-label="Filter by subject"></th>
-                                <th></th>
-                                <th colspan="2"><input type="search" name="filter_project" value="{{ request('filter_project') }}" placeholder="Filter project" aria-label="Filter by project"></th>
-                                <th></th>
-                                <th></th>
-                                <th></th>
-                                <th></th>
-                                <th class="text-center"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -877,25 +960,14 @@
                 <thead>
                     <tr>
                         <th class="bulk-col"><input type="checkbox" class="bulk-select-all" aria-label="Select all documents"></th>
-                        <th>Name</th>
-                        <th>Reference No</th>
-                        <th>Subject</th>
-                        <th>Folder</th>
-                        <th>Project</th>
+                        @include('documents.partials.column-filter-th', ['label' => 'Name', 'filterKey' => 'filter_name'])
+                        @include('documents.partials.column-filter-th', ['label' => 'Reference No', 'filterKey' => 'filter_reference'])
+                        @include('documents.partials.column-filter-th', ['label' => 'Subject', 'filterKey' => 'filter_subject'])
+                        @include('documents.partials.column-filter-th', ['label' => 'Folder', 'filterKey' => 'filter_folder'])
+                        @include('documents.partials.column-filter-th', ['label' => 'Project', 'filterKey' => 'filter_project'])
                         <th>Modified</th>
                         <th>Modified By</th>
                         <th style="text-align: center; width: 48px;"></th>
-                    </tr>
-                    <tr class="dms-header-filters" data-header-filters>
-                        <th class="bulk-col"></th>
-                        <th><input type="search" name="filter_name" value="{{ request('filter_name') }}" placeholder="Filter name" aria-label="Filter by name"></th>
-                        <th><input type="search" name="filter_reference" value="{{ request('filter_reference') }}" placeholder="Filter ref" aria-label="Filter by reference"></th>
-                        <th><input type="search" name="filter_subject" value="{{ request('filter_subject') }}" placeholder="Filter subject" aria-label="Filter by subject"></th>
-                        <th><input type="search" name="filter_folder" value="{{ request('filter_folder') }}" placeholder="Filter folder" aria-label="Filter by folder"></th>
-                        <th><input type="search" name="filter_project" value="{{ request('filter_project') }}" placeholder="Filter project" aria-label="Filter by project"></th>
-                        <th></th>
-                        <th></th>
-                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1672,41 +1744,90 @@
 
 <script>
 (function () {
-    var FILTER_KEYS = ['filter_name', 'filter_reference', 'filter_subject', 'filter_folder', 'filter_project'];
-    var debounceTimer = null;
-
-    function applyHeaderFilters(row) {
-        var url = new URL(window.location.href);
-        FILTER_KEYS.forEach(function (key) {
-            var input = row.querySelector('input[name="' + key + '"]');
-            if (!input) {
-                return;
-            }
-            var value = (input.value || '').trim();
-            if (value === '') {
-                url.searchParams.delete(key);
-            } else {
-                url.searchParams.set(key, value);
-            }
+    function closeAllFilterMenus(exceptKey) {
+        document.querySelectorAll('.dms-col-filter-menu.is-open').forEach(function (menu) {
+            var key = menu.getAttribute('data-filter-menu');
+            if (exceptKey && key === exceptKey) return;
+            menu.classList.remove('is-open');
+            var btn = document.querySelector('[data-filter-toggle="' + key + '"]');
+            if (btn) btn.setAttribute('aria-expanded', 'false');
         });
+    }
+
+    function setFilterParam(key, value) {
+        var url = new URL(window.location.href);
+        value = (value || '').trim();
+        if (value === '') {
+            url.searchParams.delete(key);
+        } else {
+            url.searchParams.set(key, value);
+        }
         url.searchParams.delete('page');
         window.location.href = url.toString();
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('[data-header-filters]').forEach(function (row) {
-            row.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    clearTimeout(debounceTimer);
-                    applyHeaderFilters(row);
+        document.querySelectorAll('[data-filter-toggle]').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var key = btn.getAttribute('data-filter-toggle');
+                var menu = document.querySelector('[data-filter-menu="' + key + '"]');
+                if (!menu) return;
+                var willOpen = !menu.classList.contains('is-open');
+                closeAllFilterMenus(willOpen ? key : null);
+                menu.classList.toggle('is-open', willOpen);
+                btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+                if (willOpen) {
+                    var input = menu.querySelector('input');
+                    if (input) {
+                        setTimeout(function () { input.focus(); input.select(); }, 0);
+                    }
                 }
             });
-            row.addEventListener('input', function () {
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(function () {
-                    applyHeaderFilters(row);
-                }, 500);
+        });
+
+        document.querySelectorAll('[data-filter-apply]').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var key = btn.getAttribute('data-filter-apply');
+                var menu = document.querySelector('[data-filter-menu="' + key + '"]');
+                var input = menu ? menu.querySelector('input[name="' + key + '"]') : null;
+                setFilterParam(key, input ? input.value : '');
+            });
+        });
+
+        document.querySelectorAll('[data-filter-clear]').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var key = btn.getAttribute('data-filter-clear');
+                setFilterParam(key, '');
+            });
+        });
+
+        document.querySelectorAll('.dms-col-filter-menu input').forEach(function (input) {
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    setFilterParam(input.name, input.value);
+                } else if (e.key === 'Escape') {
+                    closeAllFilterMenus();
+                }
+            });
+            input.addEventListener('click', function (e) {
+                e.stopPropagation();
+            });
+        });
+
+        document.addEventListener('click', function () {
+            closeAllFilterMenus();
+        });
+
+        document.querySelectorAll('.dms-col-filter-menu').forEach(function (menu) {
+            menu.addEventListener('click', function (e) {
+                e.stopPropagation();
             });
         });
     });
