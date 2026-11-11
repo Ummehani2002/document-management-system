@@ -5,6 +5,30 @@
 <h2>Search Documents</h2>
 
 <style>
+    .dms-header-filters th {
+        padding-top: 4px;
+        padding-bottom: 8px;
+        vertical-align: top;
+        font-weight: 400;
+    }
+
+    .dms-header-filters input {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+        padding: 5px 8px;
+        margin: 0;
+        font-size: 0.8rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        background: #fff;
+    }
+
+    .dms-header-filters input:focus {
+        outline: none;
+        border-color: #64748b;
+    }
+
     .doc-actions-menu {
         position: relative;
         display: inline-block;
@@ -689,6 +713,19 @@
                                 <th>Modified By</th>
                                 <th class="text-center" style="width: 48px;"></th>
                             </tr>
+                            <tr class="dms-header-filters" data-header-filters>
+                                <th class="bulk-col"></th>
+                                <th><input type="search" name="filter_name" value="{{ request('filter_name') }}" placeholder="Filter name" aria-label="Filter by name"></th>
+                                <th><input type="search" name="filter_reference" value="{{ request('filter_reference') }}" placeholder="Filter ref" aria-label="Filter by reference"></th>
+                                <th><input type="search" name="filter_subject" value="{{ request('filter_subject') }}" placeholder="Filter subject" aria-label="Filter by subject"></th>
+                                <th></th>
+                                <th colspan="2"><input type="search" name="filter_project" value="{{ request('filter_project') }}" placeholder="Filter project" aria-label="Filter by project"></th>
+                                <th></th>
+                                <th></th>
+                                <th></th>
+                                <th></th>
+                                <th class="text-center"></th>
+                            </tr>
                         </thead>
                         <tbody>
                             @forelse($documents as $doc)
@@ -712,7 +749,7 @@
                                         class="doc-subject-cell"
                                         data-doc-id="{{ $doc->id }}"
                                         data-file-name="{{ $doc->file_name }}"
-                                        @if(!empty($doc->file_available) && $subject === '—' && preg_match('/\.pdf$/i', (string) $doc->file_name))
+                                        @if(!empty($doc->file_available) && $subject === '—' && preg_match('/\.pdf$/i', (string) $doc->file_name) && strlen(trim((string) ($doc->ocr_text ?? ''))) < 40)
                                             data-needs-ocr="1"
                                             data-view-url="{{ route('documents.view', ['id' => $doc->id, 'proxy' => 1]) }}"
                                             data-ocr-url="{{ route('documents.ocr-text', ['id' => $doc->id]) }}"
@@ -849,6 +886,17 @@
                         <th>Modified By</th>
                         <th style="text-align: center; width: 48px;"></th>
                     </tr>
+                    <tr class="dms-header-filters" data-header-filters>
+                        <th class="bulk-col"></th>
+                        <th><input type="search" name="filter_name" value="{{ request('filter_name') }}" placeholder="Filter name" aria-label="Filter by name"></th>
+                        <th><input type="search" name="filter_reference" value="{{ request('filter_reference') }}" placeholder="Filter ref" aria-label="Filter by reference"></th>
+                        <th><input type="search" name="filter_subject" value="{{ request('filter_subject') }}" placeholder="Filter subject" aria-label="Filter by subject"></th>
+                        <th><input type="search" name="filter_folder" value="{{ request('filter_folder') }}" placeholder="Filter folder" aria-label="Filter by folder"></th>
+                        <th><input type="search" name="filter_project" value="{{ request('filter_project') }}" placeholder="Filter project" aria-label="Filter by project"></th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                    </tr>
                 </thead>
                 <tbody>
                     @forelse($documents as $doc)
@@ -872,7 +920,7 @@
                                 class="doc-subject-cell"
                                 data-doc-id="{{ $doc->id }}"
                                 data-file-name="{{ $doc->file_name }}"
-                                @if(!empty($doc->file_available) && $subject === '—' && preg_match('/\.pdf$/i', (string) $doc->file_name))
+                                @if(!empty($doc->file_available) && $subject === '—' && preg_match('/\.pdf$/i', (string) $doc->file_name) && strlen(trim((string) ($doc->ocr_text ?? ''))) < 40)
                                     data-needs-ocr="1"
                                     data-view-url="{{ route('documents.view', ['id' => $doc->id, 'proxy' => 1]) }}"
                                     data-ocr-url="{{ route('documents.ocr-text', ['id' => $doc->id]) }}"
@@ -1622,6 +1670,49 @@
     @endif
 </script>
 
+<script>
+(function () {
+    var FILTER_KEYS = ['filter_name', 'filter_reference', 'filter_subject', 'filter_folder', 'filter_project'];
+    var debounceTimer = null;
+
+    function applyHeaderFilters(row) {
+        var url = new URL(window.location.href);
+        FILTER_KEYS.forEach(function (key) {
+            var input = row.querySelector('input[name="' + key + '"]');
+            if (!input) {
+                return;
+            }
+            var value = (input.value || '').trim();
+            if (value === '') {
+                url.searchParams.delete(key);
+            } else {
+                url.searchParams.set(key, value);
+            }
+        });
+        url.searchParams.delete('page');
+        window.location.href = url.toString();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('[data-header-filters]').forEach(function (row) {
+            row.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    clearTimeout(debounceTimer);
+                    applyHeaderFilters(row);
+                }
+            });
+            row.addEventListener('input', function () {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(function () {
+                    applyHeaderFilters(row);
+                }, 500);
+            });
+        });
+    });
+})();
+</script>
+
 {{-- Browser OCR for scanned forms (Cloud has no Tesseract). Reads Title/Subject from page 1–2. --}}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
@@ -1648,8 +1739,11 @@
         cell.textContent = 'Reading…';
         cell.removeAttribute('data-needs-ocr');
         try {
-            var text = await window.DmsPdfOcr.extractPdfFormText(viewUrl, { maxPages: 2 });
-            if (text.length < 20) {
+            var text = await window.DmsPdfOcr.extractPdfFormText(viewUrl, {
+                maxPages: 2,
+                timeoutMs: 45000
+            });
+            if (!text || text.length < 20) {
                 cell.textContent = '—';
                 return;
             }

@@ -1311,7 +1311,7 @@ class DocumentFilenameParser
             }
 
             $isStop = (bool) preg_match('~^(?:'.$stop.')\b~i', $line)
-                || (bool) preg_match('~Manufacturer\s*/?\s*Supplier\s*:~i', $line)
+                || (bool) preg_match('~(?:Pavcrete\s+)?Manufacturer\s*/?\s*Supplier\s*:~i', $line)
                 || (bool) preg_match('~^Section\s+[A-Z0-9]~i', $line)
                 || (bool) preg_match('~^(?:Installer|Concrete\s+Manufacturer)\s*:~i', $line);
             if ($isStop) {
@@ -1352,7 +1352,7 @@ class DocumentFilenameParser
     protected static function trimSubjectAtNextFormField(string $subject): string
     {
         $cut = preg_split(
-            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|Purpose\s*(?:&|AND)\s*Location|Manufacturer\s*\/?\s*Supplier|Submittal\s+Checklist|Table\s+of\s+Contents|\bDate\b|With\s+reference)/i',
+            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|Purpose\s*(?:&|AND)\s*Location|(?:Pavcrete\s+)?Manufacturer\s*\/?\s*Supplier|Installer\s*:|Submittal\s+Checklist|Table\s+of\s+Contents|\bDate\b|With\s+reference)/i',
             $subject,
             2
         );
@@ -1400,6 +1400,23 @@ class DocumentFilenameParser
         }
         if (self::looksLikeContentsDump($value)) {
             return true;
+        }
+        // Heavy OCR garble: too many tiny tokens / few real words.
+        $words = preg_split('/\s+/', $value) ?: [];
+        if (count($words) >= 4) {
+            $tiny = 0;
+            $real = 0;
+            foreach ($words as $word) {
+                $letters = preg_replace('/[^A-Za-z]/', '', $word) ?? '';
+                if (strlen($letters) >= 4) {
+                    $real++;
+                } elseif ($letters !== '' && strlen($letters) <= 2) {
+                    $tiny++;
+                }
+            }
+            if ($real <= 1 && $tiny >= 3) {
+                return true;
+            }
         }
 
         $withoutCodes = preg_replace(

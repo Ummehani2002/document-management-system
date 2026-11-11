@@ -150,18 +150,89 @@
         var defaultEntityId = @json((string) ($currentEntityId ?? request('entity_id') ?? ''));
         var defaultProjectId = @json((string) request('project_id', ''));
         var bulkMode = 'move';
+        var MAX_SELECTED = 500;
+        var selectionOverride = null;
+
+        function selectionScopeKey() {
+            var params = new URLSearchParams(window.location.search);
+            params.delete('page');
+            var keys = Array.from(params.keys()).sort();
+            var parts = keys.map(function (key) {
+                return key + '=' + (params.get(key) || '');
+            });
+            return 'dms-bulk-select:' + parts.join('&');
+        }
+
+        function loadStoredIds() {
+            try {
+                var raw = sessionStorage.getItem(selectionScopeKey());
+                if (!raw) return [];
+                var parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) return [];
+                return parsed.map(String).filter(Boolean).slice(0, MAX_SELECTED);
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveStoredIds(ids) {
+            var unique = [];
+            var seen = {};
+            ids.map(String).forEach(function (id) {
+                if (!id || seen[id]) return;
+                seen[id] = true;
+                unique.push(id);
+            });
+            unique = unique.slice(0, MAX_SELECTED);
+            try {
+                if (unique.length === 0) {
+                    sessionStorage.removeItem(selectionScopeKey());
+                } else {
+                    sessionStorage.setItem(selectionScopeKey(), JSON.stringify(unique));
+                }
+            } catch (e) {
+                // ignore quota / private mode
+            }
+            return unique;
+        }
+
+        function addIds(ids) {
+            var set = loadStoredIds();
+            ids.map(String).forEach(function (id) {
+                if (set.indexOf(id) === -1) set.push(id);
+            });
+            return saveStoredIds(set);
+        }
+
+        function removeIds(ids) {
+            var drop = {};
+            ids.map(String).forEach(function (id) { drop[id] = true; });
+            return saveStoredIds(loadStoredIds().filter(function (id) { return !drop[id]; }));
+        }
 
         function rowBoxes() {
             return Array.from(document.querySelectorAll('input.bulk-select'));
         }
 
         function selectedIds() {
-            return rowBoxes().filter(function (box) { return box.checked; }).map(function (box) { return box.value; });
+            if (selectionOverride) {
+                return selectionOverride.slice();
+            }
+            return loadStoredIds();
+        }
+
+        function syncBoxesFromStorage() {
+            var stored = {};
+            loadStoredIds().forEach(function (id) { stored[id] = true; });
+            rowBoxes().forEach(function (box) {
+                box.checked = !!stored[String(box.value)];
+            });
         }
 
         function refreshBulkUi() {
             var ids = selectedIds();
             var boxes = rowBoxes();
+            var pageSelected = boxes.filter(function (box) { return box.checked; }).length;
             document.querySelectorAll('[data-bulk-count]').forEach(function (el) {
                 el.textContent = ids.length;
             });
@@ -173,21 +244,45 @@
                 if (row) row.classList.toggle('bulk-row-selected', box.checked);
             });
             document.querySelectorAll('input.bulk-select-all').forEach(function (all) {
-                all.checked = boxes.length > 0 && ids.length === boxes.length;
-                all.indeterminate = ids.length > 0 && ids.length < boxes.length;
+                all.checked = boxes.length > 0 && pageSelected === boxes.length;
+                all.indeterminate = pageSelected > 0 && pageSelected < boxes.length;
             });
         }
 
         document.addEventListener('change', function (e) {
             if (e.target.matches('input.bulk-select-all')) {
-                rowBoxes().forEach(function (box) { box.checked = e.target.checked; });
+                var pageIds = rowBoxes().map(function (box) { return box.value; });
+                if (e.target.checked) {
+                    var before = loadStoredIds().length;
+                    addIds(pageIds);
+                    syncBoxesFromStorage();
+                    if (loadStoredIds().length >= MAX_SELECTED && before < MAX_SELECTED &&
+                        pageIds.some(function (id) { return loadStoredIds().indexOf(String(id)) === -1; })) {
+                        alert('Selection limited to ' + MAX_SELECTED + ' documents.');
+                    }
+                } else {
+                    removeIds(pageIds);
+                    rowBoxes().forEach(function (box) { box.checked = false; });
+                }
                 refreshBulkUi();
             } else if (e.target.matches('input.bulk-select')) {
+                if (e.target.checked) {
+                    if (loadStoredIds().length >= MAX_SELECTED && loadStoredIds().indexOf(String(e.target.value)) === -1) {
+                        e.target.checked = false;
+                        alert('Selection limited to ' + MAX_SELECTED + ' documents.');
+                    } else {
+                        addIds([e.target.value]);
+                    }
+                } else {
+                    removeIds([e.target.value]);
+                }
                 refreshBulkUi();
             }
         });
 
         window.bulkClearSelection = function () {
+            selectionOverride = null;
+            saveStoredIds([]);
             rowBoxes().forEach(function (box) { box.checked = false; });
             refreshBulkUi();
         };
@@ -262,19 +357,20 @@
 
         window.openBulkTargetModal = function (mode, presetIds) {
             if (presetIds && presetIds.length) {
-                var wanted = presetIds.map(String);
-                rowBoxes().forEach(function (box) {
-                    box.checked = wanted.indexOf(String(box.value)) !== -1;
-                });
-                refreshBulkUi();
+                selectionOverride = presetIds.map(String);
+            } else {
+                selectionOverride = null;
             }
             var ids = selectedIds();
-            if (ids.length === 0) return;
+            if (ids.length === 0) {
+                selectionOverride = null;
+                return;
+            }
             bulkMode = mode;
             var verb = mode === 'copy' ? 'Copy' : 'Move';
             document.getElementById('bulk-target-title').textContent = verb + ' to';
             document.getElementById('bulk-target-submit').textContent = verb;
-            document.getElementById('bulk-target-summary').textContent = ids.length + ' file(s) selected';
+            document.getElementById('bulk-target-summary').textContent = ids.length + ' file(s) selected' + (selectionOverride ? '' : ' (across pages)');
             document.getElementById('bulk-target-error').style.display = 'none';
 
             if (entitySelect.value === '' && defaultEntityId !== '') {
@@ -290,9 +386,12 @@
         };
 
         window.closeBulkTargetModal = function () {
+            selectionOverride = null;
             var modal = document.getElementById('bulk-target-modal');
             modal.classList.remove('is-open');
             modal.setAttribute('aria-hidden', 'true');
+            syncBoxesFromStorage();
+            refreshBulkUi();
         };
 
         window.submitBulkTarget = function () {
@@ -311,6 +410,7 @@
             window.bulkSubmit(bulkMode);
         };
 
+        syncBoxesFromStorage();
         refreshBulkUi();
     })();
 </script>

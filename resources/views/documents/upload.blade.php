@@ -401,6 +401,7 @@
                         try {
                             return await window.DmsPdfOcr.extractPdfFormText(file, {
                                 maxPages: 2,
+                                timeoutMs: 45000,
                                 onProgress: function (msg) {
                                     setUploadProgress('File reading: ' + msg);
                                 }

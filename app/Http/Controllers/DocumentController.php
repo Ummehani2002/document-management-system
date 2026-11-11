@@ -554,17 +554,28 @@ class DocumentController extends Controller
         $discipline = trim($request->discipline ?? '');
         $documentType = trim($request->document_type ?? '');
         $mainFolder = trim((string) $request->input('main_folder', ''));
+        $filterName = trim((string) $request->input('filter_name', ''));
+        $filterReference = trim((string) $request->input('filter_reference', ''));
+        $filterSubject = trim((string) $request->input('filter_subject', ''));
+        $filterFolder = trim((string) $request->input('filter_folder', ''));
+        $filterProject = trim((string) $request->input('filter_project', ''));
         $fromSidebar = (bool) $request->boolean('from_sidebar');
         $folderTree = DocumentFilenameParser::sidebarFolderTree();
         $needsProjectSelection = $fromSidebar
             && ($documentType !== '' || $mainFolder !== '')
             && (! $projectId || ! $entityId);
+        $hasColumnFilters = $filterName !== ''
+            || $filterReference !== ''
+            || $filterSubject !== ''
+            || $filterFolder !== ''
+            || $filterProject !== '';
         $hasSearchFilters = $keyword !== ''
             || $projectId
             || $entityId
             || $discipline !== ''
             || $documentType !== ''
-            || $mainFolder !== '';
+            || $mainFolder !== ''
+            || $hasColumnFilters;
         // Keep aliases tight so browsing one folder does not pull unrelated types.
         $documentTypeAliases = [
             'Method Statement' => ['Method Statement', 'Method Submittal'],
@@ -738,6 +749,30 @@ class DocumentController extends Controller
                               ->orWhereRaw('LOWER(COALESCE(document_controller, \'\')) LIKE LOWER(?)', [$like]));
                     });
                 }
+            }
+
+            if ($filterName !== '') {
+                $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $filterName) . '%';
+                $query->whereRaw('LOWER(file_name) LIKE LOWER(?)', [$like]);
+            }
+            if ($filterReference !== '') {
+                $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $filterReference) . '%';
+                $query->whereRaw('LOWER(file_name) LIKE LOWER(?)', [$like]);
+            }
+            if ($filterSubject !== '') {
+                $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $filterSubject) . '%';
+                $query->whereRaw('LOWER(COALESCE(ocr_text, \'\')) LIKE LOWER(?)', [$like]);
+            }
+            if ($filterFolder !== '') {
+                $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $filterFolder) . '%';
+                $query->whereRaw('LOWER(COALESCE(document_type, \'\')) LIKE LOWER(?)', [$like]);
+            }
+            if ($filterProject !== '') {
+                $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $filterProject) . '%';
+                $query->whereHas('project', function ($pq) use ($like) {
+                    $pq->whereRaw('LOWER(project_number) LIKE LOWER(?)', [$like])
+                        ->orWhereRaw('LOWER(project_name) LIKE LOWER(?)', [$like]);
+                });
             }
 
             $latestIds = DocumentFileVersioning::pickLatestDocumentIds(

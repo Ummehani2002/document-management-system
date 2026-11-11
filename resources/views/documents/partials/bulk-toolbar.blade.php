@@ -1,5 +1,5 @@
 <div class="bulk-toolbar" data-bulk-toolbar>
-    <span class="bulk-toolbar-count"><span data-bulk-count>0</span> selected</span>
+    <span class="bulk-toolbar-count"><span data-bulk-count>0</span> selected <span style="color:#64748b;font-weight:400;">(across pages)</span></span>
     <button type="button" data-bulk-action onclick="bulkSubmit('download')" disabled>Download</button>
     <button type="button" data-bulk-action onclick="openBulkTargetModal('move')" disabled>Move to</button>
     <button type="button" data-bulk-action onclick="openBulkTargetModal('copy')" disabled>Copy to</button>
