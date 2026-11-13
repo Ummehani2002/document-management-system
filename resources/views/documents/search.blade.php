@@ -1857,12 +1857,20 @@
         if (!viewUrl || !ocrUrl) {
             return;
         }
+        var triedKey = 'dms-ocr-tried:' + docId;
+        try {
+            if (sessionStorage.getItem(triedKey) === '1') {
+                cell.removeAttribute('data-needs-ocr');
+                return;
+            }
+            sessionStorage.setItem(triedKey, '1');
+        } catch (e) {}
         cell.textContent = 'Reading…';
         cell.removeAttribute('data-needs-ocr');
         try {
             var text = await window.DmsPdfOcr.extractPdfFormText(viewUrl, {
                 maxPages: 2,
-                timeoutMs: 45000
+                timeoutMs: 60000
             });
             if (!text || text.length < 20) {
                 cell.textContent = '—';

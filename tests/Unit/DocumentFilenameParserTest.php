@@ -751,3 +751,15 @@ test('inspection request subject is recovered from the inspection request for ph
         'Inspection request for Excavation of Palm tree pits - 08 Nos. as shown in the attached drawing and site pictures.'
     );
 });
+
+test('time of inspection ocr garble is not used as the subject', function () {
+    $ocr = "INSPECTION REQUEST\nIR Ref No. PSE2023-1017-PRS-IR-SLS-00001\n"
+        ."|nmeot inspection: 10.00 am i a\n"
+        ."Time of Inspection: 10.00 am\n"
+        ."Discipline: Others";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, 'PSE2023-1017-PRS-IR-SLS-00001.pdf');
+
+    expect($meta['subject'])->toBe('—');
+    expect(DocumentFilenameParser::shouldAttemptBrowserSubjectOcr($ocr, '—', 'PSE2023-1017-PRS-IR-SLS-00001.pdf'))->toBeTrue();
+});

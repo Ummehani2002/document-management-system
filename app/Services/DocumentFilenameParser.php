@@ -811,7 +811,15 @@ class DocumentFilenameParser
      */
     public static function shouldAttemptBrowserSubjectOcr(?string $ocrText, string $subject, string $fileName): bool
     {
-        if ($subject !== '—' || ! preg_match('/\.pdf$/i', $fileName)) {
+        if (! preg_match('/\.pdf$/i', $fileName)) {
+            return false;
+        }
+
+        // Junk leftovers from Time of Inspection etc. must be re-read.
+        if ($subject !== '—' && self::isJunkSubject($subject)) {
+            $subject = '—';
+        }
+        if ($subject !== '—') {
             return false;
         }
 
@@ -820,18 +828,17 @@ class DocumentFilenameParser
             return true;
         }
 
-        // Label present but filled Description of Works / Title value missing from text layer.
-        if (preg_match('/Description\s+of\s+Works|INSPECTION\s+REQUEST|Title\s*[\/&]\s*(?:Subject|Description)|Material\s+Description/i', $ocr)
-            && ! preg_match('/Inspection\s+request\s+for\b|Material\s+Submittal\s+for\b|Material\s+Inspection\s+(?:request|for)\b/i', $ocr)
-        ) {
+        // Already have the filled Description of Works / Title line → parser can use it.
+        if (preg_match('/Inspection\s+request\s+for\b|Material\s+Submittal\s+for\b|Material\s+Inspection\s+(?:request|for)\s+\S/i', $ocr)) {
+            return false;
+        }
+
+        // Labels/chrome only (common when text layer skipped image OCR) → browser image OCR.
+        if (preg_match('/Description\s+of\s+Works|INSPECTION\s+REQUEST|Title\s*[\/&]\s*(?:Subject|Description)|Material\s+Description|Time\s+of\s+Inspection/i', $ocr)) {
             return true;
         }
 
-        // Long OCR without form markers → worth another browser pass.
-        return ! (bool) preg_match(
-            '/Title\s*[\/&]\s*(?:Subject|Description)|Material\s+Description|Description\s+of\s+(?:Item|Material|Works)|INSPECTION\s+REQUEST|INTERNAL\s+MEMO|\bSUBJECT\s*:/i',
-            $ocr
-        );
+        return true;
     }
 
     /**
@@ -1514,6 +1521,25 @@ class DocumentFilenameParser
             return true;
         }
         if (preg_match('/^(?:date|ref(?:erence)?)\s*[:\-]/i', $value)) {
+            return true;
+        }
+        // IR form chrome / bad OCR of "Time of Inspection: 10.00 am" etc.
+        if (preg_match('/\b\d{1,2}[.:]\d{2}\s*(?:am|pm)\b/i', $value) && ! preg_match('/inspection\s+request\s+for\b/i', $value)) {
+            return true;
+        }
+        if (preg_match('/^\W*[A-Za-z]{0,4}nmeot\b/i', $value)) {
+            return true;
+        }
+        if (preg_match('/\binspection\s*:\s*\d/i', $value)) {
+            return true;
+        }
+        if (preg_match('/time\s+of\s+inspection/i', $value) && ! preg_match('/inspection\s+request\s+for\b/i', $value)) {
+            return true;
+        }
+        if (preg_match('/^[\|\\\\\/\%\#]+/', $value)) {
+            return true;
+        }
+        if (mb_strlen($value) < 40 && preg_match('/\binspection\s*:/i', $value)) {
             return true;
         }
         if (self::looksLikeContentsDump($value)) {
