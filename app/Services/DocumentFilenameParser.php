@@ -822,7 +822,7 @@ class DocumentFilenameParser
 
         // Long OCR without Title/Subject/Description markers → worth another browser pass.
         return ! (bool) preg_match(
-            '/Title\s*[\/&]\s*(?:Subject|Description)|Material\s+Description|Description\s+of\s+(?:Item|Material|Works)|INTERNAL\s+MEMO|\bSUBJECT\s*:/i',
+            '/Title\s*[\/&]\s*(?:Subject|Description)|Material\s+Description|Description\s+of\s+(?:Item|Material|Works)|INSPECTION\s+REQUEST|INTERNAL\s+MEMO|\bSUBJECT\s*:/i',
             $ocr
         );
     }
@@ -843,8 +843,9 @@ class DocumentFilenameParser
             $normalized = self::normalizeOcrText($ocr);
 
             $referencePatterns = [
-                '/(?:^|\n)\s*(?:WIR|IR)\s*(?:NO\.?|NUMBER|#)\s*[:\-]?\s*(.{0,220})/is',
-                '/(?:^|\n)\s*INSPECTION\s*REQUEST\s*(?:NO\.?|NUMBER)\s*[:\-]?\s*(.{0,220})/is',
+                '/(?:^|\n)\s*IR\s*REF(?:ERENCE)?\s*(?:NO\.?|NUMBER|#)\s*[:\-]?\s*(.{0,220})/is',
+                '/(?:^|\n)\s*(?:WIR|IR)\s*(?:NO\.?|NUMBER|#|REF(?:ERENCE)?)\s*[:\-]?\s*(.{0,220})/is',
+                '/(?:^|\n)\s*INSPECTION\s*REQUEST\s*(?:NO\.?|NUMBER|REF(?:ERENCE)?)\s*[:\-]?\s*(.{0,220})/is',
                 '/(?:^|\n)\s*REL\.?\s*NO\.?\s*[:\-]?\s*(.{0,220})/is',
                 '/(?:^|\n)\s*REF(?:ERENCE)?\s*\.?\s*(?:NO\.?|NUMBER)\s*[:\-]?\s*(.{0,220})/is',
                 '/(?:^|\n)\s*REF(?:ERENCE)?\s*\.?\s*[:\-]\s*(.{0,220})/is',
@@ -1110,6 +1111,7 @@ class DocumentFilenameParser
 
         $labels = [
             'DESCRIPTION\s+OF\s+ITEM\s*/\s*AREA\s+TO\s+BE\s+INSPECTED',
+            'DESCRIPTION\s+OF\s+WORKS?\s+TO\s+BE\s+INSPECTED(?:\s+AND\s*/?\s*OR\s+TESTED)?',
             'AREA\s+TO\s+BE\s+INSPECTED',
             'TITLE\s*/\s*SUBJECT',
             'TITLE\s*(?:AND|OR)\s*SUBJECT',
@@ -1133,14 +1135,15 @@ class DocumentFilenameParser
             'SUBJECT\s*[:\-]',
             'TITLE\s*[:\-]',
         ];
-        $stop = 'Specification(?:\s+Clause)?\s+Ref|Drawing\s+(?:No|Number|Ref(?:erence)?)|Local\s+Supplier'
+        $stop = 'Specification(?:\s+Clause)?\s+Ref|Drawing\s+(?:No|Number|Ref(?:erence)?(?:\s*No)?)|Local\s+Supplier'
             .'|Received(?:\s+by)?|Enclosures?|Contractor(?:\'s)?\s+(?:Certification|Remarks)|B\.?O\.?Q\.?\s+Item'
             .'|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref(?:\.?\s*No)?'
             .'|Attachments?|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bScale\s*[:\-]|\bRev(?:ision)?\s*[:\-]'
-            .'|With\s+reference|Dear\s+Sir';
+            .'|With\s+reference|Dear\s+Sir|Date\s+of\s+Inspection|Time\s+of\s+Inspection|Discipline';
         $descriptionStop = $stop.'|Manufacturer|Purpose\s*(?:&(?:amp;)?|AND)\s*Location|Submittal\s+Checklist|Table\s+of\s+Contents'
-            .'|Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area))'
-            .'|Where\s+(?:the\s+)?Item\s+will\s+be\s+used|Nature\s+of\s+Inspection|Requested\s+(?:by|date)|Inspection\s+Date';
+            .'|Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area)|[A-Z0-9])'
+            .'|Where\s+(?:the\s+)?Item\s+will\s+be\s+used|Nature\s+of\s+Inspection|Requested\s+(?:by|date)|Inspection\s+Date'
+            .'|(?<![A-Za-z])Location(?=\s*:|\s+[A-Z0-9])';
 
         foreach ($labels as $label) {
             if (! preg_match(
@@ -1266,12 +1269,14 @@ class DocumentFilenameParser
     }
 
     /**
-     * WIR/IR: only the Description of item / area to be inspected box.
+     * WIR/IR: Description of item/area or Proscape "Description of Works to be inspected…".
      */
     protected static function extractInspectionItemDescriptionField(string $normalized): string
     {
         if (! preg_match(
-            '~DESCRIPTION\s+OF\s+ITEM\s*/\s*AREA\s+TO\s+BE\s+INSPECTED\s*[:\-]?\s*~i',
+            '~(?:DESCRIPTION\s+OF\s+ITEM\s*/\s*AREA\s+TO\s+BE\s+INSPECTED|'
+            .'DESCRIPTION\s+OF\s+WORKS?\s+TO\s+BE\s+INSPECTED(?:\s+AND\s*/?\s*OR\s+TESTED)?|'
+            .'DESCRIPTION\s+OF\s+WORKS?\s*[:\-])\s*[:\-]?\s*~i',
             $normalized,
             $m,
             PREG_OFFSET_CAPTURE
@@ -1283,12 +1288,15 @@ class DocumentFilenameParser
         $chunk = substr($normalized, $start, 1600);
 
         return self::collectSubjectFromFieldWindow($chunk, [
-            'Location\s+of\s+(?:the\s+)?(?:item|works?|area)',
-            'Drawing\s*(?:No|Number|Title|Ref)',
+            'Location(?:\s+of\s+(?:the\s+)?(?:item|works?|area))?',
+            'Drawing\s*(?:No|Number|Title|Ref(?:erence)?(?:\s*No)?)',
+            'Date\s+of\s+Inspection',
+            'Time\s+of\s+Inspection',
             'Nature\s+of\s+Inspection',
             'Requested\s+(?:by|date)',
             'Inspection\s+Date',
             'Type\s+of\s+Inspection',
+            'Discipline',
             'Name\s+of\s+Inspector',
             'Submitted\s+by',
             'Received\s+(?:by|from)',
@@ -1364,7 +1372,10 @@ class DocumentFilenameParser
                 || (bool) preg_match('~^Section\s+[A-Z0-9]~i', $line)
                 || (bool) preg_match('~^(?:Installer|Concrete\s+Manufacturer)\s*:~i', $line)
                 || (bool) preg_match('~^Location\s+Where\s+Item(?:\s+will\s+be\s+used)?\b~i', $line)
-                || (bool) preg_match('~^Where\s+(?:the\s+)?Item\s+will\s+be\s+used\b~i', $line);
+                || (bool) preg_match('~^Where\s+(?:the\s+)?Item\s+will\s+be\s+used\b~i', $line)
+                || (bool) preg_match('~^Location(?:\s*:|\s+[A-Z0-9])~i', $line)
+                || (bool) preg_match('~^Drawing\s+Ref(?:erence)?(?:\s*No)?\b~i', $line)
+                || (bool) preg_match('~^Date\s+of\s+Inspection\b~i', $line);
             if ($isStop) {
                 if ($collected !== []) {
                     break;
@@ -1403,7 +1414,7 @@ class DocumentFilenameParser
     protected static function trimSubjectAtNextFormField(string $subject): string
     {
         $cut = preg_split(
-            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|Purpose\s*(?:&|AND)\s*Location|Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area))|Where\s+(?:the\s+)?Item\s+will\s+be\s+used|(?:Pavcrete\s+)?Manufacturer\s*\/?\s*Supplier|Installer\s*:|Submittal\s+Checklist|Table\s+of\s+Contents|\bDate\b|With\s+reference)/i',
+            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?(?:\s*No)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|Purpose\s*(?:&|AND)\s*Location|Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area)|[A-Z0-9])|(?<![A-Za-z])Location(?=\s*:|\s+[A-Z0-9])|Where\s+(?:the\s+)?Item\s+will\s+be\s+used|Date\s+of\s+Inspection|Time\s+of\s+Inspection|Discipline|(?:Pavcrete\s+)?Manufacturer\s*\/?\s*Supplier|Installer\s*:|Submittal\s+Checklist|Table\s+of\s+Contents|\bDate\b|With\s+reference)/i',
             $subject,
             2
         );
@@ -1414,6 +1425,12 @@ class DocumentFilenameParser
     protected static function cleanOcrSubject(string $subject): string
     {
         $subject = self::trimSubjectAtNextFormField($subject);
+        // If a short "Description of Works" label match left the rest of the IR heading in the value.
+        $subject = preg_replace(
+            '/^to\s+be\s+inspected(?:\s+and\s*\/?\s*or\s+tested)?\s*[:\-]?\s*/i',
+            '',
+            $subject
+        ) ?? $subject;
         $subject = preg_replace(
             '/^(?:[A-Z]{2,}-\d{3,}(?:-[A-Z0-9]+)+\s*|\d{1,2}-[A-Za-z]{3}-\d{2,4}\s*|\b\d{4,}\b\s*)+/',
             '',

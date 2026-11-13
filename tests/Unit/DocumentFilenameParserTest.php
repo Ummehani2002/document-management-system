@@ -717,3 +717,25 @@ test('material submittal subject stops before location where item will be used',
     expect($meta['subject'])->not->toContain('Location Where Item');
     expect($meta['subject'])->not->toContain('Irrigation Works');
 });
+
+test('inspection request description of works is the subject', function () {
+    $filename = 'PSE2023-1017-PRS-IR-SLS-00001.pdf';
+    $ocr = "INSPECTION REQUEST\nDubai Creek Harbour Development\n"
+        ."IR Ref No. PSE2023-1017-PRS-IR-SLS-00001 Rev. 00 Issue Date: 18.03.2024\n"
+        ."Client: EMAAR Contractor: Proscape LLC\n"
+        ."Description of Works to be inspected and /or tested:\n"
+        ."Inspection request for Excavation of Palm tree pits - 08 Nos. as shown in the attached drawing and site pictures.\n"
+        ."Location Creek Beach New Beach\n"
+        ."Drawing Ref No PSE20231017-DB-PL-PLT-05\n"
+        ."Date of Inspection: 19.03.2024 Time of Inspection: 10.00 am\n"
+        ."Discipline: Others";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->toBe('PSE2023-1017-PRS-IR-SLS-00001');
+    expect($meta['subject'])->toBe(
+        'Inspection request for Excavation of Palm tree pits - 08 Nos. as shown in the attached drawing and site pictures.'
+    );
+    expect($meta['subject'])->not->toContain('Location');
+    expect($meta['subject'])->not->toContain('Drawing Ref');
+});
