@@ -1,6 +1,6 @@
 /**
  * Read Reference + Subject (Title / Description / Description of Works) from PDF pages 1–2.
- * Runs for every uploaded/searched PDF — filled form values are often only in the scan image.
+ * Prefers vision AI when configured; falls back to image OCR for every document.
  */
 (function (global) {
     'use strict';
@@ -8,9 +8,6 @@
     function ensureLibs() {
         if (typeof pdfjsLib === 'undefined') {
             throw new Error('pdf.js is not loaded');
-        }
-        if (typeof Tesseract === 'undefined') {
-            throw new Error('tesseract.js is not loaded');
         }
         if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
             pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -34,6 +31,15 @@
                 }
             );
         });
+    }
+
+    async function loadPdf(source) {
+        ensureLibs();
+        if (typeof source === 'string') {
+            return pdfjsLib.getDocument({ url: source, withCredentials: true }).promise;
+        }
+        var buf = await source.arrayBuffer();
+        return pdfjsLib.getDocument({ data: buf }).promise;
     }
 
     async function renderPageToCanvas(page, scale) {
@@ -99,6 +105,9 @@
     }
 
     async function ocrCanvas(canvas, onProgress, label) {
+        if (typeof Tesseract === 'undefined') {
+            throw new Error('tesseract.js is not loaded');
+        }
         onProgress(label || 'OCR…');
         var enhanced = enhanceForOcr(canvas);
         var result = await Tesseract.recognize(enhanced, 'eng');
@@ -119,70 +128,119 @@
         return out.join('\n\n').trim();
     }
 
+    async function renderFirstPageJpeg(source, scale) {
+        var pdf = await loadPdf(source);
+        var page = await pdf.getPage(1);
+        var canvas = await renderPageToCanvas(page, scale || 2.0);
+        return {
+            dataUrl: canvas.toDataURL('image/jpeg', 0.82),
+            mime: 'image/jpeg'
+        };
+    }
+
+    async function extractViaAi(source, options, onProgress) {
+        if (!options.aiExtractUrl) {
+            return null;
+        }
+        onProgress('AI reading Description / Title…');
+        var image = await renderFirstPageJpeg(source, 2.0);
+        var res = await fetch(options.aiExtractUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': options.csrf || '',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                image: image.dataUrl,
+                mime: image.mime,
+                document_id: options.documentId || null
+            })
+        });
+        if (res.status === 503) {
+            return null;
+        }
+        if (!res.ok) {
+            return null;
+        }
+        var data = await res.json();
+        if (!data || !data.ok || !data.ocr_text) {
+            return null;
+        }
+        return data;
+    }
+
+    async function extractWithTesseract(source, options, onProgress) {
+        if (typeof Tesseract === 'undefined') {
+            return '';
+        }
+        var maxPages = options.maxPages || 2;
+        var pdf = await loadPdf(source);
+        var pages = Math.min(maxPages, pdf.numPages || 1);
+        var chunks = [];
+
+        for (var p = 1; p <= pages; p++) {
+            onProgress('Reading page ' + p + ' of ' + pages + '…');
+            var page = await pdf.getPage(p);
+            var textContent = await page.getTextContent();
+            var layer = (textContent.items || [])
+                .map(function (item) { return item.str || ''; })
+                .join(' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            var fullCanvas = await renderPageToCanvas(page, p === 1 ? 2.8 : 2.2);
+            var fullOcr = await ocrCanvas(fullCanvas, onProgress, 'OCR page ' + p + '…');
+
+            var bandOcr = '';
+            var titleBandOcr = '';
+            var detailOcr = '';
+            if (p === 1) {
+                onProgress('Reading Description / Title…');
+                bandOcr = await ocrCanvas(cropBand(fullCanvas, 0.18, 0.55), onProgress, 'Reading Description / Title…');
+                titleBandOcr = await ocrCanvas(cropBand(fullCanvas, 0.08, 0.32), onProgress, 'Reading Reference / header…');
+                if (!hasFilledSubjectPhrase(mergeUniqueTexts([layer, fullOcr, bandOcr, titleBandOcr]))) {
+                    onProgress('Reading description detail…');
+                    var sharp = await renderPageToCanvas(page, 3.4);
+                    detailOcr = await ocrCanvas(cropBand(sharp, 0.22, 0.50), onProgress, 'Reading description detail…');
+                }
+            }
+
+            var pageText = mergeUniqueTexts([layer, fullOcr, titleBandOcr, bandOcr, detailOcr]);
+            if (pageText) {
+                chunks.push(pageText);
+            }
+        }
+
+        return chunks.join('\n\n').trim();
+    }
+
     /**
-     * @param {File|Blob|string} source File, Blob, or URL
-     * @param {{maxPages?: number, timeoutMs?: number, onProgress?: function}} options
-     * @returns {Promise<string>}
+     * @param {File|Blob|string} source
+     * @param {{maxPages?: number, timeoutMs?: number, onProgress?: function, aiExtractUrl?: string, csrf?: string, documentId?: number|string}} options
      */
     async function extractPdfFormText(source, options) {
-        ensureLibs();
         options = options || {};
-        var maxPages = options.maxPages || 2;
         var timeoutMs = options.timeoutMs || 90000;
         var onProgress = typeof options.onProgress === 'function' ? options.onProgress : function () {};
 
         var work = (async function () {
-            var loadingTask;
-            if (typeof source === 'string') {
-                loadingTask = pdfjsLib.getDocument({ url: source, withCredentials: true });
-            } else {
-                var buf = await source.arrayBuffer();
-                loadingTask = pdfjsLib.getDocument({ data: buf });
+            // Every document: try vision AI first (reads italic Description/Title reliably).
+            try {
+                var ai = await extractViaAi(source, options, onProgress);
+                if (ai && ai.subject && ai.subject !== '—' && ai.ocr_text) {
+                    return ai.ocr_text;
+                }
+                if (ai && ai.ocr_text && hasFilledSubjectPhrase(ai.ocr_text)) {
+                    return ai.ocr_text;
+                }
+            } catch (err) {
+                console.warn('AI form extract skipped', err);
             }
 
-            var pdf = await loadingTask.promise;
-            var pages = Math.min(maxPages, pdf.numPages || 1);
-            var chunks = [];
-
-            for (var p = 1; p <= pages; p++) {
-                onProgress('Reading page ' + p + ' of ' + pages + '…');
-                var page = await pdf.getPage(p);
-                var textContent = await page.getTextContent();
-                var layer = (textContent.items || [])
-                    .map(function (item) { return item.str || ''; })
-                    .join(' ')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-
-                // Every document: always image-OCR page 1 (and page 2 lighter).
-                // Description / Title / Subject values are often italic and missing from the text layer.
-                var fullCanvas = await renderPageToCanvas(page, p === 1 ? 2.8 : 2.2);
-                var fullOcr = await ocrCanvas(fullCanvas, onProgress, 'OCR page ' + p + '…');
-
-                var bandOcr = '';
-                var titleBandOcr = '';
-                var detailOcr = '';
-                if (p === 1) {
-                    onProgress('Reading Description / Title…');
-                    // Mid band covers Description of Works, Material Description, Title/Subject for all form types.
-                    bandOcr = await ocrCanvas(cropBand(fullCanvas, 0.18, 0.55), onProgress, 'Reading Description / Title…');
-                    // Upper-mid band for Title block / IR header refs on many forms.
-                    titleBandOcr = await ocrCanvas(cropBand(fullCanvas, 0.08, 0.32), onProgress, 'Reading Reference / header…');
-
-                    if (!hasFilledSubjectPhrase(mergeUniqueTexts([layer, fullOcr, bandOcr, titleBandOcr]))) {
-                        onProgress('Reading description detail…');
-                        var sharp = await renderPageToCanvas(page, 3.4);
-                        detailOcr = await ocrCanvas(cropBand(sharp, 0.22, 0.50), onProgress, 'Reading description detail…');
-                    }
-                }
-
-                var pageText = mergeUniqueTexts([layer, fullOcr, titleBandOcr, bandOcr, detailOcr]);
-                if (pageText) {
-                    chunks.push(pageText);
-                }
-            }
-
-            return chunks.join('\n\n').trim();
+            return extractWithTesseract(source, options, onProgress);
         })();
 
         return withTimeout(work, timeoutMs, 'PDF form OCR');
@@ -191,6 +249,7 @@
     global.DmsPdfOcr = {
         extractPdfFormText: extractPdfFormText,
         withTimeout: withTimeout,
-        hasFilledSubjectPhrase: hasFilledSubjectPhrase
+        hasFilledSubjectPhrase: hasFilledSubjectPhrase,
+        renderFirstPageJpeg: renderFirstPageJpeg
     };
 })(window);

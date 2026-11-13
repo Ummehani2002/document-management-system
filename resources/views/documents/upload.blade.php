@@ -173,7 +173,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-    <script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261113d"></script>
+    <script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261113e"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var selectedUploadMode = @json($selectedUploadMode);
@@ -184,6 +184,8 @@
         var chunkInitUrl = @json(route('documents.upload.chunk-init'));
         var chunkStoreUrl = @json(route('documents.upload.chunk'));
         var chunkFinishUrl = @json(route('documents.upload.chunk-finish'));
+        var formFieldsExtractUrl = @json(route('documents.extract-form-fields'));
+        var visionAiEnabled = @json(app(\App\Services\FormFieldVisionExtractor::class)->enabled());
         var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
         var folderTree = @json($folderTree ?? []);
         var folderTreesByEntity = @json($folderTreesByEntity ?? []);
@@ -402,6 +404,8 @@
                             return await window.DmsPdfOcr.extractPdfFormText(file, {
                                 maxPages: 2,
                                 timeoutMs: 90000,
+                                aiExtractUrl: visionAiEnabled ? formFieldsExtractUrl : '',
+                                csrf: csrfToken,
                                 onProgress: function (msg) {
                                     setUploadProgress('Reading details: ' + msg);
                                 }

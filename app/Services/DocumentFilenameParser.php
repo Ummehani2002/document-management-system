@@ -1540,6 +1540,13 @@ class DocumentFilenameParser
         if (preg_match('/^MATERIAL\s+SUBMITTAL$/i', $value)) {
             return true;
         }
+        // Filename revision/status tails must never become Subject.
+        if (preg_match('/Approved\s+as\s+noted|Rejected|Revise\s+and\s+Resubmit/i', $value)) {
+            return true;
+        }
+        if (preg_match('/^R\.?\d{1,3}\b/i', $value) && preg_match('/Approved|Rejected|\([A-Z]\)/i', $value)) {
+            return true;
+        }
         if (preg_match('/^(?:date|ref(?:erence)?)\s*[:\-]/i', $value)) {
             return true;
         }
@@ -1716,8 +1723,13 @@ class DocumentFilenameParser
         if (preg_match('/^([A-Z0-9]+(?:[-_][A-Z0-9]+){1,})\s+(.+)$/u', $name, $m)) {
             $left = trim((string) $m[1]);
             $right = trim((string) $m[2]);
-            if (self::looksLikeDescriptiveSubject($right) && self::looksLikeRegisterCode($left)) {
-                return ['reference_no' => $left, 'subject' => $right];
+            if (self::looksLikeRegisterCode($left) || self::looksLikeProjectDocumentCode($left)) {
+                if (self::looksLikeDescriptiveSubject($right)) {
+                    return ['reference_no' => $left, 'subject' => $right];
+                }
+
+                // e.g. "…-00001 R.00 (B)_Approved as noted" — keep register, ignore status tail.
+                return ['reference_no' => $left, 'subject' => ''];
             }
         }
 
@@ -1754,6 +1766,12 @@ class DocumentFilenameParser
     {
         $value = trim($value);
         if ($value === '' || self::isGenericFormLabel($value) || self::looksLikeRegisterOrRevisionTail($value)) {
+            return false;
+        }
+        if (preg_match('/Approved\s+as\s+noted|Rejected|Revise\s+and\s+Resubmit/i', $value)) {
+            return false;
+        }
+        if (preg_match('/^R\.?\d{1,3}\b/i', $value)) {
             return false;
         }
 

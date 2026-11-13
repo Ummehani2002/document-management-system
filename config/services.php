@@ -50,4 +50,14 @@ return [
         'jwt_secret' => env('ONLYOFFICE_JWT_SECRET'),
     ],
 
+    /*
+    | OpenAI-compatible vision API for reading Subject/Reference from scanned form page 1.
+    | Set OPENAI_API_KEY in Laravel Cloud. Works with OpenAI, Azure OpenAI, or OpenRouter.
+    */
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+        'vision_model' => env('OPENAI_VISION_MODEL', 'gpt-4o-mini'),
+    ],
+
 ];

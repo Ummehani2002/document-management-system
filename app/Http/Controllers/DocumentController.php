@@ -14,6 +14,7 @@ use App\Services\EntityContextService;
 use App\Services\CompanyEmailDomain;
 use App\Services\DocumentDeletionService;
 use App\Services\DocumentFilenameParser;
+use App\Services\FormFieldVisionExtractor;
 use App\Services\OfficeDocumentTextExtractionService;
 use App\Services\PdfFirstPageOcrService;
 use App\Services\DocumentFileReplacer;
@@ -1515,6 +1516,71 @@ class DocumentController extends Controller
     protected function dispatchProcessOcr(int $documentId, bool $preserveFolder = false): void
     {
         (new ProcessOCR($documentId, $preserveFolder))->handle();
+    }
+
+    /**
+     * Vision AI: extract Reference + Subject (Description/Title) from a page-1 form image.
+     */
+    public function extractFormFields(Request $request, FormFieldVisionExtractor $vision)
+    {
+        if (! $vision->enabled()) {
+            return response()->json([
+                'ok' => false,
+                'enabled' => false,
+                'message' => 'Vision AI is not configured (set OPENAI_API_KEY).',
+            ], 503);
+        }
+
+        $data = $request->validate([
+            'image' => ['required', 'string', 'min:100', 'max:9000000'],
+            'mime' => ['nullable', 'string', 'max:40'],
+            'document_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        if (! empty($data['document_id'])) {
+            $document = Document::find((int) $data['document_id']);
+            $this->authorizeDocument($document);
+        }
+
+        $result = $vision->extractFromImageBase64(
+            (string) $data['image'],
+            (string) ($data['mime'] ?? 'image/jpeg')
+        );
+
+        if ($result === null) {
+            return response()->json([
+                'ok' => false,
+                'enabled' => true,
+                'message' => 'Could not read form fields from the page image.',
+            ], 422);
+        }
+
+        if (! empty($data['document_id'])) {
+            $document = Document::find((int) $data['document_id']);
+            if ($document) {
+                $existing = trim((string) ($document->ocr_text ?? ''));
+                $newText = $result['ocr_text'];
+                $existingMeta = $existing !== ''
+                    ? DocumentFilenameParser::extractReferenceAndSubject($existing, (string) $document->file_name)
+                    : ['subject' => '—', 'reference_no' => '—'];
+                $keepExisting = isset($existingMeta['subject'])
+                    && $existingMeta['subject'] !== '—'
+                    && ($result['subject'] === '—' || $result['subject'] === '')
+                    && mb_strlen($existing) >= mb_strlen($newText);
+                if (! $keepExisting) {
+                    $document->ocr_text = $newText;
+                    $document->save();
+                }
+            }
+        }
+
+        return response()->json([
+            'ok' => true,
+            'enabled' => true,
+            'reference_no' => $result['reference_no'],
+            'subject' => $result['subject'],
+            'ocr_text' => $result['ocr_text'],
+        ]);
     }
 
     /**

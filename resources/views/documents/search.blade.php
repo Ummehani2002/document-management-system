@@ -1837,11 +1837,13 @@
 {{-- Browser OCR for scanned forms (Cloud has no Tesseract). Reads Title/Subject from page 1–2. --}}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-<script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261113d"></script>
+<script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261113e"></script>
 <script>
 (function () {
     var csrf = document.querySelector('meta[name="csrf-token"]');
     csrf = csrf ? csrf.getAttribute('content') : '';
+    var formFieldsExtractUrl = @json(route('documents.extract-form-fields'));
+    var visionAiEnabled = @json(app(\App\Services\FormFieldVisionExtractor::class)->enabled());
     if (!window.DmsPdfOcr) {
         return;
     }
@@ -1857,7 +1859,7 @@
         if (!viewUrl || !ocrUrl) {
             return;
         }
-        var triedKey = 'dms-ocr-tried:v4:' + docId;
+        var triedKey = 'dms-ocr-tried:v5:' + docId;
         try {
             if (sessionStorage.getItem(triedKey) === '1') {
                 cell.removeAttribute('data-needs-ocr');
@@ -1870,7 +1872,10 @@
         try {
             var text = await window.DmsPdfOcr.extractPdfFormText(viewUrl, {
                 maxPages: 2,
-                timeoutMs: 90000
+                timeoutMs: 90000,
+                aiExtractUrl: visionAiEnabled ? formFieldsExtractUrl : '',
+                csrf: csrf,
+                documentId: docId
             });
             if (!text || text.length < 20) {
                 cell.textContent = '—';

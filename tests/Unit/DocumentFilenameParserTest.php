@@ -763,3 +763,14 @@ test('time of inspection ocr garble is not used as the subject', function () {
     expect($meta['subject'])->toBe('—');
     expect(DocumentFilenameParser::shouldAttemptBrowserSubjectOcr($ocr, '—', 'PSE2023-1017-PRS-IR-SLS-00001.pdf'))->toBeTrue();
 });
+
+test('filename approval status is never used as the subject', function () {
+    $meta = DocumentFilenameParser::extractReferenceAndSubject(
+        null,
+        'PSE2023-1017-PRS-IR-SLS-00001 R.00 (B)_Approved as noted.pdf'
+    );
+
+    expect($meta['reference_no'])->toBe('PSE2023-1017-PRS-IR-SLS-00001');
+    expect($meta['subject'])->toBe('—');
+    expect($meta['subject'])->not->toContain('Approved as noted');
+});
