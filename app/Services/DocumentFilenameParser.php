@@ -807,7 +807,7 @@ class DocumentFilenameParser
 
     /**
      * Whether Search should run browser OCR to recover a blank Subject.
-     * Skips re-OCR when substantial form OCR already exists (parser will use it).
+     * Re-reads when OCR is missing/short, or has form chrome but still no usable subject.
      */
     public static function shouldAttemptBrowserSubjectOcr(?string $ocrText, string $subject, string $fileName): bool
     {
@@ -820,7 +820,14 @@ class DocumentFilenameParser
             return true;
         }
 
-        // Long OCR without Title/Subject/Description markers → worth another browser pass.
+        // Label present but filled Description of Works / Title value missing from text layer.
+        if (preg_match('/Description\s+of\s+Works|INSPECTION\s+REQUEST|Title\s*[\/&]\s*(?:Subject|Description)|Material\s+Description/i', $ocr)
+            && ! preg_match('/Inspection\s+request\s+for\b|Material\s+Submittal\s+for\b|Material\s+Inspection\s+(?:request|for)\b/i', $ocr)
+        ) {
+            return true;
+        }
+
+        // Long OCR without form markers → worth another browser pass.
         return ! (bool) preg_match(
             '/Title\s*[\/&]\s*(?:Subject|Description)|Material\s+Description|Description\s+of\s+(?:Item|Material|Works)|INSPECTION\s+REQUEST|INTERNAL\s+MEMO|\bSUBJECT\s*:/i',
             $ocr
@@ -1104,6 +1111,11 @@ class DocumentFilenameParser
             return $fromInspectionItem;
         }
 
+        $fromInspectionRequestPhrase = self::extractInspectionRequestDescriptionPhrase($normalized);
+        if ($fromInspectionRequestPhrase !== '') {
+            return $fromInspectionRequestPhrase;
+        }
+
         $fromDescriptionOfMaterial = self::extractDescriptionOfMaterialField($normalized);
         if ($fromDescriptionOfMaterial !== '') {
             return $fromDescriptionOfMaterial;
@@ -1281,13 +1293,13 @@ class DocumentFilenameParser
             $m,
             PREG_OFFSET_CAPTURE
         )) {
-            return '';
+            return self::extractInspectionRequestDescriptionPhrase($normalized);
         }
 
         $start = (int) $m[0][1] + strlen($m[0][0]);
         $chunk = substr($normalized, $start, 1600);
 
-        return self::collectSubjectFromFieldWindow($chunk, [
+        $fromWindow = self::collectSubjectFromFieldWindow($chunk, [
             'Location(?:\s+of\s+(?:the\s+)?(?:item|works?|area))?',
             'Drawing\s*(?:No|Number|Title|Ref(?:erence)?(?:\s*No)?)',
             'Date\s+of\s+Inspection',
@@ -1302,6 +1314,44 @@ class DocumentFilenameParser
             'Received\s+(?:by|from)',
             'Table\s+of\s+Contents',
         ]);
+        if ($fromWindow !== '') {
+            return $fromWindow;
+        }
+
+        return self::extractInspectionRequestDescriptionPhrase($normalized);
+    }
+
+    /**
+     * Proscape IR body line: "Inspection request for Excavation of Palm tree pits…".
+     */
+    protected static function extractInspectionRequestDescriptionPhrase(string $normalized): string
+    {
+        if (! preg_match_all(
+            '~Inspection\s+request\s+for\s+[^\n]{8,320}~i',
+            $normalized,
+            $matches
+        )) {
+            return '';
+        }
+
+        $best = '';
+        foreach ($matches[0] as $raw) {
+            $candidate = trim(preg_replace('/\s+/', ' ', (string) $raw));
+            $candidate = preg_split(
+                '/\s+(?:Location(?:\s*:)?|Drawing\s+Ref(?:erence)?(?:\s*No)?|Date\s+of\s+Inspection|Time\s+of\s+Inspection|Discipline)\b/i',
+                $candidate,
+                2
+            )[0] ?? $candidate;
+            $candidate = self::cleanOcrSubject(trim((string) $candidate));
+            if ($candidate === '' || self::isJunkSubject($candidate)) {
+                continue;
+            }
+            if (mb_strlen($candidate) > mb_strlen($best)) {
+                $best = $candidate;
+            }
+        }
+
+        return $best;
     }
 
     /**

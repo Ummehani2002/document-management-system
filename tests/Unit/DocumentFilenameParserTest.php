@@ -739,3 +739,15 @@ test('inspection request description of works is the subject', function () {
     expect($meta['subject'])->not->toContain('Location');
     expect($meta['subject'])->not->toContain('Drawing Ref');
 });
+
+test('inspection request subject is recovered from the inspection request for phrase alone', function () {
+    $ocr = "INSPECTION REQUEST\nIR Ref No. PSE2023-1017-PRS-IR-SLS-00001\n"
+        ."Inspection request for Excavation of Palm tree pits - 08 Nos. as shown in the attached drawing and site pictures. "
+        ."Location Creek Beach New Beach Drawing Ref No PSE20231017-DB-PL-PLT-05";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, 'PSE2023-1017-PRS-IR-SLS-00001.pdf');
+
+    expect($meta['subject'])->toBe(
+        'Inspection request for Excavation of Palm tree pits - 08 Nos. as shown in the attached drawing and site pictures.'
+    );
+});
