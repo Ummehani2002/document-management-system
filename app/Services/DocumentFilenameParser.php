@@ -1450,6 +1450,16 @@ class DocumentFilenameParser
                 continue;
             }
 
+            // Skip Time of Inspection / garble fragments while collecting Description of Works.
+            if (
+                preg_match('/\b\d{1,2}[.:]\d{2}\s*(?:am|pm)\b/i', $line)
+                || preg_match('/^\W*[A-Za-z]{0,4}nmeot\b/i', $line)
+                || preg_match('/^(?:time\s+of\s+)?inspection\s*:?\s*$/i', $line)
+                || preg_match('/^time\s+of\s+inspection\b/i', $line)
+            ) {
+                continue;
+            }
+
             $collected[] = $line;
             if (mb_strlen(implode(' ', $collected)) > 400) {
                 break;

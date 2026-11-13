@@ -173,7 +173,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-    <script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261113b"></script>
+    <script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261113c"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var selectedUploadMode = @json($selectedUploadMode);
@@ -401,7 +401,7 @@
                         try {
                             return await window.DmsPdfOcr.extractPdfFormText(file, {
                                 maxPages: 2,
-                                timeoutMs: 45000,
+                                timeoutMs: 90000,
                                 onProgress: function (msg) {
                                     setUploadProgress('File reading: ' + msg);
                                 }
@@ -415,7 +415,7 @@
                     for (var i = 0; i < files.length; i++) {
                         var file = files[i];
                         var presignBody = buildPresignBody(file);
-                        setUploadProgress('File ' + (i + 1) + '/' + files.length + ': reading Title/Subject…');
+                        setUploadProgress('File ' + (i + 1) + '/' + files.length + ': reading Description/Title…');
                         var ocrText = await readPdfOcrText(file);
                         // Always use Laravel → R2 multipart. Browser PUT to R2 needs CORS
                         // and fails on Laravel Cloud until the bucket allows this origin.
