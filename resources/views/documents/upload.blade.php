@@ -173,7 +173,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-    <script src="{{ asset('js/dms-pdf-ocr.js') }}"></script>
+    <script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261113b"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var selectedUploadMode = @json($selectedUploadMode);
