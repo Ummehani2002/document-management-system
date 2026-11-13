@@ -668,3 +668,52 @@ test('table of contents pages are not used as the subject', function () {
     expect($meta['subject'])->toBe('PT-03 Graphic Paving. In-situ Concrete (STREETBOND SB120)');
     expect($meta['subject'])->not->toContain('Table of Contents');
 });
+
+test('code-only TVD filenames keep the register when OCR has material description', function () {
+    $ocr = "MATERIAL SUBMITTAL\nSubmittal Nr: Date\n"
+        ."Material Description: Black Washed Sand\n"
+        ."Specification Clause Ref. SECTION 03 3000";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject(
+        $ocr,
+        'TVD-8674-WIM-PAR-MS-CVL-004-R00.pdf'
+    );
+
+    expect($meta['reference_no'])->toBe('TVD-8674-WIM-PAR-MS-CVL-004-R00');
+    expect($meta['subject'])->toBe('Black Washed Sand');
+});
+
+test('code-only TVD with junk material description keeps the register and blank subject', function () {
+    $ocr = "MATERIAL SUBMITTAL\nSubmittal Nr: TVD-8674-WIM-PAR-MS-CVL-002\n"
+        ."Material Description\nTVD-8674-WIM-PAR-MS-CVL-002\n24-Feb-26";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject(
+        $ocr,
+        'TVD-8674-WIM-PAR-MS-CVL-002-R00.pdf'
+    );
+
+    expect($meta['reference_no'])->toBe('TVD-8674-WIM-PAR-MS-CVL-002');
+    expect($meta['subject'])->toBe('—');
+});
+
+test('internal memo filename supplies project reference and title', function () {
+    $meta = DocumentFilenameParser::extractReferenceAndSubject(
+        null,
+        'PSE20241028 - Eden Hills - Internal Memo.pdf'
+    );
+
+    expect($meta['reference_no'])->toBe('PSE20241028');
+    expect($meta['subject'])->toBe('Eden Hills');
+});
+
+test('material submittal subject stops before location where item will be used', function () {
+    $ocr = "MATERIAL SUBMITTAL\nTitle / Subject\n"
+        ."Material Submittal for DECODER CABLE Location Where Item will be used For Irrigation Works\n"
+        ."Manufacturer / Supplier: AWG";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, 'AWG CABLE SUBMITTAL.pdf');
+
+    expect($meta['subject'])->toBe('Material Submittal for DECODER CABLE');
+    expect($meta['subject'])->not->toContain('Location Where Item');
+    expect($meta['subject'])->not->toContain('Irrigation Works');
+});

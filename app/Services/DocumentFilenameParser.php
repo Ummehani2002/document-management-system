@@ -806,6 +806,28 @@ class DocumentFilenameParser
     }
 
     /**
+     * Whether Search should run browser OCR to recover a blank Subject.
+     * Skips re-OCR when substantial form OCR already exists (parser will use it).
+     */
+    public static function shouldAttemptBrowserSubjectOcr(?string $ocrText, string $subject, string $fileName): bool
+    {
+        if ($subject !== '—' || ! preg_match('/\.pdf$/i', $fileName)) {
+            return false;
+        }
+
+        $ocr = trim((string) $ocrText);
+        if ($ocr === '' || strlen($ocr) < 40) {
+            return true;
+        }
+
+        // Long OCR without Title/Subject/Description markers → worth another browser pass.
+        return ! (bool) preg_match(
+            '/Title\s*[\/&]\s*(?:Subject|Description)|Material\s+Description|Description\s+of\s+(?:Item|Material|Works)|INTERNAL\s+MEMO|\bSUBJECT\s*:/i',
+            $ocr
+        );
+    }
+
+    /**
      * @return array{reference_no:string, subject:string}
      */
     protected static function extractReferenceAndSubjectFromText(?string $ocrText, string $fileName): array
@@ -856,7 +878,11 @@ class DocumentFilenameParser
                 foreach ($subjectPatterns as $re) {
                     if (preg_match($re, $normalized, $m)) {
                         $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
-                        $candidate = preg_replace('/\s*(?:REV(?:ISION)?|DATE)\s*[:\-].*$/i', '', $candidate) ?? $candidate;
+                        $candidate = preg_replace(
+                            '/\s*(?:REV(?:ISION)?|DATE|TO|FROM|CC|REGARDS|PLEASE\s+FIND|ATTACHMENTS?)\s*[:\-].*$/i',
+                            '',
+                            $candidate
+                        ) ?? $candidate;
                         $candidate = self::cleanOcrSubject(trim($candidate));
                         if ($candidate !== '' && ! self::isJunkSubject($candidate)) {
                             $subject = $candidate;
@@ -888,8 +914,10 @@ class DocumentFilenameParser
                     ? $fromName['reference_no']
                     : (self::looksLikeFormReference($nameWithoutExt) ? $nameWithoutExt : ($referenceNo !== '' ? $referenceNo : $nameWithoutExt)));
         } elseif (! self::looksLikeFormReference($referenceNo)) {
+            // Prefer a real register/project code from the filename even when it is the whole stem
+            // (e.g. TVD-…-004-R00.pdf) or a project id (PSE20241028 - …).
             $splitRef = trim((string) ($fromName['reference_no'] ?? ''));
-            if (self::looksLikeFormReference($splitRef) && strcasecmp($splitRef, $nameWithoutExt) !== 0) {
+            if (self::looksLikeFormReference($splitRef) || self::looksLikeProjectDocumentCode($splitRef)) {
                 $referenceNo = $splitRef;
             }
         }
@@ -964,7 +992,24 @@ class DocumentFilenameParser
 
     protected static function looksLikeFormReference(string $value): bool
     {
-        return self::looksLikeRegisterCode($value) || self::looksLikeLetterReference($value);
+        return self::looksLikeRegisterCode($value)
+            || self::looksLikeLetterReference($value)
+            || self::looksLikeProjectDocumentCode($value);
+    }
+
+    /**
+     * Bare project / memo document ids used as the left side of filenames
+     * (e.g. PSE20241028 - Eden Hills - Internal Memo).
+     */
+    protected static function looksLikeProjectDocumentCode(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '' || str_contains($value, ' ')) {
+            return false;
+        }
+
+        return (bool) preg_match('/^(?:PSE|WME|TVD|PRO|PRJ|IMO|MEM|DMS)[A-Z0-9]*\d{5,}$/i', $value)
+            || (bool) preg_match('/^[A-Z]{2,6}\d{6,12}$/i', $value);
     }
 
     protected static function firstFormReferenceIn(string $blob): string
@@ -1094,7 +1139,8 @@ class DocumentFilenameParser
             .'|Attachments?|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bScale\s*[:\-]|\bRev(?:ision)?\s*[:\-]'
             .'|With\s+reference|Dear\s+Sir';
         $descriptionStop = $stop.'|Manufacturer|Purpose\s*(?:&(?:amp;)?|AND)\s*Location|Submittal\s+Checklist|Table\s+of\s+Contents'
-            .'|Location\s+of\s+(?:the\s+)?(?:item|works?|area)|Nature\s+of\s+Inspection|Requested\s+(?:by|date)|Inspection\s+Date';
+            .'|Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area))'
+            .'|Where\s+(?:the\s+)?Item\s+will\s+be\s+used|Nature\s+of\s+Inspection|Requested\s+(?:by|date)|Inspection\s+Date';
 
         foreach ($labels as $label) {
             if (! preg_match(
@@ -1155,7 +1201,8 @@ class DocumentFilenameParser
             'Material\s+Quantity',
             'Material\s+Approval',
             'Description\s+of\s+Works?',
-            'Location\s+of\s+(?:the\s+)?(?:item|works?|area)',
+            'Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area))',
+            'Where\s+(?:the\s+)?Item\s+will\s+be\s+used',
             'Nature\s+of\s+Inspection',
             'Requested\s+(?:by|date)',
             'Discipline',
@@ -1279,6 +1326,8 @@ class DocumentFilenameParser
             'Supplier',
             'Area\s*/?\s*Location',
             'Purpose\s*(?:&(?:amp;)?|AND)\s*Location',
+            'Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area))',
+            'Where\s+(?:the\s+)?Item\s+will\s+be\s+used',
             'You\s+are\s+hereby',
             'The\s+Contractor\s+hereby',
             'Inspection\s+Date',
@@ -1313,7 +1362,9 @@ class DocumentFilenameParser
             $isStop = (bool) preg_match('~^(?:'.$stop.')\b~i', $line)
                 || (bool) preg_match('~(?:Pavcrete\s+)?Manufacturer\s*/?\s*Supplier\s*:~i', $line)
                 || (bool) preg_match('~^Section\s+[A-Z0-9]~i', $line)
-                || (bool) preg_match('~^(?:Installer|Concrete\s+Manufacturer)\s*:~i', $line);
+                || (bool) preg_match('~^(?:Installer|Concrete\s+Manufacturer)\s*:~i', $line)
+                || (bool) preg_match('~^Location\s+Where\s+Item(?:\s+will\s+be\s+used)?\b~i', $line)
+                || (bool) preg_match('~^Where\s+(?:the\s+)?Item\s+will\s+be\s+used\b~i', $line);
             if ($isStop) {
                 if ($collected !== []) {
                     break;
@@ -1352,7 +1403,7 @@ class DocumentFilenameParser
     protected static function trimSubjectAtNextFormField(string $subject): string
     {
         $cut = preg_split(
-            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|Purpose\s*(?:&|AND)\s*Location|(?:Pavcrete\s+)?Manufacturer\s*\/?\s*Supplier|Installer\s*:|Submittal\s+Checklist|Table\s+of\s+Contents|\bDate\b|With\s+reference)/i',
+            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|Purpose\s*(?:&|AND)\s*Location|Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area))|Where\s+(?:the\s+)?Item\s+will\s+be\s+used|(?:Pavcrete\s+)?Manufacturer\s*\/?\s*Supplier|Installer\s*:|Submittal\s+Checklist|Table\s+of\s+Contents|\bDate\b|With\s+reference)/i',
             $subject,
             2
         );
@@ -1522,10 +1573,29 @@ class DocumentFilenameParser
             return ['reference_no' => $ref, 'subject' => ''];
         }
 
+        // PSE20241028 - Eden Hills - Internal Memo
+        if (preg_match('/^([A-Z]{2,6}\d{5,12})\s+-\s+(.+)$/iu', $name, $m)) {
+            $ref = trim((string) $m[1]);
+            $right = trim((string) ($m[2] ?? ''));
+            $right = preg_replace(
+                '/\s*-\s*(?:Internal\s+Memo(?:randum)?|Memorandum|Letter|Email|Correspondence|RFI|Request\s+for\s+Information)\s*$/iu',
+                '',
+                $right
+            ) ?? $right;
+            $right = self::cleanFilenameSubject($right);
+            if (self::looksLikeProjectDocumentCode($ref)) {
+                return [
+                    'reference_no' => $ref,
+                    'subject' => ($right !== '' && self::looksLikeDescriptiveSubject($right)) ? $right : '',
+                ];
+            }
+        }
+
         if (preg_match('/^(.+?)\s+-\s+(.+)$/u', $name, $m)) {
             $left = trim((string) $m[1]);
             $right = trim((string) $m[2]);
-            if (self::looksLikeDescriptiveSubject($right) && self::looksLikeRegisterCode($left)) {
+            if (self::looksLikeDescriptiveSubject($right)
+                && (self::looksLikeRegisterCode($left) || self::looksLikeProjectDocumentCode($left))) {
                 return ['reference_no' => $left, 'subject' => $right];
             }
         }

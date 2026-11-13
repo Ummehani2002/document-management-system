@@ -832,7 +832,7 @@
                                         class="doc-subject-cell"
                                         data-doc-id="{{ $doc->id }}"
                                         data-file-name="{{ $doc->file_name }}"
-                                        @if(!empty($doc->file_available) && $subject === '—' && preg_match('/\.pdf$/i', (string) $doc->file_name) && strlen(trim((string) ($doc->ocr_text ?? ''))) < 40)
+                                        @if(!empty($doc->file_available) && \App\Services\DocumentFilenameParser::shouldAttemptBrowserSubjectOcr($doc->ocr_text, $subject, (string) $doc->file_name))
                                             data-needs-ocr="1"
                                             data-view-url="{{ route('documents.view', ['id' => $doc->id, 'proxy' => 1]) }}"
                                             data-ocr-url="{{ route('documents.ocr-text', ['id' => $doc->id]) }}"
@@ -992,7 +992,7 @@
                                 class="doc-subject-cell"
                                 data-doc-id="{{ $doc->id }}"
                                 data-file-name="{{ $doc->file_name }}"
-                                @if(!empty($doc->file_available) && $subject === '—' && preg_match('/\.pdf$/i', (string) $doc->file_name) && strlen(trim((string) ($doc->ocr_text ?? ''))) < 40)
+                                @if(!empty($doc->file_available) && \App\Services\DocumentFilenameParser::shouldAttemptBrowserSubjectOcr($doc->ocr_text, $subject, (string) $doc->file_name))
                                     data-needs-ocr="1"
                                     data-view-url="{{ route('documents.view', ['id' => $doc->id, 'proxy' => 1]) }}"
                                     data-ocr-url="{{ route('documents.ocr-text', ['id' => $doc->id]) }}"
