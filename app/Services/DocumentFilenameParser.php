@@ -809,17 +809,26 @@ class DocumentFilenameParser
      * Whether Search should run browser OCR to recover a blank Subject.
      * Re-reads when OCR is missing/short, or has form chrome but still no usable subject.
      */
-    public static function shouldAttemptBrowserSubjectOcr(?string $ocrText, string $subject, string $fileName): bool
-    {
+    /**
+     * Every PDF with missing Subject (or junk Subject) should be browser-OCR'd on Search.
+     */
+    public static function shouldAttemptBrowserSubjectOcr(
+        ?string $ocrText,
+        string $subject,
+        string $fileName,
+        ?string $referenceNo = null
+    ): bool {
         if (! preg_match('/\.pdf$/i', $fileName)) {
             return false;
         }
 
-        // Junk leftovers from Time of Inspection etc. must be re-read.
         if ($subject !== '—' && self::isJunkSubject($subject)) {
             $subject = '—';
         }
-        if ($subject !== '—') {
+
+        $ref = trim((string) ($referenceNo ?? ''));
+        $needsDetails = ($subject === '—') || ($ref === '' || $ref === '—');
+        if (! $needsDetails) {
             return false;
         }
 
@@ -828,17 +837,17 @@ class DocumentFilenameParser
             return true;
         }
 
-        // Already have the filled Description of Works / Title line → parser can use it.
-        if (preg_match('/Inspection\s+request\s+for\b|Material\s+Submittal\s+for\b|Material\s+Inspection\s+(?:request|for)\s+\S/i', $ocr)) {
+        // OCR already contains a filled Description/Title line the parser can use for Subject.
+        if ($subject === '—' && preg_match(
+            '/Inspection\s+request\s+for\b|Material\s+Submittal\s+for\b|Material\s+Inspection\s+(?:request|for)\s+\S|Title\s*[\/&]\s*(?:Subject|Description)\s*[:\-]?\s*[A-Za-z0-9].{12,}/i',
+            $ocr
+        )) {
+            // Parser should handle it on this request; only re-OCR if still blank after parse (caller already parsed).
             return false;
         }
 
-        // Labels/chrome only (common when text layer skipped image OCR) → browser image OCR.
-        if (preg_match('/Description\s+of\s+Works|INSPECTION\s+REQUEST|Title\s*[\/&]\s*(?:Subject|Description)|Material\s+Description|Time\s+of\s+Inspection/i', $ocr)) {
-            return true;
-        }
-
-        return true;
+        // Missing Subject and/or Reference → read the PDF image for all document types.
+        return $subject === '—' || $ref === '' || $ref === '—';
     }
 
     /**
@@ -1128,12 +1137,13 @@ class DocumentFilenameParser
             return $fromDescriptionOfMaterial;
         }
 
+        // All document types: Subject = Description / Title field on the form.
         $labels = [
-            'DESCRIPTION\s+OF\s+ITEM\s*/\s*AREA\s+TO\s+BE\s+INSPECTED',
-            'DESCRIPTION\s+OF\s+WORKS?\s+TO\s+BE\s+INSPECTED(?:\s+AND\s*/?\s*OR\s+TESTED)?',
-            'AREA\s+TO\s+BE\s+INSPECTED',
             'TITLE\s*/\s*SUBJECT',
-            'TITLE\s*(?:AND|OR)\s*SUBJECT',
+            'TITLE\s*(?:AND|OR|&)\s*(?:SUBJECT|DESCRIPTION)',
+            'DESCRIPTION\s+OF\s+WORKS?\s+TO\s+BE\s+INSPECTED(?:\s+AND\s*/?\s*OR\s+TESTED)?',
+            'DESCRIPTION\s+OF\s+ITEM\s*/\s*AREA\s+TO\s+BE\s+INSPECTED',
+            'AREA\s+TO\s+BE\s+INSPECTED',
             'MATERIAL\s*DESCRIPTION',
             'DESCRIPTION\s+OF\s+MATERIALS?',
             'ITEM\s+DESCRIPTION',

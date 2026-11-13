@@ -1,6 +1,6 @@
 /**
- * Read Title / Subject / Description of Works from PDF pages 1–2 in the browser.
- * Always image-OCRs page 1 (filled italic text is often missing from the PDF text layer).
+ * Read Reference + Subject (Title / Description / Description of Works) from PDF pages 1–2.
+ * Runs for every uploaded/searched PDF — filled form values are often only in the scan image.
  */
 (function (global) {
     'use strict';
@@ -90,7 +90,12 @@
             || /Material\s+Submittal\s+for\b/i.test(text)
             || /Material\s+Inspection\s+(?:request|for)\s+[A-Za-z0-9(]/i.test(text)
             || /Palm\s+tree\s+pits/i.test(text)
-            || /as\s+shown\s+in\s+the\s+attached\s+drawing/i.test(text);
+            || /as\s+shown\s+in\s+the\s+attached\s+drawing/i.test(text)
+            || /Title\s*[\/&]\s*(?:Subject|Description)\s*[:\-]?\s*[A-Za-z0-9].{12,}/i.test(text)
+            || /Material\s+Description\s*[:\-]?\s*[A-Za-z0-9].{8,}/i.test(text)
+            || /Drawing\s*Title\s*[:\-]?\s*[A-Za-z0-9].{8,}/i.test(text)
+            || /Method\s*Statement\s*Title\s*[:\-]?\s*[A-Za-z0-9].{8,}/i.test(text)
+            || /Subject\s*[:\-]\s*[A-Za-z0-9].{12,}/i.test(text);
     }
 
     async function ocrCanvas(canvas, onProgress, label) {
@@ -149,28 +154,29 @@
                     .replace(/\s+/g, ' ')
                     .trim();
 
-                // Always image-OCR page 1. Text layers often have labels only;
-                // Description of Works / Title values are frequently italic in the scan.
+                // Every document: always image-OCR page 1 (and page 2 lighter).
+                // Description / Title / Subject values are often italic and missing from the text layer.
                 var fullCanvas = await renderPageToCanvas(page, p === 1 ? 2.8 : 2.2);
                 var fullOcr = await ocrCanvas(fullCanvas, onProgress, 'OCR page ' + p + '…');
 
                 var bandOcr = '';
+                var titleBandOcr = '';
                 var detailOcr = '';
                 if (p === 1) {
-                    // Mid-page band: Description of Works / Title & Description sit here on IR/MS forms.
-                    onProgress('OCR description area…');
-                    var band = cropBand(fullCanvas, 0.20, 0.52);
-                    bandOcr = await ocrCanvas(band, onProgress, 'OCR description area…');
+                    onProgress('Reading Description / Title…');
+                    // Mid band covers Description of Works, Material Description, Title/Subject for all form types.
+                    bandOcr = await ocrCanvas(cropBand(fullCanvas, 0.18, 0.55), onProgress, 'Reading Description / Title…');
+                    // Upper-mid band for Title block / IR header refs on many forms.
+                    titleBandOcr = await ocrCanvas(cropBand(fullCanvas, 0.08, 0.32), onProgress, 'Reading Reference / header…');
 
-                    if (!hasFilledSubjectPhrase(fullOcr + '\n' + bandOcr + '\n' + layer)) {
-                        onProgress('OCR description detail…');
+                    if (!hasFilledSubjectPhrase(mergeUniqueTexts([layer, fullOcr, bandOcr, titleBandOcr]))) {
+                        onProgress('Reading description detail…');
                         var sharp = await renderPageToCanvas(page, 3.4);
-                        var detailBand = cropBand(sharp, 0.24, 0.48);
-                        detailOcr = await ocrCanvas(detailBand, onProgress, 'OCR description detail…');
+                        detailOcr = await ocrCanvas(cropBand(sharp, 0.22, 0.50), onProgress, 'Reading description detail…');
                     }
                 }
 
-                var pageText = mergeUniqueTexts([layer, fullOcr, bandOcr, detailOcr]);
+                var pageText = mergeUniqueTexts([layer, fullOcr, titleBandOcr, bandOcr, detailOcr]);
                 if (pageText) {
                     chunks.push(pageText);
                 }

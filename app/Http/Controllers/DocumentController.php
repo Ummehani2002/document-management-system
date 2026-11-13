@@ -1535,10 +1535,23 @@ class DocumentController extends Controller
             $text = mb_substr($text, 0, 50000);
         }
 
+        $existing = trim((string) ($document->ocr_text ?? ''));
+        $newMeta = DocumentFilenameParser::extractReferenceAndSubject($text, (string) $document->file_name);
+        $existingMeta = $existing !== ''
+            ? DocumentFilenameParser::extractReferenceAndSubject($existing, (string) $document->file_name)
+            : ['subject' => '—', 'reference_no' => '—'];
+        $newHasSubject = isset($newMeta['subject']) && $newMeta['subject'] !== '' && $newMeta['subject'] !== '—';
+        $existingHasSubject = isset($existingMeta['subject']) && $existingMeta['subject'] !== '' && $existingMeta['subject'] !== '—';
+        // Keep richer OCR when a weaker re-read would wipe a good Subject.
+        if ($existing !== '' && $existingHasSubject && ! $newHasSubject && mb_strlen($existing) >= mb_strlen($text)) {
+            $text = $existing;
+            $newMeta = $existingMeta;
+        }
+
         $document->ocr_text = $text;
         $document->save();
 
-        $meta = DocumentFilenameParser::extractReferenceAndSubject($text, (string) $document->file_name);
+        $meta = $newMeta;
 
         return response()->json([
             'ok' => true,

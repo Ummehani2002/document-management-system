@@ -832,7 +832,7 @@
                                         class="doc-subject-cell"
                                         data-doc-id="{{ $doc->id }}"
                                         data-file-name="{{ $doc->file_name }}"
-                                        @if(!empty($doc->file_available) && \App\Services\DocumentFilenameParser::shouldAttemptBrowserSubjectOcr($doc->ocr_text, $subject, (string) $doc->file_name))
+                                        @if(!empty($doc->file_available) && \App\Services\DocumentFilenameParser::shouldAttemptBrowserSubjectOcr($doc->ocr_text, $subject, (string) $doc->file_name, $referenceNo))
                                             data-needs-ocr="1"
                                             data-view-url="{{ route('documents.view', ['id' => $doc->id, 'proxy' => 1]) }}"
                                             data-ocr-url="{{ route('documents.ocr-text', ['id' => $doc->id]) }}"
@@ -992,7 +992,7 @@
                                 class="doc-subject-cell"
                                 data-doc-id="{{ $doc->id }}"
                                 data-file-name="{{ $doc->file_name }}"
-                                @if(!empty($doc->file_available) && \App\Services\DocumentFilenameParser::shouldAttemptBrowserSubjectOcr($doc->ocr_text, $subject, (string) $doc->file_name))
+                                @if(!empty($doc->file_available) && \App\Services\DocumentFilenameParser::shouldAttemptBrowserSubjectOcr($doc->ocr_text, $subject, (string) $doc->file_name, $referenceNo))
                                     data-needs-ocr="1"
                                     data-view-url="{{ route('documents.view', ['id' => $doc->id, 'proxy' => 1]) }}"
                                     data-ocr-url="{{ route('documents.ocr-text', ['id' => $doc->id]) }}"
@@ -1837,7 +1837,7 @@
 {{-- Browser OCR for scanned forms (Cloud has no Tesseract). Reads Title/Subject from page 1–2. --}}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-<script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261113c"></script>
+<script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261113d"></script>
 <script>
 (function () {
     var csrf = document.querySelector('meta[name="csrf-token"]');
@@ -1857,7 +1857,7 @@
         if (!viewUrl || !ocrUrl) {
             return;
         }
-        var triedKey = 'dms-ocr-tried:v3:' + docId;
+        var triedKey = 'dms-ocr-tried:v4:' + docId;
         try {
             if (sessionStorage.getItem(triedKey) === '1') {
                 cell.removeAttribute('data-needs-ocr');

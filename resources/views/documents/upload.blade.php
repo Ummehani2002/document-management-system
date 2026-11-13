@@ -173,7 +173,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-    <script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261113c"></script>
+    <script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261113d"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var selectedUploadMode = @json($selectedUploadMode);
@@ -398,24 +398,39 @@
                         if (!window.DmsPdfOcr || typeof window.DmsPdfOcr.extractPdfFormText !== 'function') {
                             return '';
                         }
-                        try {
+                        var attempt = async function () {
                             return await window.DmsPdfOcr.extractPdfFormText(file, {
                                 maxPages: 2,
                                 timeoutMs: 90000,
                                 onProgress: function (msg) {
-                                    setUploadProgress('File reading: ' + msg);
+                                    setUploadProgress('Reading details: ' + msg);
                                 }
                             });
+                        };
+                        try {
+                            var text = await attempt();
+                            // Every PDF must be read for Subject/Reference — retry once if empty.
+                            if (!text || text.length < 20) {
+                                setUploadProgress('Reading details again…');
+                                text = await attempt();
+                            }
+                            return text || '';
                         } catch (err) {
-                            console.warn('PDF OCR skipped', err);
-                            return '';
+                            console.warn('PDF detail OCR failed once, retrying…', err);
+                            try {
+                                setUploadProgress('Reading details again…');
+                                return (await attempt()) || '';
+                            } catch (err2) {
+                                console.warn('PDF detail OCR failed', err2);
+                                return '';
+                            }
                         }
                     }
 
                     for (var i = 0; i < files.length; i++) {
                         var file = files[i];
                         var presignBody = buildPresignBody(file);
-                        setUploadProgress('File ' + (i + 1) + '/' + files.length + ': reading Description/Title…');
+                        setUploadProgress('File ' + (i + 1) + '/' + files.length + ': reading Subject / Reference…');
                         var ocrText = await readPdfOcrText(file);
                         // Always use Laravel → R2 multipart. Browser PUT to R2 needs CORS
                         // and fails on Laravel Cloud until the bucket allows this origin.
