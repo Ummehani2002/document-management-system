@@ -16,6 +16,38 @@ class DocumentMetaService
     {
         $storedRef = self::normalizeStored((string) ($document->reference_no ?? ''));
         $storedSubject = self::normalizeStored((string) ($document->subject ?? ''));
+        $dirty = false;
+
+        $subjectNeedsRepair = $storedSubject !== null && DocumentFilenameParser::isUnusableSubject($storedSubject);
+        $parsed = null;
+        if ($subjectNeedsRepair || $storedRef !== null) {
+            $parsed = DocumentFilenameParser::extractReferenceAndSubject(
+                $document->ocr_text,
+                (string) $document->file_name
+            );
+        }
+
+        if ($subjectNeedsRepair) {
+            $repaired = self::normalizeStored((string) ($parsed['subject'] ?? ''));
+            if ($repaired !== null && ! DocumentFilenameParser::isUnusableSubject($repaired)) {
+                $document->subject = mb_substr($repaired, 0, 1000);
+                $storedSubject = $repaired;
+                $dirty = true;
+            }
+        }
+
+        if ($storedRef !== null) {
+            $parsedRef = self::normalizeStored((string) ($parsed['reference_no'] ?? ''));
+            if ($parsedRef !== null && DocumentFilenameParser::referenceExtends($storedRef, $parsedRef)) {
+                $document->reference_no = mb_substr($parsedRef, 0, 255);
+                $storedRef = $parsedRef;
+                $dirty = true;
+            }
+        }
+
+        if ($dirty && $document->exists) {
+            $document->save();
+        }
 
         if ($storedRef !== null && $storedSubject !== null) {
             return [
@@ -113,7 +145,7 @@ class DocumentMetaService
     {
         foreach ([$preferred, $parsed, $existing] as $value) {
             $normalized = self::normalizeStored((string) ($value ?? ''));
-            if ($normalized !== null) {
+            if ($normalized !== null && ! DocumentFilenameParser::isUnusableSubject($normalized)) {
                 return $normalized;
             }
         }

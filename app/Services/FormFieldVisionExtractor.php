@@ -63,7 +63,9 @@ Rules for folder (choose exactly one from the list):
 - If unsure, pick the closest list value.
 
 Rules for subject:
-- Prefer: "Description of Works to be inspected and /or tested", "Title / Subject", "Title & Description", "Material Description", "Drawing Title", "Method Statement Title", or "Subject:".
+- Prefer, in this order: "Material Title", "Materials for Inspection", "Description of Materials for Inspection", "Description of Works to be inspected and /or tested", "Title / Subject", "Title & Description", "Material Description", "Drawing Title", "Method Statement Title", or "Subject:".
+- For MATERIAL INSPECTION REQUEST forms, subject is the filled item name in "Materials for Inspection" or "Description of Materials for Inspection" (example: "Picnic table Round"). Do NOT use the photo column, "We confirm that the materials for inspection have been previously approved…", supplier, test report, or delivery note.
+- For MATERIAL SUBMITTAL forms, subject is the "Material Title" line (example: "Material Submittal for Isolator for Swimming Pool and Water Features"). Do NOT use a later checklist row such as "Material Submittal for PVC Conduits… Yes No N/A Remark".
 - For Inspection Request forms, subject MUST be the long filled line under Description of Works (example: "Inspection request for Excavation of Palm tree pits - 08 Nos. as shown in the attached drawing and site pictures.").
 - Do NOT use revision/status filename text such as "R.00 (B)_Approved as noted".
 - Do NOT use project name, client, contractor, location-only cells, or folder type names as subject.

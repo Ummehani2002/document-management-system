@@ -879,8 +879,8 @@ class DocumentFilenameParser
             ];
             foreach ($referencePatterns as $re) {
                 if (preg_match($re, $normalized, $m, PREG_OFFSET_CAPTURE)) {
-                    $prefix = strtoupper(substr($normalized, max(0, (int) $m[0][1] - 16), 16));
-                    if (preg_match('/(?:CONTRACT|DRAWING|DWG|SPC|BQ|COC)\s*$/', trim($prefix))) {
+                    $prefix = strtoupper(substr($normalized, max(0, (int) $m[0][1] - 40), 40));
+                    if (preg_match('/(?:CONTRACT|DRAWING|DWG|SPEC(?:IFICATION)?|SPC|BQ|COC|SUBMITTAL|APPROVAL)\s*$/', trim($prefix))) {
                         continue;
                     }
                     $candidate = self::firstFormReferenceIn((string) $m[1][0]);
@@ -944,6 +944,12 @@ class DocumentFilenameParser
             if (self::looksLikeFormReference($splitRef) || self::looksLikeProjectDocumentCode($splitRef)) {
                 $referenceNo = $splitRef;
             }
+        }
+
+        // OCR often wraps PSE2024-1011-PRS- / PAR-MIR-HLS-00042 and keeps only the tail.
+        $splitRef = trim((string) ($fromName['reference_no'] ?? ''));
+        if (self::referenceExtends($referenceNo, $splitRef)) {
+            $referenceNo = $splitRef;
         }
 
         if ($subject === '' && $filenameSubject !== '' && ! self::isJunkSubject($filenameSubject)) {
@@ -1043,6 +1049,9 @@ class DocumentFilenameParser
             return '';
         }
 
+        // Rejoin a register code wrapped after a hyphen: "PSE2024-1011-PRS-\nPAR-MIR-HLS-00042".
+        $blob = preg_replace('/(?<=[A-Z0-9])-[ \t\r\n]+(?=[A-Z0-9]{2,})/i', '-', $blob) ?? $blob;
+
         $found = [];
         if (preg_match_all('/[A-Z0-9]+(?:[-_\/.][A-Z0-9]+){2,}/i', $blob, $m)) {
             foreach ($m[0] as $token) {
@@ -1065,6 +1074,26 @@ class DocumentFilenameParser
         usort($found, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
 
         return $found[0];
+    }
+
+    /**
+     * True when $candidate is the same register with the wrapped head restored.
+     * PAR-MIR-HLS-00042 extends to PSE2024-1011-PRS-PAR-MIR-HLS-00042.
+     */
+    public static function referenceExtends(string $current, string $candidate): bool
+    {
+        $current = strtoupper(trim($current));
+        $candidate = strtoupper(trim($candidate));
+        if ($current === '' || $current === '—' || $candidate === '' || $candidate === '—' || $current === $candidate) {
+            return false;
+        }
+        if (! str_ends_with($candidate, $current)) {
+            return false;
+        }
+
+        $at = strlen($candidate) - strlen($current);
+
+        return $at > 0 && $candidate[$at - 1] === '-';
     }
 
     protected static function looksLikeDateToken(string $value): bool
@@ -1112,6 +1141,22 @@ class DocumentFilenameParser
      */
     protected static function extractLabeledSubject(string $normalized): string
     {
+        // Form-specific boxes win over later checklist rows and boilerplate paragraphs.
+        $fromMaterialTitle = self::extractMaterialTitleField($normalized);
+        if ($fromMaterialTitle !== '') {
+            return $fromMaterialTitle;
+        }
+
+        $fromMaterialsForInspection = self::extractMaterialsForInspectionField($normalized);
+        if ($fromMaterialsForInspection !== '') {
+            return $fromMaterialsForInspection;
+        }
+
+        $fromMirInspectionDescription = self::extractDescriptionOfMaterialsForInspectionField($normalized);
+        if ($fromMirInspectionDescription !== '') {
+            return $fromMirInspectionDescription;
+        }
+
         $fromTitleAndDescription = self::extractTitleAndDescriptionField($normalized);
         if ($fromTitleAndDescription !== '') {
             return $fromTitleAndDescription;
@@ -1184,6 +1229,98 @@ class DocumentFilenameParser
             }
 
             $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
+            $candidate = self::cleanOcrSubject($candidate);
+            if ($candidate !== '' && ! self::isJunkSubject($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Material submittal cover: "Material Title : Material Submittal for …".
+     * Checklist rows ("… Ref No : Yes No N/A Remark") are not this field.
+     */
+    protected static function extractMaterialTitleField(string $normalized): string
+    {
+        return self::fieldValueAfterLabel(
+            $normalized,
+            'Material\s+Title\s*[:\-]?\s*',
+            '\b(?:Manufacturer\s*/?\s*Supplier|Catalogue\s*Ref|Catalog\s*Ref|Sample\s*:|Material\s+Detailed\s+Description|Attachments?\s*:|Date\s*:|Location\s*:|Yes\s+No\s+N/?A)\b'
+        );
+    }
+
+    /**
+     * MIR header cell: "Materials for Inspection | Picnic table Round | Materials Approval Submittal Ref".
+     */
+    protected static function extractMaterialsForInspectionField(string $normalized): string
+    {
+        return self::fieldValueAfterLabel(
+            $normalized,
+            'Materials?\s+for\s+Inspection\s*[:\-]?\s*',
+            '\b(?:Materials?\s+Approval\s+Submittal\s+Ref|Location\s+for\s+Inspection|Discipline|Date\s+for\s+Inspection|Time\s+for\s+Inspection|Submitted\s+by|Issued\s+to|Spec(?:ification)?\s*/?\s*Drawing|Description\s+of\s+Materials|Photo\s*\(|Stage\s+\d|We\s+confirm\s+that)\b'
+        );
+    }
+
+    /**
+     * MIR body box under "Description of Materials for Inspection".
+     * The next column is "Photo (If Applicable…)" and then a confirmation paragraph.
+     */
+    protected static function extractDescriptionOfMaterialsForInspectionField(string $normalized): string
+    {
+        if (! preg_match(
+            '~Description\s+of\s+Materials?\s+for\s+Inspection\s*[:\-]?\s*~i',
+            $normalized,
+            $m,
+            PREG_OFFSET_CAPTURE
+        )) {
+            return '';
+        }
+
+        $start = (int) $m[0][1] + strlen($m[0][0]);
+        $chunk = substr($normalized, $start, 900);
+        $chunk = preg_split(
+            '/\b(?:We\s+confirm\s+that|Supplier\s*\/|Test\s+Report|Total\s+Quantity|Delivery\s+Note|Materials?\s+Approval\s+Submittal)\b/i',
+            $chunk,
+            2
+        )[0] ?? $chunk;
+        $chunk = preg_replace('/Photo\s*\(\s*If\s+Applicable[^)]*\)/i', ' ', (string) $chunk) ?? (string) $chunk;
+        $candidate = trim(preg_replace('/\s+/', ' ', $chunk) ?? '');
+        $candidate = self::cleanOcrSubject($candidate);
+        if ($candidate === '' || self::isJunkSubject($candidate)) {
+            return '';
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * Read the filled value after a form label and stop at the next box.
+     */
+    protected static function fieldValueAfterLabel(string $normalized, string $labelPattern, string $cutPattern): string
+    {
+        if (! preg_match_all('~'.$labelPattern.'~i', $normalized, $matches, PREG_OFFSET_CAPTURE)) {
+            return '';
+        }
+
+        foreach ($matches[0] as $match) {
+            $pos = (int) $match[1];
+            $len = strlen((string) $match[0]);
+            $before = substr($normalized, max(0, $pos - 40), min(40, $pos));
+            if (preg_match('/description\s+of\s+$/i', $before)) {
+                continue;
+            }
+            $after = substr($normalized, $pos + $len, 24);
+            if (preg_match('/^(?:have\s+been|previously)\b/i', $after)) {
+                continue;
+            }
+
+            $chunk = substr($normalized, $pos + $len, 700);
+            $parts = preg_split('~'.$cutPattern.'~i', $chunk, 2);
+            $chunk = (string) ($parts[0] ?? $chunk);
+            $chunk = preg_replace('/Photo\s*\(\s*If\s+Applicable[^)]*\)/i', ' ', $chunk) ?? $chunk;
+            $candidate = trim(preg_replace('/\s+/', ' ', $chunk) ?? '');
             $candidate = self::cleanOcrSubject($candidate);
             if ($candidate !== '' && ! self::isJunkSubject($candidate)) {
                 return $candidate;
@@ -1376,16 +1513,30 @@ class DocumentFilenameParser
      */
     protected static function extractDescriptionOfMaterialField(string $normalized): string
     {
-        if (! preg_match(
+        if (! preg_match_all(
             '~(?:DESCRIPTION\s+OF\s+MATERIALS?|MATERIAL\s*DESCRIPTION)\s*[:\-]?\s*~i',
             $normalized,
-            $m,
+            $found,
             PREG_OFFSET_CAPTURE
         )) {
             return '';
         }
 
-        $start = (int) $m[0][1] + strlen($m[0][0]);
+        $m = null;
+        foreach ($found[0] as $hit) {
+            $at = substr($normalized, (int) $hit[1], 80);
+            // "Description of Materials for Inspection" is its own box, handled earlier.
+            if (preg_match('/^Description\s+of\s+Materials?\s+for\s+Inspection\b/i', $at)) {
+                continue;
+            }
+            $m = $hit;
+            break;
+        }
+        if ($m === null) {
+            return '';
+        }
+
+        $start = (int) $m[1] + strlen((string) $m[0]);
         $chunk = substr($normalized, $start, 1600);
 
         return self::collectSubjectFromFieldWindow($chunk, [
@@ -1491,7 +1642,7 @@ class DocumentFilenameParser
     protected static function trimSubjectAtNextFormField(string $subject): string
     {
         $cut = preg_split(
-            '/\s+(?:Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?(?:\s*No)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|Purpose\s*(?:&|AND)\s*Location|Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area)|[A-Z0-9])|(?<![A-Za-z])Location(?=\s*:|\s+[A-Z0-9])|Where\s+(?:the\s+)?Item\s+will\s+be\s+used|Date\s+of\s+Inspection|Time\s+of\s+Inspection|Discipline|(?:Pavcrete\s+)?Manufacturer\s*\/?\s*Supplier|Installer\s*:|Submittal\s+Checklist|Table\s+of\s+Contents|\bDate\b|With\s+reference)/i',
+            '/\s+(?:Materials?\s+Approval\s+Submittal\s+Ref(?:erence)?|Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?(?:\s*No)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|Purpose\s*(?:&|AND)\s*Location|Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area)|[A-Z0-9])|(?<![A-Za-z])Location(?=\s*:|\s+[A-Z0-9])|Where\s+(?:the\s+)?Item\s+will\s+be\s+used|Date\s+of\s+Inspection|Time\s+of\s+Inspection|Discipline|(?:Pavcrete\s+)?Manufacturer\s*\/?\s*Supplier|Installer\s*:|Submittal\s+Checklist|Table\s+of\s+Contents|\bDate\b|With\s+reference)/i',
             $subject,
             2
         );
@@ -1538,6 +1689,25 @@ class DocumentFilenameParser
             return true;
         }
         if (preg_match('/^MATERIAL\s+SUBMITTAL$/i', $value)) {
+            return true;
+        }
+        // MIR photo column, confirmation paragraph, and checklist Yes/No/N/A rows.
+        if (preg_match('/^for\s+inspection\b/i', $value)) {
+            return true;
+        }
+        if (preg_match('/photo\s*\(\s*if\s+applicable/i', $value)) {
+            return true;
+        }
+        if (preg_match('/\bwe\s+confirm\s+that\s+the\s+materials\s+for\s+inspection\b/i', $value)) {
+            return true;
+        }
+        if (preg_match('/\bmaterials?\s+for\s+inspection\s+have\s+been\b/i', $value)) {
+            return true;
+        }
+        if (preg_match('/\byes\s+no\s+n\/?a\b/i', $value) || preg_match('/\bn\/?a\s+remark\b/i', $value)) {
+            return true;
+        }
+        if (preg_match('/materials?\s+approval\s+submittal\s+ref/i', $value)) {
             return true;
         }
         // Filename revision/status tails must never become Subject.
@@ -1613,6 +1783,11 @@ class DocumentFilenameParser
         }
 
         return $real === 0 || ($real <= 1 && $tiny >= 2);
+    }
+
+    public static function isUnusableSubject(string $value): bool
+    {
+        return self::isJunkSubject($value);
     }
 
     /**

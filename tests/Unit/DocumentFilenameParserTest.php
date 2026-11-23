@@ -764,6 +764,63 @@ test('time of inspection ocr garble is not used as the subject', function () {
     expect(DocumentFilenameParser::shouldAttemptBrowserSubjectOcr($ocr, '—', 'PSE2023-1017-PRS-IR-SLS-00001.pdf'))->toBeTrue();
 });
 
+test('mir materials for inspection cell is the subject not the confirmation paragraph', function () {
+    $filename = 'PSE2024-1011-PRS-PAR-MIR-HLS-00074 R.01 (B)_Approved as noted.pdf';
+    $ocr = "Inspection Details\n"
+        ."MIR No. PSE2024-1011-PRS-PAR-MIR-HLS-00074 Date 10-Dec-2024 Rev No. 01\n"
+        ."Materials for Inspection Picnic table Round Materials Approval Submittal Ref PSE20241011-PRS-HLS-MAR-00026\n"
+        ."Location for Inspection Plot 16 Discipline Hard Landscape\n"
+        ."Description of Materials for Inspection Photo (If Applicable - Sample Item)\n"
+        ."Picnic table Round\n"
+        ."We confirm that the materials for inspection have been previously approved and meet design/specification requirements\n"
+        ."Supplier / Manufacturer Tanseeq Test Report / Certificates Yes";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['subject'])->toBe('Picnic table Round');
+    expect($meta['subject'])->not->toContain('We confirm');
+    expect($meta['subject'])->not->toContain('Photo');
+    expect($meta['subject'])->not->toContain('Test Report');
+});
+
+test('material title is the subject and checklist rows are ignored', function () {
+    $filename = 'ISOLATOR SUBMITTAL.pdf';
+    $ocr = "MATERIAL SUBMITTAL (MAR)\n"
+        ."Project Name : LOC Project\n"
+        ."MSU No. : LOC-PSC-MAR-WFT-GEN-GRF-00004 Rev: 00 Date: 19-MAY-2025\n"
+        ."Material Title : Material Submittal for Isolator for Swimming Pool and Water Features\n"
+        ."Manufacturer / Supplier : ABB/Power Energy Switch Gear Trading LLC\n"
+        ."Catalogue Ref : NA\n"
+        ."Material Detailed Description : Isolator\n"
+        ."Location : Swimming Pool and Water Features\n"
+        ."Description: Material Submittal for PVC Conduits & Accessories Ref No : Yes No N/A Remark 1";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['subject'])->toBe('Material Submittal for Isolator for Swimming Pool and Water Features');
+    expect($meta['subject'])->not->toContain('PVC');
+    expect($meta['subject'])->not->toContain('Yes No');
+});
+
+test('wrapped mir number uses the full filename register and not the submittal ref', function () {
+    $filename = 'PSE2024-1011-PRS-PAR-MIR-HLS-00042 R.00 (B)_Approved as noted.pdf';
+    $ocr = "Inspection Details\n"
+        ."MIR No. PSE2024-1011-PRS-\n"
+        ."PAR-MIR-HLS-00042 Date 09-Oct-2024 Rev No. 00\n"
+        ."Materials for Inspection Fila PW-10 Materials Approval Submittal Ref PSE20241011-PRS-HLS-MAR-00039\n"
+        ."Location for Inspection Plot 88/16 Discipline Hard Landscape\n"
+        ."Description of Materials for Inspection\n"
+        ."Fila Sealer PW-10\n";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['reference_no'])->toBe('PSE2024-1011-PRS-PAR-MIR-HLS-00042');
+    expect($meta['subject'])->toBe('Fila PW-10');
+    expect($meta['subject'])->not->toContain('Submittal');
+    expect($meta['subject'])->not->toContain('HLS-MAR');
+    expect(DocumentFilenameParser::referenceExtends('PAR-MIR-HLS-00042', $meta['reference_no']))->toBeTrue();
+});
+
 test('filename approval status is never used as the subject', function () {
     $meta = DocumentFilenameParser::extractReferenceAndSubject(
         null,
