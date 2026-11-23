@@ -821,6 +821,25 @@ test('wrapped mir number uses the full filename register and not the submittal r
     expect(DocumentFilenameParser::referenceExtends('PAR-MIR-HLS-00042', $meta['reference_no']))->toBeTrue();
 });
 
+test('subject stops before the document type label on the next line', function () {
+    $filename = 'DXB2-PSP-LS-MAR-00025-00_B&W_B.pdf';
+    $ocr = "To: GHD\n"
+        ."Ref. No.: DXB2-PSP-LS-MAR-00025 Date 08-Feb-23 Rev. 00\n"
+        ."Subject: Material Submittal for PC BUBBLER 1400 SERIES\n"
+        ."Document Type: Material Technical Submittal\n"
+        ."Discipline: Landscape\n"
+        ."Description: Material Submittal for PC BUBBLER 1400 SERIES\n"
+        ."Area of Use: Project Wide Area\n";
+
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
+
+    expect($meta['subject'])->toBe('Material Submittal for PC BUBBLER 1400 SERIES');
+    expect($meta['subject'])->not->toContain('Document Type');
+    expect(DocumentFilenameParser::stripTrailingFormLabels(
+        'Material Submittal for PC BUBBLER 1400 SERIES Document Type:'
+    ))->toBe('Material Submittal for PC BUBBLER 1400 SERIES');
+});
+
 test('filename approval status is never used as the subject', function () {
     $meta = DocumentFilenameParser::extractReferenceAndSubject(
         null,

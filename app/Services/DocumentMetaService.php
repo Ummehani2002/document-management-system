@@ -56,6 +56,15 @@ class DocumentMetaService
     private static function repairStoredMeta(Document $document, ?string $storedRef, ?string $storedSubject): array
     {
         $dirty = false;
+        if ($storedSubject !== null) {
+            $trimmedSubject = self::normalizeStored(DocumentFilenameParser::stripTrailingFormLabels($storedSubject));
+            if ($trimmedSubject !== null && $trimmedSubject !== $storedSubject && ! DocumentFilenameParser::isUnusableSubject($trimmedSubject)) {
+                $document->subject = mb_substr($trimmedSubject, 0, 1000);
+                $storedSubject = $trimmedSubject;
+                $dirty = true;
+            }
+        }
+
         $subjectNeedsRepair = $storedSubject !== null && DocumentFilenameParser::isUnusableSubject($storedSubject);
 
         if ($storedRef !== null) {

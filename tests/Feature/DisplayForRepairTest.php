@@ -33,3 +33,27 @@ test('displayFor repairs without throwing', function () {
     expect($meta['subject'])->toBe('Fila PW-10');
     expect(LocalDateTime::formatModel($shown, 'updated_at'))->not->toBe('');
 });
+
+test('displayFor drops a document type label glued onto the subject', function () {
+    $entity = Entity::create(['name' => 'Proscape']);
+    $project = Project::create([
+        'entity_id' => $entity->id,
+        'project_number' => 'DXB2',
+        'project_name' => 'Creek Beach',
+    ]);
+    $doc = Document::create([
+        'entity_id' => $entity->id,
+        'project_id' => $project->id,
+        'discipline' => 'Landscape',
+        'document_type' => 'Material Submittal',
+        'file_name' => 'DXB2-PSP-LS-MAR-00025-00_B&W_B.pdf',
+        'file_path' => 'docs/bubbler.pdf',
+        'reference_no' => 'DXB2-PSP-LS-MAR-00025',
+        'subject' => 'Material Submittal for PC BUBBLER 1400 SERIES Document Type:',
+    ]);
+
+    $meta = DocumentMetaService::displayFor($doc->fresh());
+
+    expect($meta['subject'])->toBe('Material Submittal for PC BUBBLER 1400 SERIES');
+    expect($doc->fresh()->subject)->toBe('Material Submittal for PC BUBBLER 1400 SERIES');
+});

@@ -1222,7 +1222,7 @@ class DocumentFilenameParser
             'SUBJECT\s*[:\-]',
             'TITLE\s*[:\-]',
         ];
-        $stop = 'Specification(?:\s+Clause)?\s+Ref|Drawing\s+(?:No|Number|Ref(?:erence)?(?:\s*No)?)|Local\s+Supplier'
+        $stop = 'Document\s+Type\s*[:\-]?|Area\s+of\s+Use\s*[:\-]?|Specification(?:\s+Clause)?\s+Ref|Drawing\s+(?:No|Number|Ref(?:erence)?(?:\s*No)?)|Local\s+Supplier'
             .'|Received(?:\s+by)?|Enclosures?|Contractor(?:\'s)?\s+(?:Certification|Remarks)|B\.?O\.?Q\.?\s+Item'
             .'|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref(?:\.?\s*No)?'
             .'|Attachments?|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bScale\s*[:\-]|\bRev(?:ision)?\s*[:\-]'
@@ -1586,7 +1586,7 @@ class DocumentFilenameParser
      */
     protected static function collectSubjectFromFieldWindow(string $chunk, array $stopLabels): string
     {
-        $stop = implode('|', $stopLabels);
+        $stop = implode('|', $stopLabels).'|Document\s+Type|Area\s+of\s+Use';
         $chunk = preg_replace('~Contract\s+Doc(?:ument)?\.?\s*Ref(?:erence)?\.?\s*[:\-]?~i', "\n", $chunk) ?? $chunk;
         $chunk = preg_replace('~(?<=\S)\s+(?=(?:'.$stop.')\b)~i', "\n", $chunk) ?? $chunk;
 
@@ -1606,7 +1606,9 @@ class DocumentFilenameParser
                 || (bool) preg_match('~^Where\s+(?:the\s+)?Item\s+will\s+be\s+used\b~i', $line)
                 || (bool) preg_match('~^Location(?:\s*:|\s+[A-Z0-9])~i', $line)
                 || (bool) preg_match('~^Drawing\s+Ref(?:erence)?(?:\s*No)?\b~i', $line)
-                || (bool) preg_match('~^Date\s+of\s+Inspection\b~i', $line);
+                || (bool) preg_match('~^Date\s+of\s+Inspection\b~i', $line)
+                || (bool) preg_match('~^Document\s+Type\b~i', $line)
+                || (bool) preg_match('~^Area\s+of\s+Use\b~i', $line);
             if ($isStop) {
                 if ($collected !== []) {
                     break;
@@ -1650,12 +1652,22 @@ class DocumentFilenameParser
     }
 
     /**
+     * Drop a following form label that OCR glued onto the subject, such as "Document Type:".
+     */
+    public static function stripTrailingFormLabels(string $subject): string
+    {
+        $trimmed = self::trimSubjectAtNextFormField($subject);
+
+        return trim(preg_replace('/\s+/', ' ', $trimmed) ?? '');
+    }
+
+    /**
      * Table OCR often continues into the next label (Specification, Drawing Ref, Manufacturer).
      */
     protected static function trimSubjectAtNextFormField(string $subject): string
     {
         $cut = preg_split(
-            '/\s+(?:Materials?\s+Approval\s+Submittal\s+Ref(?:erence)?|Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?(?:\s*No)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|Purpose\s*(?:&|AND)\s*Location|Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area)|[A-Z0-9])|(?<![A-Za-z])Location(?=\s*:|\s+[A-Z0-9])|Where\s+(?:the\s+)?Item\s+will\s+be\s+used|Date\s+of\s+Inspection|Time\s+of\s+Inspection|Discipline|(?:Pavcrete\s+)?Manufacturer\s*\/?\s*Supplier|Installer\s*:|Submittal\s+Checklist|Table\s+of\s+Contents|\bDate\b|With\s+reference)/i',
+            '/\s+(?:Document\s+Type\s*[:\-]?|Area\s+of\s+Use\s*[:\-]?|Materials?\s+Approval\s+Submittal\s+Ref(?:erence)?|Specification(?:\s+Clause)?\s+Ref\.?|Drawing\s+Ref(?:erence)?(?:\s*No)?\.?|Local\s+Supplier|Received(?:\s+by)?|Enclosures?|B\.?O\.?Q\.?\s+Item|Contract(?:or)?(?:\'s)?(?:\s+LOA|\s+Certification|\s+Remarks)?|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref|Submittal\s+N[ro]|LOA\s+N[ro]|Purpose\s*(?:&|AND)\s*Location|Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area)|[A-Z0-9])|(?<![A-Za-z])Location(?=\s*:|\s+[A-Z0-9])|Where\s+(?:the\s+)?Item\s+will\s+be\s+used|Date\s+of\s+Inspection|Time\s+of\s+Inspection|Discipline|(?:Pavcrete\s+)?Manufacturer\s*\/?\s*Supplier|Installer\s*:|Submittal\s+Checklist|Table\s+of\s+Contents|\bDate\b|With\s+reference)/i',
             $subject,
             2
         );
