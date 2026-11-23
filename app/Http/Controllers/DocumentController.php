@@ -1613,6 +1613,7 @@ class DocumentController extends Controller
         return response()->json([
             'ok' => true,
             'reference_no' => $meta['reference_no'] ?? '—',
+            'revision_no' => $meta['revision_no'] ?? '—',
             'subject' => $meta['subject'] ?? '—',
         ]);
     }

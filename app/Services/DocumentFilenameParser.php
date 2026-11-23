@@ -971,9 +971,6 @@ class DocumentFilenameParser
 
         $subject = $subject !== '' && ! self::isJunkSubject($subject) ? $subject : '—';
         $referenceNo = $referenceNo !== '' ? $referenceNo : '—';
-        if ($referenceNo !== '—') {
-            $referenceNo = self::appendRevision($referenceNo, $ocr !== '' ? $ocr : null, $fileName);
-        }
 
         return [
             'reference_no' => $referenceNo,
@@ -982,31 +979,29 @@ class DocumentFilenameParser
     }
 
     /**
-     * Keep the form Rev on the reference: DXB2-PSP-LS-MAR-00025-(00).
-     * Codes that already end in -R00 stay as they are.
+     * Revision that distinguishes versions of the same document number.
+     * Returns a zero-padded value such as 00 or 02, or null when none is found.
      */
-    public static function appendRevision(string $reference, ?string $ocrText, string $fileName): string
+    public static function revisionNumber(?string $ocrText, string $fileName, string $reference = ''): ?string
     {
-        $reference = trim($reference);
+        $reference = trim(preg_replace('/-\(\d{2}\)$/', '', trim($reference)) ?? trim($reference));
         if ($reference === '' || $reference === '—') {
-            return $reference;
-        }
-        if (preg_match('/-\(\d{2}\)$/', $reference)) {
-            return $reference;
-        }
-        if (preg_match('/(?:[-_]R(?:EV(?:ISION)?)?\.?\d{1,2}|[-_]REV[-_]\d{1,2})$/i', $reference)) {
-            return $reference;
+            $split = self::splitFilenameReferenceAndSubject(pathinfo($fileName, PATHINFO_FILENAME));
+            $reference = trim((string) ($split['reference_no'] ?? ''));
         }
 
         $revision = self::revisionFromText($ocrText);
-        if ($revision === null) {
+        if ($revision === null && $reference !== '' && $reference !== '—') {
             $revision = self::revisionFromFilename($fileName, $reference);
         }
+        if ($revision === null && preg_match('/(?:[-_]R(?:EV(?:ISION)?)?\.?(\d{1,2}))$/i', $reference, $m)) {
+            $revision = $m[1];
+        }
         if ($revision === null) {
-            return $reference;
+            return null;
         }
 
-        return $reference.'-('.str_pad((string) ((int) $revision), 2, '0', STR_PAD_LEFT).')';
+        return str_pad((string) ((int) $revision), 2, '0', STR_PAD_LEFT);
     }
 
     protected static function revisionFromText(?string $ocrText): ?string

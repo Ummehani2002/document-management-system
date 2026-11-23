@@ -805,6 +805,7 @@
                                 <th class="bulk-col"><input type="checkbox" class="bulk-select-all" aria-label="Select all documents"></th>
                                 @include('documents.partials.column-filter-th', ['label' => 'Name', 'filterKey' => 'filter_name'])
                                 @include('documents.partials.column-filter-th', ['label' => 'Reference No', 'filterKey' => 'filter_reference'])
+                                <th>Revision No</th>
                                 @include('documents.partials.column-filter-th', ['label' => 'Subject', 'filterKey' => 'filter_subject'])
                                 <th>Project Discipline</th>
                                 @include('documents.partials.column-filter-th', ['label' => 'Project Number', 'filterKey' => 'filter_project'])
@@ -821,6 +822,7 @@
                                 @php
                                     $meta = \App\Services\DocumentMetaService::displayFor($doc);
                                     $referenceNo = $meta['reference_no'] ?? '—';
+                                    $revisionNo = $meta['revision_no'] ?? '—';
                                     $subject = $meta['subject'] ?? '—';
                                 @endphp
                                 <tr>
@@ -840,6 +842,7 @@
                                         </div>
                                     </td>
                                     <td class="doc-ref-cell" data-doc-id="{{ $doc->id }}">{{ $referenceNo }}</td>
+                                    <td class="doc-rev-cell" data-doc-id="{{ $doc->id }}">{{ $revisionNo }}</td>
                                     <td
                                         class="doc-subject-cell"
                                         data-doc-id="{{ $doc->id }}"
@@ -974,6 +977,7 @@
                         <th class="bulk-col"><input type="checkbox" class="bulk-select-all" aria-label="Select all documents"></th>
                         @include('documents.partials.column-filter-th', ['label' => 'Name', 'filterKey' => 'filter_name'])
                         @include('documents.partials.column-filter-th', ['label' => 'Reference No', 'filterKey' => 'filter_reference'])
+                        <th>Revision No</th>
                         @include('documents.partials.column-filter-th', ['label' => 'Subject', 'filterKey' => 'filter_subject'])
                         @include('documents.partials.column-filter-th', ['label' => 'Folder', 'filterKey' => 'filter_folder'])
                         @include('documents.partials.column-filter-th', ['label' => 'Project', 'filterKey' => 'filter_project'])
@@ -987,6 +991,7 @@
                         @php
                             $meta = \App\Services\DocumentMetaService::displayFor($doc);
                             $referenceNo = $meta['reference_no'] ?? '—';
+                            $revisionNo = $meta['revision_no'] ?? '—';
                             $subject = $meta['subject'] ?? '—';
                         @endphp
                         <tr>
@@ -1006,6 +1011,7 @@
                                 </div>
                             </td>
                             <td class="doc-ref-cell" data-doc-id="{{ $doc->id }}">{{ $referenceNo }}</td>
+                            <td class="doc-rev-cell" data-doc-id="{{ $doc->id }}">{{ $revisionNo }}</td>
                             <td
                                 class="doc-subject-cell"
                                 data-doc-id="{{ $doc->id }}"
@@ -1918,6 +1924,10 @@
             var refCell = document.querySelector('.doc-ref-cell[data-doc-id="' + docId + '"]');
             if (refCell && data.reference_no) {
                 refCell.textContent = data.reference_no;
+            }
+            var revCell = document.querySelector('.doc-rev-cell[data-doc-id="' + docId + '"]');
+            if (revCell && data.revision_no) {
+                revCell.textContent = data.revision_no;
             }
         } catch (e) {
             cell.textContent = '—';

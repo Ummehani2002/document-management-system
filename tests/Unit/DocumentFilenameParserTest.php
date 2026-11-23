@@ -155,7 +155,7 @@ test('tanseeq ir register filename goes to work inspection', function () {
 
     expect($result['document_category'])->toBe('Work Inspection');
     expect($result['confidence'])->toBeGreaterThanOrEqual(0.70);
-    expect($result['reference_no'])->toBe('3501B-IR-L-1822-(00)');
+    expect($result['reference_no'])->toBe('3501B-IR-L-1822');
 });
 
 test('mat-ir material submittal is not classified as work inspection', function () use ($matFilename) {
@@ -253,8 +253,8 @@ test('ir form number is used as reference instead of the filename stem', functio
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
     expect($result['document_category'])->toBe('Work Inspection');
-    expect($result['reference_no'])->toBe('3501B-IR-L-1822-(00)');
-    expect($meta['reference_no'])->toBe('3501B-IR-L-1822-(00)');
+    expect($result['reference_no'])->toBe('3501B-IR-L-1822');
+    expect($meta['reference_no'])->toBe('3501B-IR-L-1822');
     expect($meta['subject'])->toBe('Softscape planting — Zone A');
 });
 
@@ -267,7 +267,7 @@ test('work inspection subject comes from description of item area to be inspecte
 
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('3501B-IR-L-1822-(00)');
+    expect($meta['reference_no'])->toBe('3501B-IR-L-1822');
     expect($meta['subject'])->toStartWith('Work inspection for Acrylic modified epoxy paint for Graphic paving (PT-03)');
     expect($meta['subject'])->toContain('Area A');
     expect($meta['subject'])->not->toContain('Location of Works');
@@ -277,7 +277,7 @@ test('work inspection subject comes from description of item area to be inspecte
 test('register-only filename has no subject when the file has not been read', function () {
     $meta = DocumentFilenameParser::extractReferenceAndSubject(null, '3501B-IR-L-1822_R0_B_20260904.pdf');
 
-    expect($meta['reference_no'])->toBe('3501B-IR-L-1822-(00)');
+    expect($meta['reference_no'])->toBe('3501B-IR-L-1822');
     expect($meta['subject'])->toBe('—');
 });
 
@@ -463,7 +463,7 @@ test('ir form ocr labels are not used as reference or subject', function () {
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
     expect($result['document_category'])->toBe('Work Inspection');
-    expect($meta['reference_no'])->toBe('3501B-IR-L-2022-(00)');
+    expect($meta['reference_no'])->toBe('3501B-IR-L-2022');
     expect($meta['subject'])->toBe('Softscape planting inspection');
 });
 
@@ -484,7 +484,7 @@ test('arada material submittal form is not prequalification and uses title subje
 
     expect($result['document_category'])->toBe('Material Submittal');
     expect($result['category_source'])->toBe('ocr');
-    expect($meta['reference_no'])->toBe('JH-LSC-MAT-HLS-PSC-PAR-0134-(01)');
+    expect($meta['reference_no'])->toBe('JH-LSC-MAT-HLS-PSC-PAR-0134');
     expect($meta['subject'])->toStartWith('Material Submittal for P02 - Pavcrete 700 Exposed Aggregate Topping');
     expect(DocumentFilenameParser::folderSubLabel('Prequalification', $filename, $ocr))->toBe('Material Submittal');
 });
@@ -505,7 +505,7 @@ test('tanseeq revision filenames keep the register and take the title as subject
         '3501B-MAR-L-026 R1_B_20260213 - PT-03 Graphic Paving. In-situ Concrete (STREETBOND SB120) (2).pdf'
     );
 
-    expect($meta['reference_no'])->toBe('3501B-MAR-L-026-(01)');
+    expect($meta['reference_no'])->toBe('3501B-MAR-L-026');
     expect($meta['subject'])->toBe('PT-03 Graphic Paving. In-situ Concrete (STREETBOND SB120)');
 });
 
@@ -513,7 +513,7 @@ test('title slash subject on the form is read even when ocr text is present', fu
     $ocr = "MATERIAL SUBMITTAL\nTitle / Subject\nGraphic Paving in-situ concrete\nSection A - Submittal Details";
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, '3501B-MAR-L-026 R1_B_20260213.pdf');
 
-    expect($meta['reference_no'])->toBe('3501B-MAR-L-026-(01)');
+    expect($meta['reference_no'])->toBe('3501B-MAR-L-026');
     expect($meta['subject'])->toBe('Graphic Paving in-situ concrete');
 });
 
@@ -528,7 +528,7 @@ test('material submittal title subject pavcrete wording is the subject', functio
 
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('JH-LSC-MAT-HLS-PSC-PAR-0134-(01)');
+    expect($meta['reference_no'])->toBe('JH-LSC-MAT-HLS-PSC-PAR-0134');
     expect($meta['subject'])->toStartWith('Material Submittal for P02 - Pavcrete 700');
     expect($meta['subject'])->toContain('Sabalight Grey');
     expect($meta['subject'])->not->toContain('Section A');
@@ -561,7 +561,7 @@ test('title and description on the form is used as the subject', function () {
 
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('3501B-MAR-L-026-(01)');
+    expect($meta['reference_no'])->toBe('3501B-MAR-L-026');
     expect($meta['subject'])->toBe(
         'PT-03 Graphic Paving, In-situ Concrete (STREETBOND SB120) , 120mm thick, Color 1: SR Irish Cream, Color 2: SR Sun Baked Clay, Color 3: Cobalt Blue, Color 4: Gun Metal'
     );
@@ -581,7 +581,7 @@ test('title and description is not replaced by the rest of the pdf', function ()
 
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('3501B-MAR-L-026-(01)');
+    expect($meta['reference_no'])->toBe('3501B-MAR-L-026');
     expect($meta['subject'])->toBe(
         'PT-03 Graphic Paving, In-situ Concrete (STREETBOND SB120) , 120mm thick, Color 1: SR Irish Cream, Color 2: SR Sun Baked Clay, Color 3: Cobalt Blue, Color 4: Gun Metal'
     );
@@ -592,7 +592,7 @@ test('title and description is not replaced by the rest of the pdf', function ()
 test('arada mir filename keeps the register without revision tail', function () {
     $meta = DocumentFilenameParser::extractReferenceAndSubject(null, 'JH-LSC-MIR-SLS-PSC-PAR-0003_00_B.pdf');
 
-    expect($meta['reference_no'])->toBe('JH-LSC-MIR-SLS-PSC-PAR-0003-(00)');
+    expect($meta['reference_no'])->toBe('JH-LSC-MIR-SLS-PSC-PAR-0003');
     expect($meta['subject'])->toBe('—');
 });
 
@@ -632,7 +632,7 @@ test('mir description of material is used as the subject', function () {
 
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('JH-LSC-MIR-SLS-PSC-PAR-0003-(00)');
+    expect($meta['reference_no'])->toBe('JH-LSC-MIR-SLS-PSC-PAR-0003');
     expect($meta['subject'])->toBe('Softscape planting soil mix for Zone B');
 });
 
@@ -650,7 +650,7 @@ test('material inspection request subject comes from title and description', fun
 
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('3501B-MIR-L-061-(00)');
+    expect($meta['reference_no'])->toBe('3501B-MIR-L-061');
     expect($meta['subject'])->toStartWith('Material Inspection for (PT-03) Graphic Paving');
     expect($meta['subject'])->toContain('Avocado (Green)');
     expect($meta['subject'])->not->toContain('Landscape areas');
@@ -732,7 +732,7 @@ test('inspection request description of works is the subject', function () {
 
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('PSE2023-1017-PRS-IR-SLS-00001-(00)');
+    expect($meta['reference_no'])->toBe('PSE2023-1017-PRS-IR-SLS-00001');
     expect($meta['subject'])->toBe(
         'Inspection request for Excavation of Palm tree pits - 08 Nos. as shown in the attached drawing and site pictures.'
     );
@@ -814,7 +814,7 @@ test('wrapped mir number uses the full filename register and not the submittal r
 
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('PSE2024-1011-PRS-PAR-MIR-HLS-00042-(00)');
+    expect($meta['reference_no'])->toBe('PSE2024-1011-PRS-PAR-MIR-HLS-00042');
     expect($meta['subject'])->toBe('Fila PW-10');
     expect($meta['subject'])->not->toContain('Submittal');
     expect($meta['subject'])->not->toContain('HLS-MAR');
@@ -842,17 +842,19 @@ test('subject stops before the document type label on the next line', function (
 
 test('site filename revisions are shown on the reference', function () {
     $cases = [
-        ['DXB2-PSP-LS-MAR-00025-00_B&W_B.pdf', null, 'DXB2-PSP-LS-MAR-00025-(00)'],
-        ['PSE2024-1011-PRS-PAR-MIR-HLS-00018 R.00 (B)_Approved as noted.pdf', null, 'PSE2024-1011-PRS-PAR-MIR-HLS-00018-(00)'],
-        ['PSE2024-1011-PRS-PAR-MIR-HLS-00006 R.00 (B)_Approved as noted.pdf', null, 'PSE2024-1011-PRS-PAR-MIR-HLS-00006-(00)'],
-        ['JH-INF-WIR-GAS-PSC-PAR-6594_00-A.pdf', null, 'JH-INF-WIR-GAS-PSC-PAR-6594-(00)'],
-        ['JH-INF-WIR-IRR-PSC-PAR-0618_02-A.pdf', "Ref. No: JH-INF-WIR-IRR-PSC-PAR-0618\nRev: 02\n", 'JH-INF-WIR-IRR-PSC-PAR-0618-(02)'],
-        ['PSE2024-1011-PRS-PAR-DT-PQ-00001 R.00 - Pre-Qualification for Axendo.pdf', null, 'PSE2024-1011-PRS-PAR-DT-PQ-00001-(00)'],
+        ['DXB2-PSP-LS-MAR-00025-00_B&W_B.pdf', null, 'DXB2-PSP-LS-MAR-00025'],
+        ['PSE2024-1011-PRS-PAR-MIR-HLS-00018 R.00 (B)_Approved as noted.pdf', null, 'PSE2024-1011-PRS-PAR-MIR-HLS-00018'],
+        ['PSE2024-1011-PRS-PAR-MIR-HLS-00006 R.00 (B)_Approved as noted.pdf', null, 'PSE2024-1011-PRS-PAR-MIR-HLS-00006'],
+        ['JH-INF-WIR-GAS-PSC-PAR-6594_00-A.pdf', null, 'JH-INF-WIR-GAS-PSC-PAR-6594'],
+        ['JH-INF-WIR-IRR-PSC-PAR-0618_02-A.pdf', "Ref. No: JH-INF-WIR-IRR-PSC-PAR-0618\nRev: 02\n", 'JH-INF-WIR-IRR-PSC-PAR-0618'],
+        ['PSE2024-1011-PRS-PAR-DT-PQ-00001 R.00 - Pre-Qualification for Axendo.pdf', null, 'PSE2024-1011-PRS-PAR-DT-PQ-00001'],
     ];
 
-    foreach ($cases as [$file, $ocr, $expected]) {
+    $revisions = ['00', '00', '00', '00', '02', '00'];
+    foreach ($cases as $index => [$file, $ocr, $expected]) {
         $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $file);
         expect($meta['reference_no'])->toBe($expected);
+        expect(DocumentFilenameParser::revisionNumber($ocr, $file, $expected))->toBe($revisions[$index]);
     }
 
     $full = DocumentFilenameParser::extractReferenceAndSubject(
@@ -866,7 +868,8 @@ test('a dropped middle segment still keeps the filename revision', function () {
     $file = 'JH-INF-WIR-IRR-PSC-PAR-3104_01-A.pdf';
     $meta = DocumentFilenameParser::extractReferenceAndSubject(null, $file);
 
-    expect($meta['reference_no'])->toBe('JH-INF-WIR-IRR-PSC-PAR-3104-(01)');
+    expect($meta['reference_no'])->toBe('JH-INF-WIR-IRR-PSC-PAR-3104');
+    expect(DocumentFilenameParser::revisionNumber(null, $file, $meta['reference_no']))->toBe('01');
     expect(DocumentFilenameParser::referenceExtends(
         'JH-INF-WIR-PSC-PAR-3104',
         $meta['reference_no']
@@ -880,14 +883,18 @@ test('reference includes the revision from the rev box', function () {
         'DXB2-PSP-LS-MAR-00025-00_B&W_B.pdf'
     );
 
-    expect($meta['reference_no'])->toBe('DXB2-PSP-LS-MAR-00025-(00)');
+    expect($meta['reference_no'])->toBe('DXB2-PSP-LS-MAR-00025');
+    expect(DocumentFilenameParser::revisionNumber(
+        "Ref. No.: DXB2-PSP-LS-MAR-00025\nRev: 00\n",
+        'DXB2-PSP-LS-MAR-00025-00_B&W_B.pdf',
+        'DXB2-PSP-LS-MAR-00025'
+    ))->toBe('00');
 
-    $revised = DocumentFilenameParser::extractReferenceAndSubject(
-        "WORK INSPECTION REQUEST (WIR)\nRef. No: JH-INF-WIR-GAS-PSC-PAR-6594\nDate: 15-07-2026\nRev: 02\n",
-        'JH-INF-WIR-GAS-PSC-PAR-6594.pdf'
-    );
+    $ocr = "WORK INSPECTION REQUEST (WIR)\nRef. No: JH-INF-WIR-GAS-PSC-PAR-6594\nDate: 15-07-2026\nRev: 02\n";
+    $revised = DocumentFilenameParser::extractReferenceAndSubject($ocr, 'JH-INF-WIR-GAS-PSC-PAR-6594.pdf');
 
-    expect($revised['reference_no'])->toBe('JH-INF-WIR-GAS-PSC-PAR-6594-(02)');
+    expect($revised['reference_no'])->toBe('JH-INF-WIR-GAS-PSC-PAR-6594');
+    expect(DocumentFilenameParser::revisionNumber($ocr, 'JH-INF-WIR-GAS-PSC-PAR-6594.pdf', $revised['reference_no']))->toBe('02');
 });
 
 test('filename approval status is never used as the subject', function () {
@@ -896,7 +903,7 @@ test('filename approval status is never used as the subject', function () {
         'PSE2023-1017-PRS-IR-SLS-00001 R.00 (B)_Approved as noted.pdf'
     );
 
-    expect($meta['reference_no'])->toBe('PSE2023-1017-PRS-IR-SLS-00001-(00)');
+    expect($meta['reference_no'])->toBe('PSE2023-1017-PRS-IR-SLS-00001');
     expect($meta['subject'])->toBe('—');
     expect($meta['subject'])->not->toContain('Approved as noted');
 });

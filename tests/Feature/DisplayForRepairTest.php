@@ -29,7 +29,8 @@ test('displayFor repairs without throwing', function () {
     $shown = $doc->fresh();
     $meta = DocumentMetaService::displayFor($shown);
 
-    expect($meta['reference_no'])->toBe('PSE2024-1011-PRS-PAR-MIR-HLS-00042-(00)');
+    expect($meta['reference_no'])->toBe('PSE2024-1011-PRS-PAR-MIR-HLS-00042');
+    expect($meta['revision_no'])->toBe('00');
     expect($meta['subject'])->toBe('Fila PW-10');
     expect(LocalDateTime::formatModel($shown, 'updated_at'))->not->toBe('');
 });

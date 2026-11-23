@@ -23,9 +23,12 @@ class DocumentMetaService
             self::reportQuietly($e);
         }
 
+        $revision = self::rememberRevision($document, $storedRef);
+
         if ($storedRef !== null && $storedSubject !== null) {
             return [
                 'reference_no' => $storedRef,
+                'revision_no' => $revision,
                 'subject' => $storedSubject,
             ];
         }
@@ -40,8 +43,11 @@ class DocumentMetaService
             $parsed = ['reference_no' => '—', 'subject' => '—'];
         }
 
+        $reference = $storedRef ?? ($parsed['reference_no'] ?? '—');
+
         return [
-            'reference_no' => $storedRef ?? ($parsed['reference_no'] ?? '—'),
+            'reference_no' => $reference,
+            'revision_no' => self::rememberRevision($document, $reference === '—' ? null : $reference),
             'subject' => $storedSubject ?? ($parsed['subject'] ?? '—'),
         ];
     }
@@ -97,18 +103,10 @@ class DocumentMetaService
             }
         }
 
-        if ($storedRef !== null) {
-            $baseRef = preg_replace('/-\(\d{2}\)$/', '', $storedRef) ?? $storedRef;
-            $withRevision = self::normalizeStored(DocumentFilenameParser::appendRevision(
-                $baseRef,
-                $document->ocr_text,
-                (string) $document->file_name
-            ));
-            if ($withRevision !== null && $withRevision !== $storedRef) {
-                $document->reference_no = mb_substr($withRevision, 0, 255);
-                $storedRef = $withRevision;
-                $dirty = true;
-            }
+        if ($storedRef !== null && preg_match('/^(.*)-\((\d{2})\)$/', $storedRef, $m) && $m[1] !== '') {
+            $storedRef = $m[1];
+            $document->reference_no = mb_substr($storedRef, 0, 255);
+            $dirty = true;
         }
 
         if ($dirty && $document->exists) {
@@ -120,6 +118,26 @@ class DocumentMetaService
         }
 
         return [$storedRef, $storedSubject];
+    }
+
+    private static function rememberRevision(Document $document, ?string $reference): string
+    {
+        $detected = DocumentFilenameParser::revisionNumber(
+            $document->ocr_text,
+            (string) $document->file_name,
+            (string) ($reference ?? '')
+        );
+        $stored = self::normalizeStored((string) ($document->revision_no ?? ''));
+        if ($detected !== null && $detected !== $stored && $document->exists) {
+            try {
+                $document->revision_no = $detected;
+                $document->save();
+            } catch (\Throwable $e) {
+                self::reportQuietly($e);
+            }
+        }
+
+        return $detected ?? $stored ?? '—';
     }
 
     /**
@@ -151,7 +169,19 @@ class DocumentMetaService
             $document->subject
         );
 
+        if (preg_match('/^(.*)-\((\d{2})\)$/', $reference, $m) && $m[1] !== '') {
+            $reference = $m[1];
+        }
+        $revision = DocumentFilenameParser::revisionNumber(
+            $text,
+            (string) $document->file_name,
+            $reference
+        );
+
         $document->reference_no = $reference === '—' ? null : mb_substr($reference, 0, 255);
+        if ($revision !== null) {
+            $document->revision_no = $revision;
+        }
         $document->subject = $subject === '—' ? null : mb_substr($subject, 0, 1000);
         $document->meta_source = $source;
         if ($ocrText !== null) {
@@ -162,6 +192,7 @@ class DocumentMetaService
 
         return [
             'reference_no' => $reference,
+            'revision_no' => $revision ?? (self::normalizeStored((string) ($document->revision_no ?? '')) ?? '—'),
             'subject' => $subject,
         ];
     }

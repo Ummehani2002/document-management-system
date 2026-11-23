@@ -43,6 +43,7 @@ class Document extends Model
         'folder_locked',
         'file_name',
         'reference_no',
+        'revision_no',
         'subject',
         'meta_source',
         'file_path',
