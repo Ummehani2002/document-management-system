@@ -504,6 +504,99 @@
         opacity: 0.6;
         cursor: wait;
     }
+
+    .dms-project-picker {
+        position: relative;
+        min-width: 0;
+    }
+
+    .dms-project-picker-native {
+        position: absolute !important;
+        width: 1px !important;
+        height: 1px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        overflow: hidden !important;
+    }
+
+    button.dms-project-picker-btn {
+        position: relative;
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 8px 28px 8px 12px;
+        box-sizing: border-box;
+        background: #fff;
+        color: #201f1e;
+        border: 1px solid #8a8886;
+        border-radius: 6px;
+        font-weight: 400;
+        font-size: 0.9rem;
+        line-height: 1.3;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+    }
+
+    button.dms-project-picker-btn:hover,
+    button.dms-project-picker-btn[aria-expanded="true"] {
+        background: #fff;
+        color: #201f1e;
+        border-color: #0078d4;
+    }
+
+    button.dms-project-picker-btn::after {
+        content: "";
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        margin-top: -2px;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 5px solid #605e5c;
+    }
+
+    .dms-project-picker-menu {
+        position: absolute;
+        z-index: 40;
+        top: calc(100% + 2px);
+        left: 0;
+        max-height: 280px;
+        overflow: auto;
+        background: #fff;
+        border: 1px solid #8a8886;
+        border-radius: 4px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+        padding: 4px 0;
+    }
+
+    .dms-project-picker-option {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 8px 12px;
+        background: #fff;
+        color: #201f1e;
+        text-align: left;
+        font-size: 0.85rem;
+        font-weight: 400;
+        line-height: 1.35;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        cursor: pointer;
+    }
+
+    .dms-project-picker-option:hover,
+    .dms-project-picker-option.is-selected {
+        background: #0078d4;
+        color: #fff;
+    }
 </style>
 @if(session('success'))
     <div class="success">{{ session('success') }}</div>
@@ -1946,6 +2039,121 @@
         })();
     });
 })();
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('select[name="project_id"]').forEach(function (select) {
+        if (select.dataset.pickerReady === '1') {
+            return;
+        }
+        select.dataset.pickerReady = '1';
+
+        var wrap = document.createElement('div');
+        wrap.className = 'dms-project-picker';
+        select.parentNode.insertBefore(wrap, select);
+        wrap.appendChild(select);
+        select.classList.add('dms-project-picker-native');
+        select.setAttribute('tabindex', '-1');
+        select.setAttribute('aria-hidden', 'true');
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'dms-project-picker-btn';
+        btn.setAttribute('aria-haspopup', 'listbox');
+        btn.setAttribute('aria-expanded', 'false');
+        wrap.appendChild(btn);
+
+        var menu = document.createElement('div');
+        menu.className = 'dms-project-picker-menu';
+        menu.hidden = true;
+        menu.setAttribute('role', 'listbox');
+        wrap.appendChild(menu);
+
+        function optionLabel(option) {
+            return (option.textContent || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function syncButton() {
+            var option = select.options[select.selectedIndex];
+            var label = option ? optionLabel(option) : '';
+            btn.textContent = label || 'All projects';
+            btn.title = label;
+        }
+
+        function rebuild() {
+            menu.textContent = '';
+            Array.prototype.forEach.call(select.options, function (option) {
+                var item = document.createElement('div');
+                item.className = 'dms-project-picker-option';
+                item.setAttribute('role', 'option');
+                var label = optionLabel(option);
+                item.textContent = label;
+                item.title = label;
+                if (option.selected) {
+                    item.classList.add('is-selected');
+                    item.setAttribute('aria-selected', 'true');
+                }
+                item.addEventListener('click', function () {
+                    select.value = option.value;
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                    syncButton();
+                    closeMenu();
+                });
+                menu.appendChild(item);
+            });
+            syncButton();
+        }
+
+        function placeMenu() {
+            var main = document.querySelector('.main-content');
+            var btnRect = btn.getBoundingClientRect();
+            var limitRight = main ? main.getBoundingClientRect().right - 16 : window.innerWidth - 16;
+            var available = Math.max(btn.offsetWidth, limitRight - btnRect.left);
+            menu.style.width = Math.min(480, available) + 'px';
+        }
+
+        function openMenu() {
+            rebuild();
+            placeMenu();
+            menu.hidden = false;
+            btn.setAttribute('aria-expanded', 'true');
+        }
+
+        function closeMenu() {
+            menu.hidden = true;
+            btn.setAttribute('aria-expanded', 'false');
+        }
+
+        btn.addEventListener('click', function () {
+            if (menu.hidden) {
+                openMenu();
+            } else {
+                closeMenu();
+            }
+        });
+
+        document.addEventListener('click', function (event) {
+            if (!wrap.contains(event.target)) {
+                closeMenu();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeMenu();
+            }
+        });
+
+        select.addEventListener('change', syncButton);
+
+        var observer = new MutationObserver(function () {
+            rebuild();
+        });
+        observer.observe(select, { childList: true });
+
+        rebuild();
+    });
+});
 </script>
 
 @endsection
