@@ -738,10 +738,6 @@
             </div>
             @if(!empty($currentEntity))
                 <span class="dms-entity-badge" title="{{ $currentEntity->name }}">{{ $currentEntity->name }}</span>
-                <form method="POST" action="{{ route('workspace.exit') }}" class="dms-switch-company-form">
-                    @csrf
-                    <button type="submit" class="dms-switch-company-btn">Switch company</button>
-                </form>
             @endif
         </div>
         <div class="dms-topbar-right">

@@ -6,10 +6,6 @@
             <p class="workspace-kicker">Company workspace</p>
             <h2>{{ $entity->name }}</h2>
         </div>
-        <form method="POST" action="{{ route('workspace.exit') }}">
-            @csrf
-            <button type="submit" class="workspace-switch-btn">Switch company</button>
-        </form>
     </div>
 
     <div class="stats-row">
