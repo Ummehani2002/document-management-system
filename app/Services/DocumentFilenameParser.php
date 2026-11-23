@@ -971,11 +971,81 @@ class DocumentFilenameParser
 
         $subject = $subject !== '' && ! self::isJunkSubject($subject) ? $subject : '—';
         $referenceNo = $referenceNo !== '' ? $referenceNo : '—';
+        if ($referenceNo !== '—') {
+            $referenceNo = self::appendRevision($referenceNo, $ocr !== '' ? $ocr : null, $fileName);
+        }
 
         return [
             'reference_no' => $referenceNo,
             'subject' => $subject,
         ];
+    }
+
+    /**
+     * Keep the form Rev on the reference: DXB2-PSP-LS-MAR-00025-(00).
+     * Codes that already end in -R00 stay as they are.
+     */
+    public static function appendRevision(string $reference, ?string $ocrText, string $fileName): string
+    {
+        $reference = trim($reference);
+        if ($reference === '' || $reference === '—') {
+            return $reference;
+        }
+        if (preg_match('/-\(\d{2}\)$/', $reference)) {
+            return $reference;
+        }
+        if (preg_match('/(?:[-_]R(?:EV(?:ISION)?)?\.?\d{1,2}|[-_]REV[-_]\d{1,2})$/i', $reference)) {
+            return $reference;
+        }
+
+        $revision = self::revisionFromText($ocrText);
+        if ($revision === null) {
+            $revision = self::revisionFromFilename($fileName, $reference);
+        }
+        if ($revision === null) {
+            return $reference;
+        }
+
+        return $reference.'-('.str_pad((string) ((int) $revision), 2, '0', STR_PAD_LEFT).')';
+    }
+
+    protected static function revisionFromText(?string $ocrText): ?string
+    {
+        $text = trim((string) $ocrText);
+        if ($text === '') {
+            return null;
+        }
+        if (! preg_match(
+            '/\bREV(?:ISION)?(?![A-Z])\.?\s*(?:NO\.?|NUMBER|#)?\s*[:.\-]?\s*(\d{1,2})\b/i',
+            $text,
+            $m
+        )) {
+            return null;
+        }
+
+        return $m[1];
+    }
+
+    protected static function revisionFromFilename(string $fileName, string $reference): ?string
+    {
+        $stem = pathinfo($fileName, PATHINFO_FILENAME);
+        $reference = trim($reference);
+        if ($stem === '' || $reference === '') {
+            return null;
+        }
+
+        $pattern = '/'.preg_quote($reference, '/').'(?:\s*R\.?\s*(\d{1,2})(?!\d)|[_\-]R(?:EV(?:ISION)?)?\.?\s*(\d{1,2})(?!\d)|[_\-](\d{2})(?=[_\s(]|$))/i';
+        if (! preg_match($pattern, $stem, $m)) {
+            return null;
+        }
+
+        foreach ([1, 2, 3] as $group) {
+            if (($m[$group] ?? '') !== '') {
+                return $m[$group];
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1095,8 +1165,8 @@ class DocumentFilenameParser
      */
     public static function referenceExtends(string $current, string $candidate): bool
     {
-        $current = strtoupper(trim($current));
-        $candidate = strtoupper(trim($candidate));
+        $current = strtoupper(trim(preg_replace('/-\(\d{2}\)$/', '', trim($current)) ?? trim($current)));
+        $candidate = strtoupper(trim(preg_replace('/-\(\d{2}\)$/', '', trim($candidate)) ?? trim($candidate)));
         if ($current === '' || $current === '—' || $candidate === '' || $candidate === '—' || $current === $candidate) {
             return false;
         }

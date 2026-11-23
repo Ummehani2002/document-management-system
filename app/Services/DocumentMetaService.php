@@ -97,6 +97,20 @@ class DocumentMetaService
             }
         }
 
+        if ($storedRef !== null) {
+            $baseRef = preg_replace('/-\(\d{2}\)$/', '', $storedRef) ?? $storedRef;
+            $withRevision = self::normalizeStored(DocumentFilenameParser::appendRevision(
+                $baseRef,
+                $document->ocr_text,
+                (string) $document->file_name
+            ));
+            if ($withRevision !== null && $withRevision !== $storedRef) {
+                $document->reference_no = mb_substr($withRevision, 0, 255);
+                $storedRef = $withRevision;
+                $dirty = true;
+            }
+        }
+
         if ($dirty && $document->exists) {
             try {
                 $document->save();
