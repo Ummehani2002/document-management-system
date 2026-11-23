@@ -9,7 +9,7 @@
     $bulkProjects = collect($bulkDestinationProjects)->map(fn ($p) => [
         'id' => $p->id,
         'entity_id' => $p->entity_id,
-        'label' => $p->project_name.' ('.$p->project_number.')',
+        'label' => $p->project_number.' — '.$p->project_name,
     ])->values();
 @endphp
 

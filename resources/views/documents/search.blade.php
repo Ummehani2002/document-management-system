@@ -545,7 +545,7 @@
                         data-entity="{{ $p->entity_id }}"
                         {{ (int) request('project_id') === $p->id ? 'selected' : '' }}
                     >
-                        {{ $p->project_name }} ({{ $p->project_number }})
+                        {{ $p->project_number }} — {{ $p->project_name }}
                     </option>
                 @endforeach
             </select>
@@ -648,7 +648,7 @@
                                 data-entity="{{ $p->entity_id }}"
                                 {{ (int) request('project_id') === $p->id ? 'selected' : '' }}
                             >
-                                {{ $p->project_name }} ({{ $p->project_number }})
+                                {{ $p->project_number }} — {{ $p->project_name }}
                             </option>
                         @endforeach
                     </select>
@@ -782,7 +782,7 @@
                                     data-entity="{{ $p->entity_id }}"
                                     {{ (int) request('project_id') === $p->id ? 'selected' : '' }}
                                 >
-                                    {{ $p->project_name }} ({{ $p->project_number }})
+                                    {{ $p->project_number }} — {{ $p->project_name }}
                                 </option>
                             @endforeach
                         </select>

@@ -602,7 +602,7 @@ class DocumentController extends Controller
         // entity/project dropdowns can filter client-side when the user switches entity
         // (otherwise only the initially selected entity's projects exist in the DOM).
         $projects = Project::query()
-            ->orderBy('project_name');
+            ->orderBy('project_number');
         $entities = Entity::orderBy('name');
         $user = Auth::user();
         if (! $this->access->isAdmin($user)) {
@@ -830,7 +830,7 @@ class DocumentController extends Controller
         })->count();
 
         $bulkEntities = Entity::query()->orderBy('name');
-        $bulkProjects = Project::query()->orderBy('project_name');
+        $bulkProjects = Project::query()->orderBy('project_number');
         if (! $this->access->isAdmin($user)) {
             $bulkEntityIds = $this->access->accessibleEntityIds($user);
             $bulkEntities->whereIn('id', $bulkEntityIds);
