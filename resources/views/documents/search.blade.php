@@ -2,7 +2,13 @@
 
 @section('content')
 
-<h2>Search Documents</h2>
+<div class="dms-page-header">
+    <div>
+        <p class="dms-page-kicker">Library</p>
+        <h2>Search Documents</h2>
+        <p class="dms-page-lead">Find files by name, reference, subject, folder, or project — with Excel-style column filters.</p>
+    </div>
+</div>
 
 <style>
     .dms-col-header {

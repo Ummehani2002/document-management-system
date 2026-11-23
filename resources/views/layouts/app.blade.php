@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Document Management System</title>
+    <title>Tanseeq DMS</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    @vite(['resources/css/app.css', 'resources/css/dms-enterprise.css', 'resources/js/app.js'])
 
     <style>
         :root {
@@ -20,7 +21,7 @@
             --green: #15803d;
             --green-soft: #dcfce7;
             --green-text: #166534;
-            --bg-page: #f1f5f9;
+            --bg-page: #e8eef5;
             --bg-card: #ffffff;
             --border: #e2e8f0;
             --text: #0b1f3a;
@@ -43,23 +44,25 @@
             background: var(--bg-page);
             margin: 0;
             color: var(--text);
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 400;
-            line-height: 1.45;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
         }
 
         h1, h2, h3, h4, h5, h6 {
-            font-weight: 500;
+            font-weight: 600;
             line-height: 1.3;
+            letter-spacing: -0.01em;
         }
 
-        h1 { font-size: 1.3rem; }
-        h2 { font-size: 1.1rem; }
-        h3 { font-size: 1rem; }
+        h1 { font-size: 1.4rem; }
+        h2 { font-size: 1.25rem; }
+        h3 { font-size: 1.05rem; }
         h4 { font-size: 0.95rem; }
 
         strong, b, th, label, button {
-            font-weight: 400;
+            font-weight: 600;
         }
 
         .main-content a {

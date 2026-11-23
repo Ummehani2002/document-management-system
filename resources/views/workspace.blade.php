@@ -1,10 +1,11 @@
 @extends('layouts.app')
 
 @section('content')
-    <div class="workspace-header">
+    <div class="dms-page-header workspace-header">
         <div>
-            <p class="workspace-kicker">Company workspace</p>
+            <p class="dms-page-kicker workspace-kicker">Company workspace</p>
             <h2>{{ $entity->name }}</h2>
+            <p class="dms-page-lead">Overview of documents and recent activity for this entity.</p>
         </div>
     </div>
 

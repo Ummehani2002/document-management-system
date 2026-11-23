@@ -2,10 +2,16 @@
 
 @section('content')
 
-<h2>Folder Master</h2>
-<p style="color:#64748b; margin-top:-6px; margin-bottom:18px;">
-    Manage main categories and subfolders used in the sidebar, upload, and access controls.
-</p>
+<div class="dms-page-header">
+    <div>
+        <p class="dms-page-kicker">Administration</p>
+        <h2>Folder Master</h2>
+        <p class="dms-page-lead">Manage main categories and subfolders used in the sidebar, upload, and access controls.</p>
+    </div>
+    <div class="dms-page-actions">
+        <a href="{{ route('folders.create') }}" style="display:inline-block; padding:10px 18px; background:#0b1f3a; color:#fff; text-decoration:none; border-radius:6px; font-weight:600;">Add main folder</a>
+    </div>
+</div>
 
 @if(session('success'))
     <div class="success">{{ session('success') }}</div>
@@ -20,10 +26,6 @@
         </ul>
     </div>
 @endif
-
-<p style="margin-bottom:16px;">
-    <a href="{{ route('folders.create') }}" style="display:inline-block; padding:10px 20px; background:#0b1f3a; color:#fff; text-decoration:none; border-radius:5px;">Add main folder</a>
-</p>
 
 @if($folders->isEmpty())
     <div class="card">

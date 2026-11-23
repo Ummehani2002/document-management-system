@@ -1,0 +1,309 @@
+/**
+ * Tanseeq DMS — enterprise shell polish (Fluent-inspired, navy brand).
+ * Loaded via Vite. Complements layouts/app.blade.php base styles.
+ */
+
+:root {
+    --dms-radius: 8px;
+    --dms-radius-sm: 6px;
+    --dms-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
+    --dms-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+    --dms-focus: 0 0 0 3px rgba(59, 130, 246, 0.28);
+}
+
+/* —— Page header —— */
+.dms-page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 0 0 22px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+.dms-page-header h2 {
+    margin: 0 0 6px;
+    font-size: 1.35rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--navy, #0b1f3a);
+}
+
+.dms-page-kicker {
+    margin: 0 0 4px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted, #64748b);
+}
+
+.dms-page-lead {
+    margin: 0;
+    max-width: 52rem;
+    font-size: 0.9rem;
+    color: var(--text-muted, #64748b);
+    line-height: 1.5;
+}
+
+.dms-page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+/* —— Surfaces —— */
+.main-content .container {
+    border-radius: var(--dms-radius);
+    box-shadow: var(--dms-shadow);
+    border-color: #e8eef5;
+    padding: 28px 32px 36px;
+}
+
+.main-content .card {
+    border-radius: var(--dms-radius);
+    border-color: #e8eef5;
+    box-shadow: var(--dms-shadow-sm);
+    padding: 18px 20px;
+    background: #fff;
+}
+
+.main-content .card h3 {
+    margin: 0 0 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--navy, #0b1f3a);
+}
+
+/* —— Forms —— */
+.main-content label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #334155;
+    margin-bottom: 6px;
+}
+
+.main-content input[type="text"],
+.main-content input[type="search"],
+.main-content input[type="file"],
+.main-content input[type="email"],
+.main-content input[type="password"],
+.main-content input[type="number"],
+.main-content select,
+.main-content textarea {
+    border: 1px solid #cbd5e1;
+    border-radius: var(--dms-radius-sm);
+    padding: 9px 12px;
+    font-size: 0.875rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    background: #fff;
+}
+
+.main-content input:focus,
+.main-content select:focus,
+.main-content textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: var(--dms-focus);
+}
+
+/* —— Buttons —— */
+.main-content button,
+.main-content .btn-primary,
+.main-content button[type="submit"] {
+    border-radius: var(--dms-radius-sm);
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 9px 16px;
+    letter-spacing: 0.01em;
+    transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.main-content button:hover,
+.main-content .btn-primary:hover {
+    box-shadow: 0 4px 12px rgba(11, 31, 58, 0.18);
+}
+
+.dms-btn-secondary {
+    background: #fff !important;
+    color: var(--navy, #0b1f3a) !important;
+    border: 1px solid #cbd5e1 !important;
+}
+
+.dms-btn-secondary:hover {
+    background: #f8fafc !important;
+    border-color: #94a3b8 !important;
+}
+
+/* —— Upload mode pills —— */
+.dms-mode-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.dms-mode-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 12px 16px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: var(--dms-radius);
+    background: #fff;
+    cursor: pointer;
+    min-width: 160px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.dms-mode-option:has(input:checked),
+.dms-mode-option.is-selected {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    box-shadow: var(--dms-focus);
+}
+
+.dms-mode-option input {
+    width: auto !important;
+    margin: 0 !important;
+    accent-color: #1d4ed8;
+}
+
+.dms-mode-option strong {
+    display: block;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--navy, #0b1f3a);
+}
+
+.dms-mode-option span {
+    display: block;
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+/* —— Search filter strip —— */
+.dms-filter-panel {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: var(--dms-radius);
+    padding: 16px 18px 8px;
+    margin-bottom: 18px;
+}
+
+.dms-filter-panel .search-form,
+.dms-filter-panel form {
+    margin: 0;
+}
+
+/* —— Data grid —— */
+.dms-grid-wrap {
+    border: 1px solid #e2e8f0;
+    border-radius: var(--dms-radius);
+    overflow: auto;
+    background: #fff;
+    box-shadow: var(--dms-shadow-sm);
+}
+
+.main-content .dms-grid-table {
+    margin: 0;
+}
+
+.main-content .dms-grid-table thead th {
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 14px;
+}
+
+.main-content .dms-grid-table tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+}
+
+.main-content .dms-grid-table tbody tr:hover td {
+    background: #f8fafc;
+}
+
+.main-content .dms-grid-table tbody tr:nth-child(even) td {
+    background: #fcfdfe;
+}
+
+.main-content .dms-grid-table tbody tr:nth-child(even):hover td {
+    background: #f8fafc;
+}
+
+/* —— Alerts —— */
+.main-content .success {
+    border-radius: var(--dms-radius-sm);
+    border-left: 4px solid #15803d;
+    padding: 12px 14px;
+}
+
+/* —— Header polish —— */
+.dms-brand-title {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.dms-brand-subtitle {
+    opacity: 0.85;
+    letter-spacing: 0.04em;
+}
+
+.dms-nav-link {
+    border-radius: 4px 4px 0 0;
+}
+
+.dms-nav-link.is-active {
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.dms-date-pill {
+    font-size: 0.78rem;
+}
+
+/* —— Sidebar —— */
+.sidebar .folder-toggle {
+    border-radius: var(--dms-radius-sm);
+    font-weight: 500;
+}
+
+.folder-blocks-main-inner {
+    border-radius: var(--dms-radius);
+    box-shadow: var(--dms-shadow);
+}
+
+.folder-blocks-main .folder-block-card a {
+    border-radius: var(--dms-radius);
+}
+
+/* —— Upload progress —— */
+#upload-progress {
+    border-radius: var(--dms-radius-sm) !important;
+    border: 1px solid #bfdbfe !important;
+    background: #eff6ff !important;
+    color: #1e3a8a !important;
+    font-weight: 500;
+}
+
+@media (max-width: 900px) {
+    .dms-page-header {
+        flex-direction: column;
+    }
+
+    .main-content .container {
+        padding: 20px 16px 28px;
+    }
+}

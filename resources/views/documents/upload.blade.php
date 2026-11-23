@@ -2,7 +2,13 @@
 
 @section('content')
 
-<h2>Upload Documents</h2>
+<div class="dms-page-header">
+    <div>
+        <p class="dms-page-kicker">Ingest</p>
+        <h2>Upload Documents</h2>
+        <p class="dms-page-lead">Page 1 is read first for folder, subject, and reference — then the file is filed into the correct place.</p>
+    </div>
+</div>
 
 <style>
     .upload-grid {
@@ -17,7 +23,6 @@
     .upload-grid label {
         display: block;
         margin-bottom: 6px;
-        font-weight: 400;
     }
     .upload-grid input,
     .upload-grid select {
@@ -64,26 +69,30 @@
     $selectedDocumentType = old('document_type', '');
 @endphp
 
-<div class="card" style="margin-bottom: 20px;">
-    <h3 style="margin-top: 0;">Choose Upload Type</h3>
-    <p style="margin: 0 0 12px; color: #64748b;">
-        <strong>Auto</strong> — folder is classified from the document after upload.
-        <strong>Manual</strong> — you pick category and folder before upload.
-    </p>
-</div>
-
 <form method="POST" action="{{ route('documents.store') }}" enctype="multipart/form-data" id="upload-form">
     @csrf
 
-    <div class="card" style="margin-bottom: 20px; display:flex; gap:12px; flex-wrap: wrap; align-items:center;">
-        <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
-            <input type="radio" name="upload_mode" value="auto" {{ $selectedUploadMode !== 'manual' ? 'checked' : '' }}>
-            Auto Upload
-        </label>
-        <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
-            <input type="radio" name="upload_mode" value="manual" {{ $selectedUploadMode === 'manual' ? 'checked' : '' }}>
-            Manual Upload
-        </label>
+    <div class="card" style="margin-bottom: 20px;">
+        <h3>Choose upload type</h3>
+        <p class="dms-page-lead" style="margin-bottom: 14px;">
+            Auto classifies the folder from the document. Manual lets you pick category and folder first.
+        </p>
+        <div class="dms-mode-bar">
+            <label class="dms-mode-option{{ $selectedUploadMode !== 'manual' ? ' is-selected' : '' }}">
+                <input type="radio" name="upload_mode" value="auto" {{ $selectedUploadMode !== 'manual' ? 'checked' : '' }}>
+                <span>
+                    <strong>Auto upload</strong>
+                    <span>Detect folder from page 1</span>
+                </span>
+            </label>
+            <label class="dms-mode-option{{ $selectedUploadMode === 'manual' ? ' is-selected' : '' }}">
+                <input type="radio" name="upload_mode" value="manual" {{ $selectedUploadMode === 'manual' ? 'checked' : '' }}>
+                <span>
+                    <strong>Manual upload</strong>
+                    <span>Pick category and folder</span>
+                </span>
+            </label>
+        </div>
     </div>
 
     <div class="upload-grid">
@@ -204,9 +213,17 @@
             return checked ? checked.value : 'auto';
         }
 
+        function syncModeOptionStyles() {
+            document.querySelectorAll('.dms-mode-option').forEach(function (el) {
+                var input = el.querySelector('input[type="radio"]');
+                el.classList.toggle('is-selected', !!(input && input.checked));
+            });
+        }
+
         function syncManualFieldsVisibility() {
             var isManual = currentUploadMode() === 'manual';
             selectedUploadMode = currentUploadMode();
+            syncModeOptionStyles();
             if (manualMainFolderCard) {
                 manualMainFolderCard.style.display = isManual ? '' : 'none';
             }
