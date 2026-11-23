@@ -12,6 +12,7 @@ use App\Services\DocumentFilenameParser;
 use App\Services\DocumentFileReplacer;
 use App\Services\DocumentFileVersioning;
 use App\Services\DocumentLocationResolver;
+use App\Services\DocumentMetaService;
 use App\Services\OfficeDocumentTextExtractionService;
 use App\Services\PdfFirstPageOcrService;
 use App\Services\UserActivityLogger;
@@ -704,6 +705,7 @@ class DocumentDirectUploadController extends Controller
                 $document->ocr_text = $extractedText;
                 $document->modified_by_user_id = Auth::id();
                 $document->save();
+                app(DocumentMetaService::class)->syncFromText($document, $extractedText, null, 'upload');
                 UserActivityLogger::reattached($document, [
                     'upload_mode' => $uploadMode,
                 ]);
@@ -788,6 +790,8 @@ class DocumentDirectUploadController extends Controller
             'ocr_text' => $extractedText,
             'modified_by_user_id' => Auth::id(),
         ]);
+        // Persist Reference + Subject immediately (Microsoft DMS-style properties).
+        app(DocumentMetaService::class)->syncFromText($document, $extractedText, null, 'upload');
         UserActivityLogger::uploaded($document, [
             'upload_mode' => $uploadMode,
         ]);

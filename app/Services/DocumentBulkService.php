@@ -84,6 +84,9 @@ class DocumentBulkService
             'file_name' => basename($targetPath),
             'file_path' => $targetPath,
             'ocr_text' => $document->ocr_text,
+            'reference_no' => $document->reference_no,
+            'subject' => $document->subject,
+            'meta_source' => $document->meta_source ?: 'copy',
             'modified_by_user_id' => Auth::id(),
         ]);
 

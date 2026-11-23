@@ -2981,6 +2981,26 @@ class DocumentFilenameParser
     }
 
     /**
+     * Flat list of all document-type / subfolder labels (for AI folder classification).
+     *
+     * @return list<string>
+     */
+    public static function allDocumentTypes(): array
+    {
+        $types = [];
+        foreach (self::sidebarFolderTree() as $subs) {
+            foreach ($subs as $sub) {
+                $sub = trim((string) $sub);
+                if ($sub !== '') {
+                    $types[$sub] = $sub;
+                }
+            }
+        }
+
+        return array_values($types);
+    }
+
+    /**
      * Built-in fallback tree used when the folder master tables are empty.
      *
      * @return array<string, list<string>>

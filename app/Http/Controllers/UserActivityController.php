@@ -107,7 +107,7 @@ class UserActivityController extends Controller
             return $this->buildMissingDocumentRow($activity, $props, $projectsById);
         }
 
-        $meta = DocumentFilenameParser::extractReferenceAndSubject($document->ocr_text, $document->file_name);
+        $meta = \App\Services\DocumentMetaService::displayFor($document);
         $fileSizeBytes = DocumentPreviewUrl::fileSizeBytes($document);
         $project = $document->project
             ?? $projectsById->get((int) $document->project_id);

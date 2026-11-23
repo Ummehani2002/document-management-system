@@ -813,7 +813,7 @@
                         <tbody>
                             @forelse($documents as $doc)
                                 @php
-                                    $meta = \App\Services\DocumentFilenameParser::extractReferenceAndSubject($doc->ocr_text, $doc->file_name);
+                                    $meta = \App\Services\DocumentMetaService::displayFor($doc);
                                     $referenceNo = $meta['reference_no'] ?? '—';
                                     $subject = $meta['subject'] ?? '—';
                                 @endphp
@@ -973,7 +973,7 @@
                 <tbody>
                     @forelse($documents as $doc)
                         @php
-                            $meta = \App\Services\DocumentFilenameParser::extractReferenceAndSubject($doc->ocr_text, $doc->file_name);
+                            $meta = \App\Services\DocumentMetaService::displayFor($doc);
                             $referenceNo = $meta['reference_no'] ?? '—';
                             $subject = $meta['subject'] ?? '—';
                         @endphp
@@ -1837,7 +1837,7 @@
 {{-- Browser OCR for scanned forms (Cloud has no Tesseract). Reads Title/Subject from page 1–2. --}}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-<script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261113e"></script>
+<script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261123a"></script>
 <script>
 (function () {
     var csrf = document.querySelector('meta[name="csrf-token"]');

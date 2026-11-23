@@ -56,6 +56,9 @@ class DocumentFileReplacer
         }
 
         $document->ocr_text = null;
+        $document->reference_no = null;
+        $document->subject = null;
+        $document->meta_source = null;
         $document->modified_by_user_id = Auth::id();
         $document->save();
 
@@ -131,6 +134,9 @@ class DocumentFileReplacer
         $document->file_name = $storedFileName;
         $document->file_path = $path;
         $document->ocr_text = null;
+        $document->reference_no = null;
+        $document->subject = null;
+        $document->meta_source = null;
         $document->modified_by_user_id = Auth::id();
         $document->save();
 

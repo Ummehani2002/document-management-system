@@ -89,6 +89,13 @@ class ProcessOCR implements ShouldQueue
                 }
 
                 $document->update(['ocr_text' => $text !== '' ? $text : null]);
+                // Keep/refresh persisted Reference + Subject from the best available text.
+                app(\App\Services\DocumentMetaService::class)->syncFromText(
+                    $document->fresh(),
+                    $text !== '' ? $text : $document->ocr_text,
+                    null,
+                    'process_ocr'
+                );
                 \Log::info('ProcessOCR stored text', [
                     'document_id' => $document->id,
                     'chars' => strlen($text),

@@ -14,6 +14,7 @@ use App\Services\EntityContextService;
 use App\Services\CompanyEmailDomain;
 use App\Services\DocumentDeletionService;
 use App\Services\DocumentFilenameParser;
+use App\Services\DocumentMetaService;
 use App\Services\FormFieldVisionExtractor;
 use App\Services\OfficeDocumentTextExtractionService;
 use App\Services\PdfFirstPageOcrService;
@@ -472,6 +473,7 @@ class DocumentController extends Controller
                 'ocr_text'      => $extractedText,
                 'modified_by_user_id' => Auth::id(),
             ]);
+            app(DocumentMetaService::class)->syncFromText($document, $extractedText, null, 'upload');
             UserActivityLogger::uploaded($document, ['upload_mode' => $uploadMode]);
             // Queue OCR so upload response returns immediately.
             try {
@@ -1417,7 +1419,7 @@ class DocumentController extends Controller
         }
 
         try {
-            $meta = DocumentFilenameParser::extractReferenceAndSubject($document->ocr_text, $document->file_name);
+            $meta = DocumentMetaService::displayFor($document);
             $referenceNo = $meta['reference_no'] ?? null;
             $documentSubject = $meta['subject'] ?? null;
             $projectNumber = (string) ($document->project?->project_number ?? '');
@@ -1558,25 +1560,20 @@ class DocumentController extends Controller
         if (! empty($data['document_id'])) {
             $document = Document::find((int) $data['document_id']);
             if ($document) {
-                $existing = trim((string) ($document->ocr_text ?? ''));
-                $newText = $result['ocr_text'];
-                $existingMeta = $existing !== ''
-                    ? DocumentFilenameParser::extractReferenceAndSubject($existing, (string) $document->file_name)
-                    : ['subject' => '—', 'reference_no' => '—'];
-                $keepExisting = isset($existingMeta['subject'])
-                    && $existingMeta['subject'] !== '—'
-                    && ($result['subject'] === '—' || $result['subject'] === '')
-                    && mb_strlen($existing) >= mb_strlen($newText);
-                if (! $keepExisting) {
-                    $document->ocr_text = $newText;
+                $synced = app(DocumentMetaService::class)->syncFromAiResult($document, $result);
+                if (! $document->folder_locked && ! empty($synced['folder'])) {
+                    $document->document_type = $synced['folder'];
                     $document->save();
                 }
+                $result['reference_no'] = $synced['reference_no'];
+                $result['subject'] = $synced['subject'];
             }
         }
 
         return response()->json([
             'ok' => true,
             'enabled' => true,
+            'folder' => $result['folder'] ?? '—',
             'reference_no' => $result['reference_no'],
             'subject' => $result['subject'],
             'ocr_text' => $result['ocr_text'],
@@ -1602,22 +1599,16 @@ class DocumentController extends Controller
         }
 
         $existing = trim((string) ($document->ocr_text ?? ''));
+        $existingDisplay = DocumentMetaService::displayFor($document);
         $newMeta = DocumentFilenameParser::extractReferenceAndSubject($text, (string) $document->file_name);
-        $existingMeta = $existing !== ''
-            ? DocumentFilenameParser::extractReferenceAndSubject($existing, (string) $document->file_name)
-            : ['subject' => '—', 'reference_no' => '—'];
         $newHasSubject = isset($newMeta['subject']) && $newMeta['subject'] !== '' && $newMeta['subject'] !== '—';
-        $existingHasSubject = isset($existingMeta['subject']) && $existingMeta['subject'] !== '' && $existingMeta['subject'] !== '—';
+        $existingHasSubject = ($existingDisplay['subject'] ?? '—') !== '—';
         // Keep richer OCR when a weaker re-read would wipe a good Subject.
         if ($existing !== '' && $existingHasSubject && ! $newHasSubject && mb_strlen($existing) >= mb_strlen($text)) {
             $text = $existing;
-            $newMeta = $existingMeta;
         }
 
-        $document->ocr_text = $text;
-        $document->save();
-
-        $meta = $newMeta;
+        $meta = app(DocumentMetaService::class)->syncFromText($document, $text, null, 'ocr');
 
         return response()->json([
             'ok' => true,

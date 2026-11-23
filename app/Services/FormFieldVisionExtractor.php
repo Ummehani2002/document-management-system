@@ -19,7 +19,7 @@ class FormFieldVisionExtractor
     }
 
     /**
-     * @return array{reference_no:string, subject:string, ocr_text:string}|null
+     * @return array{folder:string, reference_no:string, subject:string, ocr_text:string}|null
      */
     public function extractFromImageBase64(string $base64, string $mime = 'image/jpeg'): ?array
     {
@@ -40,15 +40,27 @@ class FormFieldVisionExtractor
         $model = (string) config('services.openai.vision_model', 'gpt-4o-mini');
         $baseUrl = rtrim((string) config('services.openai.base_url', 'https://api.openai.com/v1'), '/');
         $apiKey = (string) config('services.openai.api_key');
+        $folderChoices = implode(', ', DocumentFilenameParser::allDocumentTypes());
 
-        $prompt = <<<'PROMPT'
-You are reading page 1 of a construction document form (Inspection Request, Work Inspection, Material Submittal, MIR, RFI, Method Statement, Shop Drawing, Internal Memo, etc.).
+        $prompt = <<<PROMPT
+You are reading page 1 of a construction document form for a Document Management System.
 
 Return ONLY valid JSON with these keys:
 {
+  "folder": "one folder name from this exact list: {$folderChoices}",
   "reference_no": "IR Ref No / Submittal No / Ref No / MIR No from the form (not drawing ref unless that is the only ref). Empty string if none.",
   "subject": "The filled Description / Title / Subject text from the form body ONLY."
 }
+
+Rules for folder (choose exactly one from the list):
+- INSPECTION REQUEST / WORK INSPECTION REQUEST / WIR → Work Inspection
+- MATERIAL INSPECTION REQUEST / MIR → Material Inspection Request
+- MATERIAL SUBMITTAL / MAT → Material Submittal
+- METHOD STATEMENT → Method Statement
+- SHOP DRAWING → Shop Drawing
+- RFI / Request for Information → Request For Information
+- INTERNAL MEMO → Internal Memo
+- If unsure, pick the closest list value.
 
 Rules for subject:
 - Prefer: "Description of Works to be inspected and /or tested", "Title / Subject", "Title & Description", "Material Description", "Drawing Title", "Method Statement Title", or "Subject:".
@@ -102,18 +114,21 @@ PROMPT;
             $subject = trim((string) ($parsed['subject'] ?? ''));
             $subject = preg_replace('/\s+/', ' ', $subject) ?? $subject;
             $subject = trim($subject);
+            $folder = trim((string) ($parsed['folder'] ?? ''));
+            $folder = $this->normalizeFolder($folder);
 
             if ($subject !== '' && preg_match('/Approved\s+as\s+noted|^R\.?\d+(?:\s*\([A-Z]\))?/i', $subject)) {
                 $subject = '';
             }
 
-            if ($subject === '' && $reference === '') {
+            if ($subject === '' && $reference === '' && $folder === '') {
                 return null;
             }
 
-            $ocrText = $this->toOcrText($reference, $subject);
+            $ocrText = $this->toOcrText($reference, $subject, $folder);
 
             return [
+                'folder' => $folder !== '' ? $folder : '—',
                 'reference_no' => $reference !== '' ? $reference : '—',
                 'subject' => $subject !== '' ? $subject : '—',
                 'ocr_text' => $ocrText,
@@ -125,9 +140,28 @@ PROMPT;
         }
     }
 
-    protected function toOcrText(string $reference, string $subject): string
+    protected function normalizeFolder(string $folder): string
+    {
+        $folder = trim($folder);
+        if ($folder === '') {
+            return '';
+        }
+
+        foreach (DocumentFilenameParser::allDocumentTypes() as $allowed) {
+            if (strcasecmp($allowed, $folder) === 0) {
+                return $allowed;
+            }
+        }
+
+        return '';
+    }
+
+    protected function toOcrText(string $reference, string $subject, string $folder = ''): string
     {
         $lines = ['DOCUMENT FORM PAGE 1'];
+        if ($folder !== '') {
+            $lines[] = strtoupper($folder);
+        }
         if ($reference !== '') {
             $lines[] = 'IR Ref No. '.$reference;
             $lines[] = 'Ref. No: '.$reference;
