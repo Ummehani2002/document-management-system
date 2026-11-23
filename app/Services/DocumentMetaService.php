@@ -16,37 +16,11 @@ class DocumentMetaService
     {
         $storedRef = self::normalizeStored((string) ($document->reference_no ?? ''));
         $storedSubject = self::normalizeStored((string) ($document->subject ?? ''));
-        $dirty = false;
 
-        $subjectNeedsRepair = $storedSubject !== null && DocumentFilenameParser::isUnusableSubject($storedSubject);
-        $parsed = null;
-        if ($subjectNeedsRepair || $storedRef !== null) {
-            $parsed = DocumentFilenameParser::extractReferenceAndSubject(
-                $document->ocr_text,
-                (string) $document->file_name
-            );
-        }
-
-        if ($subjectNeedsRepair) {
-            $repaired = self::normalizeStored((string) ($parsed['subject'] ?? ''));
-            if ($repaired !== null && ! DocumentFilenameParser::isUnusableSubject($repaired)) {
-                $document->subject = mb_substr($repaired, 0, 1000);
-                $storedSubject = $repaired;
-                $dirty = true;
-            }
-        }
-
-        if ($storedRef !== null) {
-            $parsedRef = self::normalizeStored((string) ($parsed['reference_no'] ?? ''));
-            if ($parsedRef !== null && DocumentFilenameParser::referenceExtends($storedRef, $parsedRef)) {
-                $document->reference_no = mb_substr($parsedRef, 0, 255);
-                $storedRef = $parsedRef;
-                $dirty = true;
-            }
-        }
-
-        if ($dirty && $document->exists) {
-            $document->save();
+        try {
+            [$storedRef, $storedSubject] = self::repairStoredMeta($document, $storedRef, $storedSubject);
+        } catch (\Throwable $e) {
+            self::reportQuietly($e);
         }
 
         if ($storedRef !== null && $storedSubject !== null) {
@@ -56,15 +30,73 @@ class DocumentMetaService
             ];
         }
 
-        $parsed = DocumentFilenameParser::extractReferenceAndSubject(
-            $document->ocr_text,
-            (string) $document->file_name
-        );
+        try {
+            $parsed = DocumentFilenameParser::extractReferenceAndSubject(
+                $document->ocr_text,
+                (string) $document->file_name
+            );
+        } catch (\Throwable $e) {
+            self::reportQuietly($e);
+            $parsed = ['reference_no' => '—', 'subject' => '—'];
+        }
 
         return [
             'reference_no' => $storedRef ?? ($parsed['reference_no'] ?? '—'),
             'subject' => $storedSubject ?? ($parsed['subject'] ?? '—'),
         ];
+    }
+
+    /**
+     * Fix a bad stored subject, and lengthen a short reference from the filename.
+     * Full OCR is read only when the stored subject is unusable, so a normal
+     * search row does not re-parse the document text.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private static function repairStoredMeta(Document $document, ?string $storedRef, ?string $storedSubject): array
+    {
+        $dirty = false;
+        $subjectNeedsRepair = $storedSubject !== null && DocumentFilenameParser::isUnusableSubject($storedSubject);
+
+        if ($storedRef !== null) {
+            $fromName = DocumentFilenameParser::extractReferenceAndSubject(null, (string) $document->file_name);
+            $filenameRef = self::normalizeStored((string) ($fromName['reference_no'] ?? ''));
+            if ($filenameRef !== null && DocumentFilenameParser::referenceExtends($storedRef, $filenameRef)) {
+                $document->reference_no = mb_substr($filenameRef, 0, 255);
+                $storedRef = $filenameRef;
+                $dirty = true;
+            }
+        }
+
+        if ($subjectNeedsRepair) {
+            $parsed = DocumentFilenameParser::extractReferenceAndSubject(
+                $document->ocr_text,
+                (string) $document->file_name
+            );
+            $repaired = self::normalizeStored((string) ($parsed['subject'] ?? ''));
+            if ($repaired !== null && ! DocumentFilenameParser::isUnusableSubject($repaired)) {
+                $document->subject = mb_substr($repaired, 0, 1000);
+                $storedSubject = $repaired;
+                $dirty = true;
+            }
+
+            $parsedRef = self::normalizeStored((string) ($parsed['reference_no'] ?? ''));
+            if ($storedRef !== null && $parsedRef !== null && DocumentFilenameParser::referenceExtends($storedRef, $parsedRef)) {
+                $document->reference_no = mb_substr($parsedRef, 0, 255);
+                $storedRef = $parsedRef;
+                $dirty = true;
+            }
+        }
+
+        if ($dirty && $document->exists) {
+            try {
+                $document->save();
+            } catch (\Throwable $e) {
+                self::reportQuietly($e);
+            }
+        }
+
+        return [$storedRef, $storedSubject];
     }
 
     /**
@@ -151,6 +183,14 @@ class DocumentMetaService
         }
 
         return '—';
+    }
+
+    private static function reportQuietly(\Throwable $e): void
+    {
+        try {
+            report($e);
+        } catch (\Throwable) {
+        }
     }
 
     protected static function normalizeStored(string $value): ?string

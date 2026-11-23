@@ -41,9 +41,13 @@ class LocalDateTime
 
     public static function formatModel(Model $model, string $column, string $format = 'd M Y, g:i A'): string
     {
-        $dt = self::fromModel($model, $column);
+        try {
+            $dt = self::fromModel($model, $column);
 
-        return $dt?->format($format) ?? '—';
+            return $dt?->format($format) ?? '—';
+        } catch (\Throwable) {
+            return '—';
+        }
     }
 
     /**

@@ -818,6 +818,19 @@ class DocumentFilenameParser
         string $fileName,
         ?string $referenceNo = null
     ): bool {
+        try {
+            return self::browserSubjectOcrNeeded($ocrText, $subject, $fileName, $referenceNo);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    protected static function browserSubjectOcrNeeded(
+        ?string $ocrText,
+        string $subject,
+        string $fileName,
+        ?string $referenceNo = null
+    ): bool {
         if (! preg_match('/\.pdf$/i', $fileName)) {
             return false;
         }
@@ -1683,6 +1696,15 @@ class DocumentFilenameParser
     }
 
     protected static function isJunkSubject(string $value): bool
+    {
+        try {
+            return self::subjectIsJunk($value);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    protected static function subjectIsJunk(string $value): bool
     {
         $value = trim($value);
         if ($value === '' || $value === '—' || self::isGenericFormLabel($value) || self::looksLikeRegisterOrRevisionTail($value)) {
