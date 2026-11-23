@@ -166,13 +166,6 @@
             color: rgba(255, 255, 255, 0.72);
         }
 
-        .dms-topbar-right {
-            display: flex;
-            align-items: center;
-            gap: 0;
-            flex-shrink: 0;
-        }
-
         .dms-date-pill {
             display: inline-flex;
             align-items: center;
