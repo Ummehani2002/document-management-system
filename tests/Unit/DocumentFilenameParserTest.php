@@ -862,6 +862,17 @@ test('site filename revisions are shown on the reference', function () {
     expect(DocumentFilenameParser::referenceExtends('PSE2024-1011-PRS', $full['reference_no']))->toBeTrue();
 });
 
+test('a dropped middle segment still keeps the filename revision', function () {
+    $file = 'JH-INF-WIR-IRR-PSC-PAR-3104_01-A.pdf';
+    $meta = DocumentFilenameParser::extractReferenceAndSubject(null, $file);
+
+    expect($meta['reference_no'])->toBe('JH-INF-WIR-IRR-PSC-PAR-3104-(01)');
+    expect(DocumentFilenameParser::referenceExtends(
+        'JH-INF-WIR-PSC-PAR-3104',
+        $meta['reference_no']
+    ))->toBeTrue();
+});
+
 test('reference includes the revision from the rev box', function () {
     $meta = DocumentFilenameParser::extractReferenceAndSubject(
         "To: GHD\nRef. No.: DXB2-PSP-LS-MAR-00025\nDate: 08-Feb-23\nRev: 00\n"

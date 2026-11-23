@@ -1180,7 +1180,44 @@ class DocumentFilenameParser
             return ($candidate[strlen($current)] ?? '') === '-';
         }
 
-        return false;
+        // OCR dropped a middle segment: JH-INF-WIR-PSC-PAR-3104 → JH-INF-WIR-IRR-PSC-PAR-3104.
+        return self::sameRegisterWithInsertedSegments($current, $candidate);
+    }
+
+    /**
+     * Same document number with extra segments in the filename register.
+     */
+    protected static function sameRegisterWithInsertedSegments(string $current, string $candidate): bool
+    {
+        $currentParts = array_values(array_filter(explode('-', $current), static fn (string $part): bool => $part !== ''));
+        $candidateParts = array_values(array_filter(explode('-', $candidate), static fn (string $part): bool => $part !== ''));
+        if (count($currentParts) < 3 || count($candidateParts) <= count($currentParts)) {
+            return false;
+        }
+
+        $currentTail = $currentParts[array_key_last($currentParts)];
+        $candidateTail = $candidateParts[array_key_last($candidateParts)];
+        if ($currentTail !== $candidateTail || ! preg_match('/^\d{3,}$/', $currentTail)) {
+            return false;
+        }
+
+        $index = 0;
+        foreach ($currentParts as $part) {
+            $found = false;
+            while ($index < count($candidateParts)) {
+                if ($candidateParts[$index] === $part) {
+                    $found = true;
+                    $index++;
+                    break;
+                }
+                $index++;
+            }
+            if (! $found) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     protected static function looksLikeDateToken(string $value): bool
