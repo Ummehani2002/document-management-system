@@ -475,8 +475,10 @@
         }
 
         .dms-entity-badge {
+            position: relative;
             display: inline-flex;
             align-items: center;
+            gap: 6px;
             margin-left: 12px;
             padding: 6px 12px;
             border-radius: 999px;
@@ -484,15 +486,51 @@
             border: 1px solid rgba(147, 197, 253, 0.45);
             color: #e2e8f0;
             font-size: 0.78rem;
-            font-weight: 600;
-            letter-spacing: 0.01em;
-            text-transform: none;
-            max-width: 260px;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
             white-space: nowrap;
             vertical-align: middle;
             cursor: pointer;
+        }
+
+        .dms-entity-badge-caret {
+            font-size: 0.7rem;
+            letter-spacing: 0;
+            opacity: 0.85;
+        }
+
+        .dms-entity-badge-tip {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 160;
+            width: max-content;
+            max-width: 280px;
+            padding: 7px 10px;
+            border-radius: 8px;
+            background: #fff;
+            color: #0b1f3a;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0;
+            text-transform: none;
+            white-space: normal;
+            text-align: center;
+            line-height: 1.35;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
+            pointer-events: none;
+        }
+
+        .dms-entity-badge:hover .dms-entity-badge-tip,
+        .dms-entity-badge:focus-visible .dms-entity-badge-tip {
+            display: block;
+        }
+
+        .dms-company-switcher[open] .dms-entity-badge-tip {
+            display: none;
         }
 
         .sr-only {
@@ -917,7 +955,11 @@
             </div>
             @if(!empty($currentEntity))
                 <details class="dms-company-switcher">
-                    <summary class="dms-entity-badge" title="Switch company">{{ $currentEntity->name }} ▾</summary>
+                    <summary class="dms-entity-badge" aria-label="{{ $currentEntity->displayCode() }}, {{ $currentEntity->name }}. Switch company">
+                        <span class="dms-entity-badge-code">{{ $currentEntity->displayCode() }}</span>
+                        <span class="dms-entity-badge-caret" aria-hidden="true">▾</span>
+                        <span class="dms-entity-badge-tip" role="tooltip">{{ $currentEntity->name }}</span>
+                    </summary>
                     <div class="dms-company-switcher-panel">
                         @foreach(($switcherEntities ?? collect()) as $switchEntity)
                             <form method="POST" action="{{ route('entities.enter', $switchEntity->id) }}">
