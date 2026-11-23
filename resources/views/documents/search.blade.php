@@ -826,12 +826,18 @@
                                 <tr>
                                     <td class="bulk-col"><input type="checkbox" class="bulk-select" value="{{ $doc->id }}" aria-label="Select {{ $doc->file_name }}"></td>
                                     <td>
-                                        @if(!empty($doc->file_available))
-                                            <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank">{{ $doc->file_name }}</a>
-                                        @else
-                                            <span>{{ $doc->file_name }}</span>
-                                            <div style="color:#b91c1c; font-size:0.8rem; margin-top:4px;">File unavailable in storage</div>
-                                        @endif
+                                        @php $ext = strtolower(pathinfo((string) $doc->file_name, PATHINFO_EXTENSION) ?: 'pdf'); @endphp
+                                        <div class="dms-file-cell">
+                                            <span class="dms-file-icon dms-file-icon-{{ $ext === 'pdf' ? 'pdf' : 'file' }}" aria-hidden="true">{{ strtoupper($ext === 'pdf' ? 'PDF' : substr($ext, 0, 3)) }}</span>
+                                            <span>
+                                                @if(!empty($doc->file_available))
+                                                    <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">{{ $doc->file_name }}</a>
+                                                @else
+                                                    <span>{{ $doc->file_name }}</span>
+                                                    <div style="color:#b91c1c; font-size:0.8rem; margin-top:4px;">File unavailable in storage</div>
+                                                @endif
+                                            </span>
+                                        </div>
                                     </td>
                                     <td class="doc-ref-cell" data-doc-id="{{ $doc->id }}">{{ $referenceNo }}</td>
                                     <td
@@ -850,7 +856,7 @@
                                     <td>{{ $doc->project?->client_name ?? '—' }}</td>
                                     <td>{{ $doc->project?->consultant ?? '—' }}</td>
                                     <td>{{ format_model_datetime($doc, 'updated_at') }}</td>
-                                    <td>{{ $doc->modifiedBy?->username ?? '—' }}</td>
+                                    <td>{{ $doc->modifiedBy?->name ?? ($doc->modifiedBy?->username ?? '—') }}</td>
                                     <td class="text-center">
                                         <div class="doc-actions-menu">
                                             <button
@@ -986,12 +992,18 @@
                         <tr>
                             <td class="bulk-col"><input type="checkbox" class="bulk-select" value="{{ $doc->id }}" aria-label="Select {{ $doc->file_name }}"></td>
                             <td>
-                                @if(!empty($doc->file_available))
-                                    <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank">{{ $doc->file_name }}</a>
-                                @else
-                                    <span>{{ $doc->file_name }}</span>
-                                    <div style="color:#b91c1c; font-size:0.8rem; margin-top:4px;">File unavailable in storage</div>
-                                @endif
+                                @php $ext = strtolower(pathinfo((string) $doc->file_name, PATHINFO_EXTENSION) ?: 'pdf'); @endphp
+                                <div class="dms-file-cell">
+                                    <span class="dms-file-icon dms-file-icon-{{ $ext === 'pdf' ? 'pdf' : 'file' }}" aria-hidden="true">{{ strtoupper($ext === 'pdf' ? 'PDF' : substr($ext, 0, 3)) }}</span>
+                                    <span>
+                                        @if(!empty($doc->file_available))
+                                            <a href="{{ route('documents.view', ['id' => $doc->id]) }}" target="_blank" rel="noopener">{{ $doc->file_name }}</a>
+                                        @else
+                                            <span>{{ $doc->file_name }}</span>
+                                            <div style="color:#b91c1c; font-size:0.8rem; margin-top:4px;">File unavailable in storage</div>
+                                        @endif
+                                    </span>
+                                </div>
                             </td>
                             <td class="doc-ref-cell" data-doc-id="{{ $doc->id }}">{{ $referenceNo }}</td>
                             <td
@@ -1007,7 +1019,7 @@
                             <td>{{ $doc->display_folder }}</td>
                             <td>{{ $doc->project?->project_number ?? '—' }}@if($doc->project) — {{ $doc->project->project_name }}@endif</td>
                             <td>{{ format_model_datetime($doc, 'updated_at') }}</td>
-                            <td>{{ $doc->modifiedBy?->username ?? '—' }}</td>
+                            <td>{{ $doc->modifiedBy?->name ?? ($doc->modifiedBy?->username ?? '—') }}</td>
                             <td style="text-align: center;">
                                 <div class="doc-actions-menu">
                                     <button

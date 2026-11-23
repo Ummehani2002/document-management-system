@@ -1,10 +1,17 @@
 @extends('layouts.app')
 
 @section('content')
-    <div class="home-hero">
-        <div class="home-hero-copy">
-            <h2>Welcome to Document Management System</h2>
+    <div class="dms-page-header home-greeting">
+        <div>
+            <p class="dms-page-kicker">Home</p>
+            <h2>Good {{ $greetingPeriod }}, {{ $greetingName }}</h2>
+            <p class="dms-page-lead">{{ $greetingDate }} — pick a company to open its document workspace.</p>
         </div>
+        @role('Admin')
+            <div class="dms-page-actions">
+                <a href="{{ route('entities.index') }}" class="dms-btn-secondary" style="display:inline-block;padding:9px 14px;text-decoration:none;border-radius:6px;border:1px solid #cbd5e1;background:#fff;color:#0b1f3a;font-weight:600;font-size:0.85rem;">Manage companies</a>
+            </div>
+        @endrole
     </div>
 
     @if (session('info'))
@@ -13,21 +20,27 @@
 
     <div class="stats-row">
         <div class="stat-card">
-            <div class="stat-icon stat-icon-blue"></div>
+            <div class="stat-icon stat-icon-blue" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+            </div>
             <div>
                 <div class="stat-value">{{ number_format($totalDocuments) }}</div>
                 <div class="stat-label">Total documents</div>
             </div>
         </div>
         <div class="stat-card">
-            <div class="stat-icon stat-icon-green"></div>
+            <div class="stat-icon stat-icon-green" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h7l2 2h9v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/></svg>
+            </div>
             <div>
                 <div class="stat-value">{{ number_format($totalProjects) }}</div>
                 <div class="stat-label">Projects</div>
             </div>
         </div>
         <div class="stat-card">
-            <div class="stat-icon stat-icon-purple"></div>
+            <div class="stat-icon stat-icon-navy" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>
+            </div>
             <div>
                 <div class="stat-value">{{ number_format($totalEntities) }}</div>
                 <div class="stat-label">Companies</div>
@@ -35,110 +48,62 @@
         </div>
     </div>
 
-    @if($selectedSector === null)
-        <div class="home-step">
-            <div class="home-step-header">
-                <span class="home-step-num">1</span>
-                <div>
-                    <h3>Select Category</h3>
-                </div>
-            </div>
-
-            <div class="sector-grid">
-                <form method="POST" action="{{ route('dashboard.sector') }}" class="sector-form">
-                    @csrf
-                    <input type="hidden" name="sector" value="trading">
-                    <button type="submit" class="sector-card sector-trading">
-                        <span class="sector-icon" aria-hidden="true">
-                            <svg viewBox="0 0 48 48" fill="none"><path d="M6 34h36M10 34V22l8-4 6 6 8-8 6 4v14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 22h4M28 18h4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-                        </span>
-                        <span class="sector-title">Trading</span>
-                        <span class="sector-meta">{{ $tradingCount }} {{ Str::plural('company', $tradingCount) }}</span>
-                    </button>
-                </form>
-
-                <form method="POST" action="{{ route('dashboard.sector') }}" class="sector-form">
-                    @csrf
-                    <input type="hidden" name="sector" value="construction">
-                    <button type="submit" class="sector-card sector-construction">
-                        <span class="sector-icon" aria-hidden="true">
-                            <svg viewBox="0 0 48 48" fill="none"><path d="M16 38V22l8-6 8 6v16M12 38h24M20 28h8M22 22v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </span>
-                        <span class="sector-title">Construction</span>
-                        <span class="sector-meta">{{ $constructionCount }} {{ Str::plural('company', $constructionCount) }}</span>
-                    </button>
-                </form>
+    <div class="home-companies">
+        <div class="home-companies-header">
+            <h3>Companies</h3>
+            <div class="home-filter-chips" role="tablist" aria-label="Filter by category">
+                <button type="button" class="home-chip is-active" data-sector-filter="all" aria-pressed="true">All <span>{{ $totalEntities }}</span></button>
+                <button type="button" class="home-chip" data-sector-filter="trading" aria-pressed="false">Trading <span>{{ $tradingCount }}</span></button>
+                <button type="button" class="home-chip" data-sector-filter="construction" aria-pressed="false">Construction <span>{{ $constructionCount }}</span></button>
             </div>
         </div>
-    @else
-        <div class="home-step">
-            <div class="home-step-header">
-                <span class="home-step-num">2</span>
-                <div>
-                    <h3>Select Company</h3>
-                    <p>Choose the {{ $selectedSectorLabel }} company you want to manage documents for.</p>
-                </div>
-                <form method="POST" action="{{ route('dashboard.sector.clear') }}" class="home-change-type">
-                    @csrf
-                    <button type="submit" class="home-change-type-btn">Change category</button>
-                </form>
-                @role('Admin')
-                    <a href="{{ route('entities.index') }}" class="home-manage-link">Manage companies</a>
-                @endrole
+
+        @if($entityCards->isEmpty())
+            <div class="card">
+                <p style="margin:0;">
+                    @if($isAdmin)
+                        No companies yet. <a href="{{ route('entities.create') }}">Add a company</a> to get started.
+                    @else
+                        You are not assigned to any company yet. Contact an administrator for access.
+                    @endif
+                </p>
             </div>
-
-            <div class="home-sector-chip">{{ $selectedSectorLabel }}</div>
-
-            @if($entityCards->isEmpty())
-                <div class="card">
-                    <p style="margin:0;">
-                        @if($isAdmin)
-                            No {{ strtolower($selectedSectorLabel) }} companies yet. <a href="{{ route('entities.create') }}">Add a company</a> to get started.
-                        @else
-                            You are not assigned to any {{ strtolower($selectedSectorLabel) }} company yet. Contact an administrator for access.
-                        @endif
-                    </p>
-                </div>
-            @else
-                <div class="entity-grid">
-                    @foreach($entityCards as $card)
-                        <form method="POST" action="{{ route('entities.enter', $card->id) }}" class="entity-card-form">
-                            @csrf
-                            <button type="submit" class="entity-card{{ !empty($card->logo_url) ? ' has-logo' : '' }}">
-                                <div class="entity-card-banner{{ !empty($card->logo_url) ? ' entity-card-banner-logo' : '' }}">
-                                    @if(!empty($card->logo_url))
-                                        <img class="entity-card-banner-image" src="{{ $card->logo_url }}" alt="{{ $card->name }}">
-                                        <span class="entity-card-count">{{ number_format($card->documents_count) }}</span>
-                                    @else
-                                        <span class="entity-card-category">Company</span>
-                                        <span class="entity-card-count">{{ number_format($card->documents_count) }}</span>
-                                        <span class="entity-card-avatar">{{ $card->initials }}</span>
-                                    @endif
-                                </div>
-                                <div class="entity-card-body">
-                                    <h3 class="entity-card-name" title="{{ $card->name }}">{{ $card->name }}</h3>
-                                </div>
-                                <div class="entity-card-footer">
-                                    <span class="entity-card-docs">{{ number_format($card->documents_count) }} docs</span>
+        @else
+            <div class="entity-grid" id="entityGrid">
+                @foreach($entityCards as $card)
+                    <form method="POST" action="{{ route('entities.enter', $card->id) }}" class="entity-card-form" data-sector="{{ $card->sector }}">
+                        @csrf
+                        <button type="submit" class="entity-card{{ !empty($card->logo_url) ? ' has-logo' : '' }}">
+                            <div class="entity-card-banner{{ !empty($card->logo_url) ? ' entity-card-banner-logo' : '' }}">
+                                @if(!empty($card->logo_url))
+                                    <img class="entity-card-banner-image" src="{{ $card->logo_url }}" alt="{{ $card->name }}">
+                                @else
+                                    <span class="entity-card-category">{{ $card->sector_label }}</span>
+                                    <span class="entity-card-avatar">{{ $card->initials }}</span>
+                                @endif
+                            </div>
+                            <div class="entity-card-body">
+                                <h3 class="entity-card-name" title="{{ $card->name }}">{{ $card->name }}</h3>
+                                <p class="entity-card-sector">{{ $card->sector_label }}</p>
+                            </div>
+                            <div class="entity-card-footer">
+                                @if($card->documents_count > 0)
+                                    <span class="entity-card-docs">{{ number_format($card->documents_count) }} {{ Str::plural('doc', $card->documents_count) }}</span>
                                     <span class="entity-card-arrow" aria-hidden="true">→</span>
-                                </div>
-                            </button>
-                        </form>
-                    @endforeach
-                </div>
-            @endif
-        </div>
-    @endif
+                                @else
+                                    <span class="entity-card-docs entity-card-empty">Upload first file</span>
+                                    <span class="entity-card-arrow" aria-hidden="true">→</span>
+                                @endif
+                            </div>
+                        </button>
+                    </form>
+                @endforeach
+            </div>
+            <p class="home-filter-empty" id="entityFilterEmpty" hidden>No companies in this category.</p>
+        @endif
+    </div>
 
     <style>
-        .home-hero {
-            background: linear-gradient(120deg, #0b1f3a 0%, #163a66 55%, #1e4d7b 100%);
-            color: #fff;
-            border-radius: 12px;
-            padding: 28px 32px;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 24px rgba(11, 31, 58, 0.18);
-        }
         .stats-row {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -160,145 +125,65 @@
             height: 42px;
             border-radius: 8px;
             flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
-        .stat-icon-blue { background: #dbeafe; }
-        .stat-icon-green { background: #dcfce7; }
-        .stat-icon-purple { background: #ede9fe; }
+        .stat-icon svg { width: 20px; height: 20px; }
+        .stat-icon-blue { background: #dbeafe; color: #1d4ed8; }
+        .stat-icon-green { background: #dcfce7; color: #15803d; }
+        .stat-icon-navy { background: #e2e8f0; color: #0b1f3a; }
         .stat-value {
             font-size: 1.35rem;
             font-weight: 600;
             color: #0b1f3a;
             line-height: 1.2;
         }
-        .stat-label {
-            color: #64748b;
-            font-size: 0.85rem;
-        }
-        .home-hero-copy h2 {
-            margin: 0;
-            font-size: 1.45rem;
-            font-weight: 600;
-            color: #fff;
-        }
-        .home-step {
-            margin-bottom: 28px;
-        }
-        .home-step-header {
+        .stat-label { color: #64748b; font-size: 0.85rem; }
+        .home-companies-header {
             display: flex;
-            align-items: flex-start;
-            gap: 14px;
-            margin-bottom: 18px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
             flex-wrap: wrap;
+            margin-bottom: 16px;
         }
-        .home-step-header h3 {
-            margin: 0 0 4px;
-            font-size: 1.15rem;
+        .home-companies-header h3 {
+            margin: 0;
+            font-size: 1.05rem;
             font-weight: 600;
             color: #0b1f3a;
         }
-        .home-step-header p {
-            margin: 0;
-            color: #64748b;
-            font-size: 0.9rem;
+        .home-filter-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
         }
-        .home-step-num {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: #1d4ed8;
-            color: #fff;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            font-size: 0.95rem;
-            flex-shrink: 0;
-        }
-        .home-change-type {
-            margin-left: auto;
-        }
-        .home-change-type-btn {
+        .home-chip {
             background: #fff !important;
-            color: #1d4ed8 !important;
-            border: 1px solid #bfdbfe !important;
-            border-radius: 8px;
-            padding: 8px 12px !important;
-            font-size: 0.85rem;
+            color: #334155 !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 999px !important;
+            padding: 7px 12px !important;
+            font-size: 0.8rem !important;
+            font-weight: 600 !important;
             cursor: pointer;
         }
-        .home-change-type-btn:hover {
-            background: #eff6ff !important;
-        }
-        .home-manage-link {
-            font-size: 0.9rem;
-            color: #1d4ed8;
-        }
-        .home-sector-chip {
-            display: inline-block;
-            margin-bottom: 16px;
-            background: #dbeafe;
-            color: #1e40af;
-            padding: 4px 12px;
-            border-radius: 999px;
-            font-size: 0.85rem;
+        .home-chip span {
+            margin-left: 4px;
+            color: #64748b;
             font-weight: 500;
         }
-        .sector-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 16px;
+        .home-chip.is-active {
+            background: #0b1f3a !important;
+            border-color: #0b1f3a !important;
+            color: #fff !important;
         }
-        .sector-form { margin: 0; }
-        button.sector-card,
-        .sector-card {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 10px;
-            text-align: left;
-            padding: 22px 24px !important;
-            border-radius: 12px;
-            border: 1px solid #e2e8f0 !important;
-            background: #fff !important;
-            cursor: pointer;
-            transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-            font: inherit;
-        }
-        .sector-card:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
-        }
-        .sector-trading:hover { border-color: #3b82f6 !important; }
-        .sector-construction:hover { border-color: #16a34a !important; }
-        .sector-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .sector-icon svg { width: 28px; height: 28px; }
-        .sector-trading .sector-icon {
-            background: #dbeafe;
-            color: #1d4ed8;
-        }
-        .sector-construction .sector-icon {
-            background: #dcfce7;
-            color: #15803d;
-        }
-        .sector-title {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #0b1f3a !important;
-        }
-        .sector-trading .sector-title { color: #1d4ed8 !important; }
-        .sector-construction .sector-title { color: #15803d !important; }
-        .sector-meta {
-            color: #64748b !important;
-            font-size: 0.85rem;
+        .home-chip.is-active span { color: #cbd5e1; }
+        .home-filter-empty {
+            margin: 8px 0 0;
+            color: #64748b;
+            font-size: 0.9rem;
         }
         .entity-grid {
             display: grid;
@@ -313,6 +198,7 @@
             height: 100%;
             display: flex;
         }
+        .entity-card-form[hidden] { display: none !important; }
         button.entity-card,
         .entity-card {
             width: 100%;
@@ -331,19 +217,9 @@
             transition: border-color 0.15s ease, box-shadow 0.15s ease;
             box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
         }
-        button.entity-card:hover,
-        .entity-card:hover {
-            background: #ffffff !important;
+        button.entity-card:hover {
             border-color: #3b82f6 !important;
-            color: #0b1f3a !important;
             box-shadow: 0 4px 14px rgba(29, 78, 216, 0.12);
-        }
-        button.entity-card:focus-visible,
-        .entity-card:focus-visible {
-            outline: 2px solid #1d4ed8;
-            outline-offset: 2px;
-            background: #ffffff !important;
-            color: #0b1f3a !important;
         }
         .entity-card-banner {
             background: #f1f5f9;
@@ -375,26 +251,12 @@
             box-sizing: border-box;
             background: #fff;
         }
-        .entity-card.has-logo .entity-card-body {
-            padding-top: 14px;
-        }
+        .entity-card.has-logo .entity-card-body { padding-top: 14px; }
         .entity-card-category {
             font-size: 0.72rem;
             letter-spacing: 0.06em;
             color: #64748b;
             text-transform: uppercase;
-        }
-        .entity-card-count {
-            position: absolute;
-            top: 10px;
-            right: 12px;
-            font-size: 0.85rem;
-            color: #64748b;
-            background: rgba(255, 255, 255, 0.92);
-            border: 1px solid #e2e8f0;
-            border-radius: 999px;
-            padding: 2px 8px;
-            z-index: 1;
         }
         .entity-card-avatar {
             position: absolute;
@@ -411,7 +273,6 @@
             font-size: 0.85rem;
             font-weight: 600;
             border: 3px solid #fff;
-            overflow: hidden;
         }
         .entity-card-body {
             padding: 14px 16px 8px;
@@ -427,13 +288,18 @@
             font-weight: 600;
             color: #0b1f3a !important;
             line-height: 1.35;
-            min-height: calc(1.35em * 3);
-            max-height: calc(1.35em * 3);
+            min-height: calc(1.35em * 2);
+            max-height: calc(1.35em * 2);
             display: -webkit-box;
             -webkit-box-orient: vertical;
-            -webkit-line-clamp: 3;
+            -webkit-line-clamp: 2;
             overflow: hidden;
             word-break: break-word;
+        }
+        .entity-card-sector {
+            margin: 6px 0 0;
+            color: #64748b;
+            font-size: 0.78rem;
         }
         .entity-card-footer {
             display: flex;
@@ -444,13 +310,38 @@
             flex-shrink: 0;
             margin-top: auto;
         }
-        .entity-card-docs {
-            color: #64748b !important;
-            font-size: 0.85rem;
-        }
-        .entity-card-arrow {
-            color: #1d4ed8;
-            font-size: 1rem;
-        }
+        .entity-card-docs { color: #64748b !important; font-size: 0.85rem; }
+        .entity-card-empty { color: #1d4ed8 !important; font-weight: 600; }
+        .entity-card-arrow { color: #1d4ed8; font-size: 1rem; }
     </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var chips = document.querySelectorAll('[data-sector-filter]');
+            var cards = document.querySelectorAll('#entityGrid .entity-card-form');
+            var empty = document.getElementById('entityFilterEmpty');
+            if (!chips.length || !cards.length) return;
+
+            function applyFilter(sector) {
+                var visible = 0;
+                cards.forEach(function (card) {
+                    var match = sector === 'all' || card.getAttribute('data-sector') === sector;
+                    card.hidden = !match;
+                    if (match) visible++;
+                });
+                if (empty) empty.hidden = visible > 0;
+                chips.forEach(function (chip) {
+                    var active = chip.getAttribute('data-sector-filter') === sector;
+                    chip.classList.toggle('is-active', active);
+                    chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+                });
+            }
+
+            chips.forEach(function (chip) {
+                chip.addEventListener('click', function () {
+                    applyFilter(chip.getAttribute('data-sector-filter') || 'all');
+                });
+            });
+        });
+    </script>
 @endsection

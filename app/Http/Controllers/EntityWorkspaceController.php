@@ -23,15 +23,7 @@ class EntityWorkspaceController extends Controller
 
     public function enter(Request $request, Entity $entity): RedirectResponse
     {
-        $selectedSector = $this->businessSector->get();
         $entitySector = $this->businessSector->sectorForEntity($entity);
-
-        // From Home: only allow companies in the selected category.
-        if ($selectedSector !== null && $selectedSector !== $entitySector) {
-            return redirect()
-                ->route('dashboard')
-                ->with('info', 'That company is not in the selected category.');
-        }
 
         $this->entityContext->set($request->user(), (int) $entity->id);
         $this->businessSector->set($entitySector);
@@ -78,7 +70,15 @@ class EntityWorkspaceController extends Controller
         $this->access->scopeAccessible($totalDocumentsQuery, $user);
         $totalDocuments = $totalDocumentsQuery->count();
 
+        $weekStart = now()->timezone(config('app.timezone', 'Asia/Dubai'))->startOfWeek();
+        $uploadedThisWeekQuery = Document::query()
+            ->where('entity_id', $entityId)
+            ->where('created_at', '>=', $weekStart);
+        $this->access->scopeAccessible($uploadedThisWeekQuery, $user);
+        $uploadedThisWeek = $uploadedThisWeekQuery->count();
+
         $recentDocuments = $this->entityContext->recentDocumentsForEntity($user, $entityId);
+        $recentDocuments->loadMissing(['modifiedBy', 'project']);
 
         $recentDocuments->transform(function (Document $document) {
             $document->file_available = DocumentLocationResolver::resolve((string) $document->file_path) !== null;
@@ -86,12 +86,17 @@ class EntityWorkspaceController extends Controller
             return $document;
         });
 
+        $entitySector = $this->businessSector->sectorForEntity($entity);
+
         return view('workspace', [
             'entity' => $entity,
             'projects' => $projects,
             'totalDocuments' => $totalDocuments,
             'totalProjects' => $projects->count(),
+            'uploadedThisWeek' => $uploadedThisWeek,
             'recentDocuments' => $recentDocuments,
+            'entitySector' => $entitySector,
+            'entitySectorLabel' => $this->businessSector->label($entitySector),
         ]);
     }
 }

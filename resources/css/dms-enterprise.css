@@ -298,6 +298,55 @@
     font-weight: 500;
 }
 
+/* —— File cells —— */
+.dms-file-cell {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.dms-file-icon {
+    flex: 0 0 auto;
+    min-width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.dms-file-icon-pdf { background: #fee2e2; color: #b91c1c; }
+.dms-file-icon-file { background: #e2e8f0; color: #334155; }
+
+/* —— Breadcrumb —— */
+.dms-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 14px;
+    font-size: 0.82rem;
+    color: var(--text-muted, #64748b);
+}
+
+.dms-breadcrumb a {
+    color: #1d4ed8 !important;
+    text-decoration: none !important;
+    font-weight: 500;
+}
+
+.dms-breadcrumb a:hover {
+    text-decoration: underline !important;
+}
+
+.dms-breadcrumb .is-current {
+    color: var(--navy, #0b1f3a);
+    font-weight: 600;
+}
+
 @media (max-width: 900px) {
     .dms-page-header {
         flex-direction: column;

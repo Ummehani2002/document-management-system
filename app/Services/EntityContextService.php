@@ -147,7 +147,7 @@ class EntityContextService
         $limit ??= self::RECENT_UPLOADS_PER_ENTITY;
 
         $query = Document::query()
-            ->with(['project'])
+            ->with(['project', 'modifiedBy'])
             ->where('entity_id', $entityId)
             ->latest()
             ->limit(max($limit * 8, 40));

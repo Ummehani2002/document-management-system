@@ -23,36 +23,39 @@ class DashboardController extends Controller
         // Home is never inside a company workspace.
         $this->entityContext->clear();
 
-        $selectedSector = $this->businessSector->get();
         $allEntities = $this->entityContext->accessibleEntities($user);
-        $entities = $selectedSector !== null
-            ? $this->businessSector->filterEntities($allEntities, $selectedSector)
-            : $allEntities;
-
         $documentCounts = $this->entityContext->documentCountsByEntity($user);
         $projectCounts = $this->entityContext->projectCountsByEntity($user);
-        $recentByEntity = $this->entityContext->recentDocumentsByEntity($user);
 
-        $statsEntityIds = $entities->pluck('id')->all();
-        $totalDocuments = collect($statsEntityIds)->sum(fn ($id) => $documentCounts[$id] ?? 0);
-        $totalProjects = collect($statsEntityIds)->sum(fn ($id) => $projectCounts[$id] ?? 0);
-        $totalEntities = $entities->count();
+        $totalDocuments = collect($allEntities->pluck('id'))->sum(fn ($id) => $documentCounts[$id] ?? 0);
+        $totalProjects = collect($allEntities->pluck('id'))->sum(fn ($id) => $projectCounts[$id] ?? 0);
+        $totalEntities = $allEntities->count();
 
-        $entityCards = $entities->map(function ($entity) use ($documentCounts, $projectCounts, $recentByEntity) {
+        $entityCards = $allEntities->map(function ($entity) use ($documentCounts, $projectCounts) {
+            $sector = $this->businessSector->sectorForEntity($entity);
+
             return (object) [
                 'id' => $entity->id,
                 'name' => $entity->name,
                 'initials' => entity_initials($entity->name),
                 'logo_url' => entity_logo_url($entity->name),
+                'sector' => $sector,
+                'sector_label' => $this->businessSector->label($sector),
                 'documents_count' => $documentCounts[$entity->id] ?? 0,
                 'projects_count' => $projectCounts[$entity->id] ?? 0,
-                'recent_documents' => $recentByEntity[$entity->id] ?? collect(),
             ];
         });
 
         $sectorCounts = $this->businessSector->countsForEntities($allEntities);
-        $tradingCount = $sectorCounts[BusinessSectorService::TRADING];
-        $constructionCount = $sectorCounts[BusinessSectorService::CONSTRUCTION];
+
+        $firstName = trim((string) strtok((string) ($user->name ?? ''), ' '));
+        if ($firstName === '') {
+            $firstName = 'there';
+        }
+
+        $now = now()->timezone(config('app.timezone', 'Asia/Dubai'));
+        $hour = (int) $now->format('G');
+        $greetingPeriod = $hour < 12 ? 'morning' : ($hour < 17 ? 'afternoon' : 'evening');
 
         return view('dashboard', [
             'totalDocuments' => $totalDocuments,
@@ -60,10 +63,11 @@ class DashboardController extends Controller
             'totalEntities' => $totalEntities,
             'entityCards' => $entityCards,
             'isAdmin' => $this->access->isAdmin($user),
-            'selectedSector' => $selectedSector,
-            'selectedSectorLabel' => $this->businessSector->label($selectedSector),
-            'tradingCount' => $tradingCount,
-            'constructionCount' => $constructionCount,
+            'tradingCount' => $sectorCounts[BusinessSectorService::TRADING],
+            'constructionCount' => $sectorCounts[BusinessSectorService::CONSTRUCTION],
+            'greetingName' => $firstName,
+            'greetingPeriod' => $greetingPeriod,
+            'greetingDate' => $now->format('l, j F Y'),
         ]);
     }
 

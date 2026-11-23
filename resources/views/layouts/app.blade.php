@@ -99,6 +99,14 @@
             align-items: center;
             gap: 14px;
             min-width: 0;
+            flex: 0 1 auto;
+        }
+
+        .dms-topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
         }
 
         .dms-brand-logo {
@@ -282,13 +290,13 @@
 
         .dms-nav-link {
             display: inline-block;
-            padding: 14px 18px 12px;
-            color: rgba(255, 255, 255, 0.72);
+            padding: 12px 14px 10px;
+            color: rgba(255, 255, 255, 0.78);
             text-decoration: none;
-            font-size: 0.72rem;
+            font-size: 0.84rem;
             font-weight: 600;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
+            letter-spacing: 0.01em;
+            text-transform: none;
             border-bottom: 3px solid transparent;
             transition: color 0.15s, border-color 0.15s, background 0.15s;
             white-space: nowrap;
@@ -306,7 +314,162 @@
             cursor: pointer;
             font-family: inherit;
             appearance: none;
-            color: rgba(255, 255, 255, 0.72);
+            color: rgba(255, 255, 255, 0.78);
+        }
+
+        .dms-nav-upload {
+            margin-left: 6px;
+            margin-right: 4px;
+            padding: 8px 14px !important;
+            border-radius: 6px !important;
+            border-bottom: none !important;
+            background: var(--accent) !important;
+            color: #fff !important;
+            font-size: 0.82rem !important;
+            font-weight: 600 !important;
+            align-self: center;
+        }
+
+        .dms-nav-upload:hover,
+        .dms-nav-upload.is-active {
+            background: var(--accent-dark) !important;
+            color: #fff !important;
+            border-bottom-color: transparent !important;
+        }
+
+        .dms-nav-dropdown {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .dms-nav-dropdown > summary {
+            list-style: none;
+            cursor: pointer;
+        }
+
+        .dms-nav-dropdown > summary::-webkit-details-marker { display: none; }
+
+        .dms-nav-dropdown-panel {
+            position: absolute;
+            top: calc(100% - 2px);
+            left: 0;
+            min-width: 200px;
+            padding: 8px;
+            border-radius: 8px;
+            background: #fff;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+            z-index: 130;
+        }
+
+        .dms-nav-dropdown-panel a {
+            display: block;
+            padding: 9px 10px;
+            border-radius: 6px;
+            color: #0b1f3a !important;
+            text-decoration: none !important;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .dms-nav-dropdown-panel a:hover {
+            background: #eff6ff;
+            color: #1d4ed8 !important;
+        }
+
+        .dms-global-search {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1 1 280px;
+            max-width: 420px;
+            margin: 0 16px;
+            min-width: 180px;
+        }
+
+        .dms-global-search input {
+            width: 100%;
+            margin: 0 !important;
+            padding: 9px 12px 9px 34px !important;
+            border-radius: 8px !important;
+            border: 1px solid rgba(255, 255, 255, 0.18) !important;
+            background: rgba(255, 255, 255, 0.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%94a3b8' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3-3'/%3E%3C/svg%3E") no-repeat 10px center !important;
+            color: #fff !important;
+            font-size: 0.85rem !important;
+        }
+
+        .dms-global-search input::placeholder {
+            color: rgba(226, 232, 240, 0.7);
+        }
+
+        .dms-global-search input:focus {
+            outline: none;
+            border-color: rgba(59, 130, 246, 0.7) !important;
+            background-color: rgba(255, 255, 255, 0.12) !important;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+        }
+
+        .dms-greeting {
+            color: rgba(226, 232, 240, 0.9);
+            font-size: 0.8rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .dms-company-switcher {
+            position: relative;
+            margin-left: 10px;
+        }
+
+        .dms-company-switcher > summary {
+            list-style: none;
+            cursor: pointer;
+        }
+
+        .dms-company-switcher > summary::-webkit-details-marker { display: none; }
+
+        .dms-company-switcher-panel {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            min-width: 260px;
+            max-height: 320px;
+            overflow: auto;
+            padding: 8px;
+            border-radius: 8px;
+            background: #fff;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+            z-index: 140;
+        }
+
+        .dms-company-switcher-panel form { margin: 0; }
+
+        .dms-company-switcher-panel button {
+            width: 100%;
+            text-align: left;
+            background: #fff !important;
+            color: #0b1f3a !important;
+            border: none !important;
+            border-radius: 6px !important;
+            padding: 9px 10px !important;
+            font-size: 0.85rem !important;
+            font-weight: 500 !important;
+        }
+
+        .dms-company-switcher-panel button:hover,
+        .dms-company-switcher-panel button.is-current {
+            background: #eff6ff !important;
+            color: #1d4ed8 !important;
+        }
+
+        .dms-company-switcher-panel .sector-label {
+            display: block;
+            font-size: 0.7rem;
+            color: #64748b;
+            margin-top: 2px;
+            font-weight: 500;
         }
 
         .dms-nav-link:hover {
@@ -322,20 +485,33 @@
             display: inline-flex;
             align-items: center;
             margin-left: 12px;
-            padding: 4px 10px;
+            padding: 6px 12px;
             border-radius: 999px;
             background: rgba(59, 130, 246, 0.18);
             border: 1px solid rgba(147, 197, 253, 0.45);
-            color: #bfdbfe;
-            font-size: 0.65rem;
+            color: #e2e8f0;
+            font-size: 0.78rem;
             font-weight: 600;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            max-width: 220px;
+            letter-spacing: 0.01em;
+            text-transform: none;
+            max-width: 260px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
             vertical-align: middle;
+            cursor: pointer;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
 
         .dms-switch-company-form {
@@ -375,8 +551,15 @@
                 white-space: normal;
             }
 
-            .dms-date-pill {
+            .dms-greeting {
                 display: none;
+            }
+
+            .dms-global-search {
+                order: 3;
+                flex: 1 1 100%;
+                max-width: none;
+                margin: 4px 0 0;
             }
 
             .dms-nav {
@@ -387,8 +570,8 @@
             }
 
             .dms-nav-link {
-                padding: 12px 14px 10px;
-                font-size: 0.68rem;
+                padding: 12px 12px 10px;
+                font-size: 0.8rem;
             }
         }
 
@@ -501,38 +684,105 @@
         }
 
         .sidebar .folder-item {
-            margin-bottom: 12px;
+            margin-bottom: 4px;
         }
 
         .sidebar .folder-toggle {
             width: 100%;
             text-align: left;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.04);
+            border: none;
+            background: transparent;
             color: var(--sidebar-text);
-            border-radius: 10px;
-            padding: 12px 14px;
+            border-radius: 6px;
+            padding: 8px 10px;
             font-size: 12.5px;
-            font-weight: 400;
+            font-weight: 500;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 8px;
         }
 
         .sidebar .folder-toggle:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(147, 197, 253, 0.35);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .sidebar .folder-toggle .folder-toggle-label {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sidebar .folder-toggle .folder-count {
+            color: var(--sidebar-muted);
+            font-size: 0.72rem;
+            font-weight: 500;
+            flex-shrink: 0;
         }
 
         .sidebar .folder-toggle .caret {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: var(--sidebar-muted);
+            flex-shrink: 0;
+            transition: transform 0.15s ease;
         }
 
         .sidebar .folder-toggle.active {
-            background: var(--sidebar-active);
-            border-color: var(--accent);
+            background: rgba(59, 130, 246, 0.16);
             color: #fff;
+        }
+
+        .sidebar .folder-toggle.active .caret {
+            transform: rotate(180deg);
+            color: #fff;
+        }
+
+        .sidebar .folder-children {
+            list-style: none;
+            margin: 0 0 6px;
+            padding: 2px 0 4px 12px;
+            border-left: 1px solid rgba(148, 163, 184, 0.25);
+            margin-left: 12px;
+        }
+
+        .sidebar .folder-children[hidden] {
+            display: none !important;
+        }
+
+        .sidebar .folder-child-link {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            color: var(--sidebar-muted) !important;
+            text-decoration: none !important;
+            font-size: 0.78rem;
+            font-weight: 500;
+        }
+
+        .sidebar .folder-child-link:hover,
+        .sidebar .folder-child-link.is-active {
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff !important;
+        }
+
+        .sidebar .folder-child-link .folder-count {
+            color: inherit;
+            opacity: 0.75;
+            font-size: 0.7rem;
+        }
+
+        .sidebar-title {
+            margin: 0 0 10px;
+            padding: 0 4px;
+            color: var(--sidebar-muted);
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
 
         .folder-blocks-main {
@@ -707,54 +957,75 @@
 <body>
 
 @php
-    $userInitials = auth()->user()->name
-        ? entity_initials(auth()->user()->name)
-        : strtoupper(substr(auth()->user()->email, 0, 2));
-    $displayDate = now()->timezone(config('app.timezone', 'Asia/Dubai'))->format('l, j F Y');
+    $authUser = auth()->user();
+    $userInitials = $authUser->name
+        ? entity_initials($authUser->name)
+        : strtoupper(substr($authUser->email, 0, 2));
+    $userFirstName = trim((string) strtok((string) ($authUser->name ?? ''), ' '));
+    if ($userFirstName === '') {
+        $userFirstName = 'there';
+    }
+    $topHour = (int) now()->timezone(config('app.timezone', 'Asia/Dubai'))->format('G');
+    $topPeriod = $topHour < 12 ? 'morning' : ($topHour < 17 ? 'afternoon' : 'evening');
     $navActive = fn (array $routes): string => request()->routeIs($routes) ? ' is-active' : '';
+    $adminNavActive = request()->routeIs([
+        'entities.*', 'disciplines.*', 'folders.*', 'user-access.*', 'user-activities.*',
+        'documents.trash', 'documents.trash.*',
+    ]) ? ' is-active' : '';
+    $globalSearchAction = ! empty($currentEntity)
+        ? entity_route('documents.search')
+        : route('documents.search');
 @endphp
 
 <header class="dms-header">
     <div class="dms-topbar">
         <div class="dms-brand">
-            @if(!empty($currentEntity))
-                @if(!empty($currentEntityLogoUrl))
-                    <img
-                        class="dms-entity-logo"
-                        src="{{ $currentEntityLogoUrl }}"
-                        alt="{{ $currentEntity->name }}"
-                        title="{{ $currentEntity->name }}"
-                    />
-                @else
-                    <span class="dms-entity-logo dms-entity-logo-initials" title="{{ $currentEntity->name }}">{{ entity_initials($currentEntity->name) }}</span>
-                @endif
-            @else
-                <img
-                    class="dms-brand-logo"
-                    src="{{ asset('images/tanseeq.png') }}?v=3"
-                    alt="Tanseeq Investment"
-                />
-            @endif
+            <img
+                class="dms-brand-logo"
+                src="{{ asset('images/tanseeq.png') }}?v=3"
+                alt="Tanseeq Investment"
+            />
             <div class="dms-brand-text">
                 <span class="dms-brand-title">Tanseeq Investment</span>
                 <span class="dms-brand-subtitle">Document Management System</span>
             </div>
             @if(!empty($currentEntity))
-                <span class="dms-entity-badge" title="{{ $currentEntity->name }}">{{ $currentEntity->name }}</span>
+                <details class="dms-company-switcher">
+                    <summary class="dms-entity-badge" title="Switch company">{{ $currentEntity->name }} ▾</summary>
+                    <div class="dms-company-switcher-panel">
+                        @foreach(($switcherEntities ?? collect()) as $switchEntity)
+                            <form method="POST" action="{{ route('entities.enter', $switchEntity->id) }}">
+                                @csrf
+                                <button type="submit" class="{{ (int) $switchEntity->id === (int) ($currentEntityId ?? 0) ? 'is-current' : '' }}">
+                                    {{ $switchEntity->name }}
+                                    <span class="sector-label">{{ $switchEntity->sector_label }}</span>
+                                </button>
+                            </form>
+                        @endforeach
+                        <form method="GET" action="{{ route('dashboard') }}" style="margin-top:6px;border-top:1px solid #e2e8f0;padding-top:6px;">
+                            <button type="submit">All companies</button>
+                        </form>
+                    </div>
+                </details>
             @endif
         </div>
+        <form class="dms-global-search" method="GET" action="{{ $globalSearchAction }}" role="search">
+            <label class="sr-only" for="dms-global-search-input">Search documents</label>
+            <input
+                id="dms-global-search-input"
+                type="search"
+                name="keyword"
+                value="{{ request('keyword') }}"
+                placeholder="Search files or project #…"
+                autocomplete="off"
+            >
+        </form>
         <div class="dms-topbar-right">
-            <div class="dms-date-pill">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <rect x="3" y="4" width="18" height="18" rx="2"></rect>
-                    <path d="M16 2v4M8 2v4M3 10h18"></path>
-                </svg>
-                <span>{{ $displayDate }}</span>
-            </div>
+            <span class="dms-greeting">Good {{ $topPeriod }}, {{ $userFirstName }}</span>
             <span class="dms-topbar-divider" aria-hidden="true"></span>
             <div class="dms-user-block">
                 <details class="dms-user-dropdown">
-                    <summary class="dms-user-avatar" title="{{ auth()->user()->name ?: auth()->user()->email }}" aria-label="Account menu">{{ $userInitials }}</summary>
+                    <summary class="dms-user-avatar" title="{{ $authUser->name ?: $authUser->email }}" aria-label="Account menu">{{ $userInitials }}</summary>
                     <div class="dms-user-dropdown-panel">
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
@@ -766,27 +1037,31 @@
         </div>
     </div>
     <nav class="dms-nav" aria-label="Main navigation">
-        <form method="POST" action="{{ route('dashboard.sector.clear') }}" class="dms-home-form">
-            @csrf
-            <button type="submit" class="dms-nav-link dms-nav-button{{ $navActive(['dashboard']) }}">Home</button>
-        </form>
+        <a href="{{ route('dashboard') }}" class="dms-nav-link{{ $navActive(['dashboard']) }}">Home</a>
         @if(!empty($currentEntity))
             <a href="{{ route('workspace') }}" class="dms-nav-link{{ $navActive(['workspace']) }}">Workspace</a>
-            <a href="{{ entity_route('documents.upload') }}" class="dms-nav-link{{ $navActive(['documents.upload', 'documents.store']) }}">Upload</a>
             <a href="{{ entity_route('documents.search') }}" class="dms-nav-link{{ $navActive(['documents.search']) }}">Search</a>
             <a href="{{ entity_route('summary-dashboard') }}" class="dms-nav-link{{ $navActive(['summary-dashboard', 'summary-dashboard.download']) }}">Dashboard</a>
             @role('Admin')
-                <a href="{{ entity_route('projects.index') }}" class="dms-nav-link{{ $navActive(['projects.index', 'projects.create', 'projects.store', 'projects.edit', 'projects.update']) }}">Project Master</a>
+                <a href="{{ entity_route('projects.index') }}" class="dms-nav-link{{ $navActive(['projects.index', 'projects.create', 'projects.store', 'projects.edit', 'projects.update']) }}">Projects</a>
             @endrole
+            <a href="{{ entity_route('documents.upload') }}" class="dms-nav-link dms-nav-upload{{ $navActive(['documents.upload', 'documents.store']) }}">Upload</a>
         @endif
         @role('Admin')
-            <a href="{{ route('entities.index') }}" class="dms-nav-link{{ $navActive(['entities.*']) }}">Entities</a>
-            <a href="{{ route('disciplines.index') }}" class="dms-nav-link{{ $navActive(['disciplines.*']) }}">Disciplines</a>
-            <a href="{{ route('folders.index') }}" class="dms-nav-link{{ $navActive(['folders.*']) }}">Folders</a>
-            <a href="{{ route('user-access.index') }}" class="dms-nav-link{{ $navActive(['user-access.*']) }}">User Access</a>
-            <a href="{{ route('user-activities.index') }}" class="dms-nav-link{{ $navActive(['user-activities.*']) }}">Activity Log</a>
+            <details class="dms-nav-dropdown">
+                <summary class="dms-nav-link{{ $adminNavActive }}">Admin ▾</summary>
+                <div class="dms-nav-dropdown-panel">
+                    <a href="{{ route('entities.index') }}">Entities</a>
+                    <a href="{{ route('disciplines.index') }}">Disciplines</a>
+                    <a href="{{ route('folders.index') }}">Folders</a>
+                    <a href="{{ route('user-access.index') }}">User Access</a>
+                    <a href="{{ route('user-activities.index') }}">Activity Log</a>
+                    <a href="{{ route('documents.trash') }}">Trash</a>
+                </div>
+            </details>
+        @else
+            <a href="{{ route('documents.trash') }}" class="dms-nav-link{{ $navActive(['documents.trash', 'documents.trash.*']) }}">Trash</a>
         @endrole
-        <a href="{{ route('documents.trash') }}" class="dms-nav-link{{ $navActive(['documents.trash', 'documents.trash.*']) }}">Trash</a>
     </nav>
 </header>
 
@@ -798,33 +1073,84 @@
         <aside class="sidebar">
             @php
                 $accessService = app(\App\Services\DocumentAccessService::class);
+                $sidebarEntityId = (int) ($currentEntityId ?? $currentEntity->id);
                 $sidebarTree = $accessService->accessibleSidebarFolderTree(
                     auth()->user(),
-                    (int) ($currentEntityId ?? $currentEntity->id)
+                    $sidebarEntityId
                 );
+                $typeCounts = \App\Models\Document::query()
+                    ->where('entity_id', $sidebarEntityId)
+                    ->whereNotNull('document_type')
+                    ->selectRaw('document_type, COUNT(*) as aggregate')
+                    ->groupBy('document_type')
+                    ->pluck('aggregate', 'document_type');
                 $sidebarFolders = collect($sidebarTree)
-                    ->map(fn (array $items, string $name): array => ['name' => $name, 'items' => $items])
+                    ->map(function (array $items, string $name) use ($typeCounts): array {
+                        $itemRows = collect($items)->map(function (string $item) use ($typeCounts): array {
+                            return [
+                                'name' => $item,
+                                'count' => (int) ($typeCounts[$item] ?? 0),
+                            ];
+                        })->all();
+
+                        return [
+                            'name' => $name,
+                            'items' => $itemRows,
+                            'count' => collect($itemRows)->sum('count'),
+                        ];
+                    })
                     ->values()
                     ->all();
+                $params = request();
+                $currentMainFolder = (string) $params->input('main_folder', '');
+                $currentSubfolder = (string) $params->input('document_type', '');
             @endphp
 
             <div class="sidebar-shell">
+                <p class="sidebar-title">Folders</p>
                 <ul class="folder-menu" id="folderMenu">
                     @forelse($sidebarFolders as $index => $folder)
+                        @php
+                            $isOpen = $currentMainFolder === $folder['name']
+                                || ($currentSubfolder !== '' && collect($folder['items'])->contains(fn ($row) => $row['name'] === $currentSubfolder));
+                        @endphp
                         <li class="folder-item">
                             <button
                                 type="button"
-                                class="folder-toggle"
+                                class="folder-toggle{{ $isOpen ? ' active' : '' }}"
                                 data-folder-toggle
                                 data-folder-index="{{ $index }}"
-                                aria-expanded="false"
+                                aria-expanded="{{ $isOpen ? 'true' : 'false' }}"
                             >
-                                <span>{{ $folder['name'] }}</span>
-                                <span class="caret">&#9662;</span>
+                                <span class="folder-toggle-label">{{ $folder['name'] }}</span>
+                                <span class="folder-count">{{ number_format($folder['count']) }}</span>
+                                <span class="caret" aria-hidden="true">&#9662;</span>
                             </button>
+                            <ul class="folder-children" data-folder-children="{{ $index }}" @if(! $isOpen) hidden @endif>
+                                <li>
+                                    <a
+                                        class="folder-child-link{{ $currentMainFolder === $folder['name'] && $currentSubfolder === '' ? ' is-active' : '' }}"
+                                        href="{{ route('documents.search', array_filter(['from_sidebar' => 1, 'main_folder' => $folder['name'], 'entity_id' => $sidebarEntityId, 'project_id' => request('project_id') ?: null])) }}"
+                                    >
+                                        <span>All {{ $folder['name'] }}</span>
+                                        <span class="folder-count">{{ number_format($folder['count']) }}</span>
+                                    </a>
+                                </li>
+                                @foreach($folder['items'] as $item)
+                                    <li>
+                                        <a
+                                            class="folder-child-link{{ $currentSubfolder === $item['name'] ? ' is-active' : '' }}"
+                                            href="{{ route('documents.search', array_filter(['from_sidebar' => 1, 'main_folder' => $folder['name'], 'document_type' => $item['name'], 'entity_id' => $sidebarEntityId, 'project_id' => request('project_id') ?: null])) }}"
+                                        >
+                                            <span>{{ $item['name'] }}</span>
+                                            <span class="folder-count">{{ number_format($item['count']) }}</span>
+                                        </a>
+                                    </li>
+                                @endforeach
+                            </ul>
                         </li>
                     @empty
-                        <li class="folder-item" style="color:var(--text-muted);font-size:0.85rem;padding:8px 4px;">
+                        <li class="folder-item" style="color:var(--sidebar-muted);font-size:0.85rem;padding:8px 4px;">
                             No folders available for your access.
                         </li>
                     @endforelse
@@ -833,12 +1159,6 @@
         </aside>
     @endif
     <main class="main-content">
-        <div id="folderBlocksMain" class="folder-blocks-main" hidden>
-            <div class="folder-blocks-main-inner">
-                <h2 class="folder-blocks-main-heading" id="folderBlocksTitle">Document types</h2>
-                <div class="folder-blocks-main-grid" id="folderBlocksGrid"></div>
-            </div>
-        </div>
         <div class="container" id="mainPageContainer">
             @yield('content')
         </div>
@@ -847,147 +1167,31 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        var folderData = @json($sidebarFolders ?? []);
         var toggles = document.querySelectorAll('.sidebar [data-folder-toggle]');
-        var folderBlocksMain = document.getElementById('folderBlocksMain');
-        var folderBlocksTitle = document.getElementById('folderBlocksTitle');
-        var folderBlocksGrid = document.getElementById('folderBlocksGrid');
-        var mainPageContainer = document.getElementById('mainPageContainer');
-        if (!folderBlocksMain || !folderBlocksGrid || !mainPageContainer || !toggles.length) {
+        if (!toggles.length) {
             return;
-        }
-        var params = new URLSearchParams(window.location.search);
-        var currentMainFolder = params.get('main_folder') || '';
-        var currentSubfolder = params.get('document_type') || '';
-        var currentProjectId = params.get('project_id') || '';
-        var currentEntityId = @json($currentEntityId ?? (request()->filled('entity_id') ? (int) request('entity_id') : null)) || params.get('entity_id') || '';
-
-        function setFolderBlocksOpen(open) {
-            if (open) {
-                folderBlocksMain.hidden = false;
-                mainPageContainer.style.display = 'none';
-            } else {
-                folderBlocksMain.hidden = true;
-                mainPageContainer.style.display = '';
-            }
-        }
-
-        function renderSubfolders(index) {
-            var selectedFolder = folderData[index];
-            var items = selectedFolder && selectedFolder.items ? selectedFolder.items : [];
-            folderBlocksTitle.textContent = selectedFolder ? selectedFolder.name : 'Document types';
-            folderBlocksGrid.innerHTML = '';
-
-            if (!items.length) {
-                var empty = document.createElement('div');
-                empty.className = 'folder-blocks-main-empty';
-                empty.textContent = 'No document types.';
-                folderBlocksGrid.appendChild(empty);
-                return;
-            }
-
-            // "All in this category" — e.g. all Financial Documents subfolders
-            var allBlock = document.createElement('div');
-            allBlock.className = 'folder-block-card';
-            var allLink = document.createElement('a');
-            var allHref = '{{ route('documents.search') }}?from_sidebar=1&main_folder=' + encodeURIComponent(selectedFolder.name);
-            if (currentEntityId) {
-                allHref += '&entity_id=' + encodeURIComponent(currentEntityId);
-            }
-            if (currentProjectId) {
-                allHref += '&project_id=' + encodeURIComponent(currentProjectId);
-            }
-            allLink.href = allHref;
-            if (currentMainFolder === selectedFolder.name && !currentSubfolder) {
-                allLink.classList.add('is-active');
-            }
-            var allIcon = document.createElement('span');
-            allIcon.className = 'folder-block-icon';
-            allIcon.setAttribute('aria-hidden', 'true');
-            allIcon.textContent = '📁';
-            var allTitle = document.createElement('span');
-            allTitle.className = 'folder-block-title';
-            allTitle.textContent = 'All ' + selectedFolder.name;
-            allLink.appendChild(allIcon);
-            allLink.appendChild(allTitle);
-            allBlock.appendChild(allLink);
-            folderBlocksGrid.appendChild(allBlock);
-
-            items.forEach(function (item) {
-                var block = document.createElement('div');
-                block.className = 'folder-block-card';
-                var link = document.createElement('a');
-                var href = '{{ route('documents.search') }}?from_sidebar=1&main_folder=' + encodeURIComponent(selectedFolder.name) + '&document_type=' + encodeURIComponent(item);
-                if (currentEntityId) {
-                    href += '&entity_id=' + encodeURIComponent(currentEntityId);
-                }
-                if (currentProjectId) {
-                    href += '&project_id=' + encodeURIComponent(currentProjectId);
-                }
-                link.href = href;
-                var icon = document.createElement('span');
-                icon.className = 'folder-block-icon';
-                icon.setAttribute('aria-hidden', 'true');
-                icon.textContent = '📁';
-                var titleEl = document.createElement('span');
-                titleEl.className = 'folder-block-title';
-                titleEl.textContent = item;
-                link.appendChild(icon);
-                link.appendChild(titleEl);
-                if (currentSubfolder && currentSubfolder === item) {
-                    link.classList.add('is-active');
-                }
-                block.appendChild(link);
-                folderBlocksGrid.appendChild(block);
-            });
         }
 
         toggles.forEach(function (toggle) {
             toggle.addEventListener('click', function () {
-                var folderIndex = toggle.getAttribute('data-folder-index');
-
-                if (toggle.classList.contains('active')) {
-                    toggle.classList.remove('active');
-                    toggle.setAttribute('aria-expanded', 'false');
-                    setFolderBlocksOpen(false);
-                    return;
-                }
+                var index = toggle.getAttribute('data-folder-index');
+                var children = document.querySelector('.sidebar [data-folder-children="' + index + '"]');
+                var willOpen = !toggle.classList.contains('active');
 
                 toggles.forEach(function (btn) {
                     btn.classList.remove('active');
                     btn.setAttribute('aria-expanded', 'false');
+                    var other = document.querySelector('.sidebar [data-folder-children="' + btn.getAttribute('data-folder-index') + '"]');
+                    if (other) other.hidden = true;
                 });
 
-                toggle.classList.add('active');
-                toggle.setAttribute('aria-expanded', 'true');
-                renderSubfolders(folderIndex);
-                setFolderBlocksOpen(true);
+                if (willOpen) {
+                    toggle.classList.add('active');
+                    toggle.setAttribute('aria-expanded', 'true');
+                    if (children) children.hidden = false;
+                }
             });
         });
-
-        if (currentMainFolder && !currentSubfolder) {
-            var folderIndexOpen = folderData.findIndex(function (folder) {
-                return folder.name === currentMainFolder;
-            });
-            if (folderIndexOpen >= 0 && toggles[folderIndexOpen]) {
-                toggles.forEach(function (btn) {
-                    btn.classList.remove('active');
-                    btn.setAttribute('aria-expanded', 'false');
-                });
-                toggles[folderIndexOpen].classList.add('active');
-                toggles[folderIndexOpen].setAttribute('aria-expanded', 'true');
-                renderSubfolders(String(folderIndexOpen));
-                setFolderBlocksOpen(true);
-            }
-        } else if (currentSubfolder) {
-            var inferredIndex = folderData.findIndex(function (folder) {
-                return Array.isArray(folder.items) && folder.items.indexOf(currentSubfolder) !== -1;
-            });
-            if (inferredIndex >= 0 && toggles[inferredIndex]) {
-                toggles[inferredIndex].classList.add('active');
-                toggles[inferredIndex].setAttribute('aria-expanded', 'true');
-            }
-        }
     });
 </script>
 
