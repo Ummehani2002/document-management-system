@@ -37,7 +37,7 @@ class DashboardController extends Controller
             return (object) [
                 'id' => $entity->id,
                 'name' => $entity->name,
-                'initials' => entity_initials($entity->name),
+                'initials' => $entity->displayCode(),
                 'logo_url' => entity_logo_url($entity->name),
                 'sector' => $sector,
                 'sector_label' => $this->businessSector->label($sector),

@@ -35,7 +35,7 @@ class ShareEntityContext
                     'name' => $item->name,
                     'sector' => $sector,
                     'sector_label' => $this->businessSector->label($sector),
-                    'initials' => entity_initials($item->name),
+                    'initials' => $item->displayCode(),
                     'logo_url' => entity_logo_url($item->name),
                 ];
             });

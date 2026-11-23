@@ -2,14 +2,20 @@
 
 @section('content')
 
-<h2>All Entities</h2>
-
+<div class="dms-page-header">
+    <div>
+        <p class="dms-page-kicker">Administration</p>
+        <h2>Entities</h2>
+        <p class="dms-page-lead">Company register with short codes used across the DMS.</p>
+    </div>
+    <div class="dms-page-actions">
+        <a href="{{ route('entities.create') }}" style="display:inline-block;padding:10px 18px;background:#0b1f3a;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Add Entity</a>
+    </div>
+</div>
 
 @if (session('success'))
     <div class="success">{{ session('success') }}</div>
 @endif
-
-<p style="margin-bottom: 16px;"><a href="{{ route('entities.create') }}" style="display: inline-block; padding: 10px 20px; background: #0b1f3a; color: white; text-decoration: none; border-radius: 5px;">Add Entity</a></p>
 
 @if($entities->isEmpty())
     <div class="card">
@@ -20,6 +26,7 @@
         <table class="dms-grid-table">
             <thead>
                 <tr>
+                    <th>Short code</th>
                     <th>Entity</th>
                     <th>Type</th>
                     <th>Projects</th>
@@ -29,13 +36,14 @@
             <tbody>
                 @foreach ($entities as $entity)
                     <tr>
-                        <td><strong>{{ $entity->name }}</strong></td>
+                        <td><strong>{{ $entity->displayCode() }}</strong></td>
+                        <td>{{ $entity->name }}</td>
                         <td>{{ $entity->businessTypeLabel() }}</td>
                         <td>{{ $entity->projects_count }} project(s)</td>
                         <td class="text-right" style="white-space: nowrap;">
                             <form action="{{ route('entities.enter', $entity) }}" method="POST" style="display:inline;">
                                 @csrf
-                                <button type="submit" style="background:none;border:none;padding:0;color:inherit;cursor:pointer;text-decoration:underline;">Open</button>
+                                <button type="submit" style="background:none;border:none;padding:0;color:inherit;cursor:pointer;text-decoration:underline;font-weight:600;">Open</button>
                             </form>
                             &nbsp;·&nbsp;
                             <a href="{{ route('entities.edit', $entity) }}">Edit</a>

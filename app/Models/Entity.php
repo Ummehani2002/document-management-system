@@ -13,11 +13,18 @@ class Entity extends Model
 
     public const TYPE_CONSTRUCTION = 'construction';
 
-    protected $fillable = ['name', 'business_type'];
+    protected $fillable = ['name', 'short_code', 'business_type'];
 
     public function projects()
     {
         return $this->hasMany(Project::class);
+    }
+
+    public function displayCode(): string
+    {
+        $code = strtoupper(trim((string) $this->short_code));
+
+        return $code !== '' ? $code : entity_initials((string) $this->name);
     }
 
     public function isTrading(): bool

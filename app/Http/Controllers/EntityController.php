@@ -42,8 +42,10 @@ class EntityController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'short_code' => 'nullable|string|max:16|alpha_dash|unique:entities,short_code',
             'business_type' => 'required|in:trading,construction',
         ]);
+        $validated['short_code'] = $this->normalizeShortCode($validated['short_code'] ?? null);
 
         Entity::create($validated);
 
@@ -59,8 +61,10 @@ class EntityController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'short_code' => 'nullable|string|max:16|alpha_dash|unique:entities,short_code,'.$entity->id,
             'business_type' => 'required|in:trading,construction',
         ]);
+        $validated['short_code'] = $this->normalizeShortCode($validated['short_code'] ?? null);
 
         $entity->update($validated);
 
@@ -81,5 +85,12 @@ class EntityController extends Controller
             : 'Entity deleted.';
 
         return redirect()->route('entities.index')->with('success', $message);
+    }
+
+    protected function normalizeShortCode(?string $code): ?string
+    {
+        $code = strtoupper(trim((string) $code));
+
+        return $code !== '' ? $code : null;
     }
 }

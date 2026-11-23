@@ -23,6 +23,10 @@
         <label for="name">Entity Name *</label>
         <input type="text" name="name" id="name" value="{{ old('name', $entity->name) }}" placeholder="Enter entity name" required>
 
+        <label for="short_code" style="margin-top: 16px; display: block;">Short code</label>
+        <input type="text" name="short_code" id="short_code" value="{{ old('short_code', $entity->short_code) }}" placeholder="e.g. ML, SS, TQ" maxlength="16" style="text-transform: uppercase;">
+        <p style="margin: 8px 0 0; color: #64748b; font-size: 0.85rem;">Optional company code from your register (shown on Entity Master and company cards).</p>
+
         <label for="business_type" style="margin-top: 16px; display: block;">Business Type *</label>
         <select name="business_type" id="business_type" required>
             <option value="trading" @selected(old('business_type', $entity->business_type) === 'trading')>Trading</option>
