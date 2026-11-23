@@ -677,105 +677,38 @@
         }
 
         .sidebar .folder-item {
-            margin-bottom: 4px;
+            margin-bottom: 12px;
         }
 
         .sidebar .folder-toggle {
             width: 100%;
             text-align: left;
-            border: none;
-            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.04);
             color: var(--sidebar-text);
-            border-radius: 6px;
-            padding: 8px 10px;
+            border-radius: 10px;
+            padding: 12px 14px;
             font-size: 12.5px;
-            font-weight: 500;
+            font-weight: 400;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 8px;
         }
 
         .sidebar .folder-toggle:hover {
-            background: rgba(255, 255, 255, 0.08);
-        }
-
-        .sidebar .folder-toggle .folder-toggle-label {
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .sidebar .folder-toggle .folder-count {
-            color: var(--sidebar-muted);
-            font-size: 0.72rem;
-            font-weight: 500;
-            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(147, 197, 253, 0.35);
         }
 
         .sidebar .folder-toggle .caret {
-            font-size: 0.7rem;
+            font-size: 0.8rem;
             color: var(--sidebar-muted);
-            flex-shrink: 0;
-            transition: transform 0.15s ease;
         }
 
         .sidebar .folder-toggle.active {
-            background: rgba(59, 130, 246, 0.16);
+            background: var(--sidebar-active);
+            border-color: var(--accent);
             color: #fff;
-        }
-
-        .sidebar .folder-toggle.active .caret {
-            transform: rotate(180deg);
-            color: #fff;
-        }
-
-        .sidebar .folder-children {
-            list-style: none;
-            margin: 0 0 6px;
-            padding: 2px 0 4px 12px;
-            border-left: 1px solid rgba(148, 163, 184, 0.25);
-            margin-left: 12px;
-        }
-
-        .sidebar .folder-children[hidden] {
-            display: none !important;
-        }
-
-        .sidebar .folder-child-link {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-            padding: 6px 8px;
-            border-radius: 6px;
-            color: var(--sidebar-muted) !important;
-            text-decoration: none !important;
-            font-size: 0.78rem;
-            font-weight: 500;
-        }
-
-        .sidebar .folder-child-link:hover,
-        .sidebar .folder-child-link.is-active {
-            background: rgba(255, 255, 255, 0.08);
-            color: #fff !important;
-        }
-
-        .sidebar .folder-child-link .folder-count {
-            color: inherit;
-            opacity: 0.75;
-            font-size: 0.7rem;
-        }
-
-        .sidebar-title {
-            margin: 0 0 10px;
-            padding: 0 4px;
-            color: var(--sidebar-muted);
-            font-size: 0.68rem;
-            font-weight: 600;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
         }
 
         .folder-blocks-main {
@@ -1066,84 +999,33 @@
         <aside class="sidebar">
             @php
                 $accessService = app(\App\Services\DocumentAccessService::class);
-                $sidebarEntityId = (int) ($currentEntityId ?? $currentEntity->id);
                 $sidebarTree = $accessService->accessibleSidebarFolderTree(
                     auth()->user(),
-                    $sidebarEntityId
+                    (int) ($currentEntityId ?? $currentEntity->id)
                 );
-                $typeCounts = \App\Models\Document::query()
-                    ->where('entity_id', $sidebarEntityId)
-                    ->whereNotNull('document_type')
-                    ->selectRaw('document_type, COUNT(*) as aggregate')
-                    ->groupBy('document_type')
-                    ->pluck('aggregate', 'document_type');
                 $sidebarFolders = collect($sidebarTree)
-                    ->map(function (array $items, string $name) use ($typeCounts): array {
-                        $itemRows = collect($items)->map(function (string $item) use ($typeCounts): array {
-                            return [
-                                'name' => $item,
-                                'count' => (int) ($typeCounts[$item] ?? 0),
-                            ];
-                        })->all();
-
-                        return [
-                            'name' => $name,
-                            'items' => $itemRows,
-                            'count' => collect($itemRows)->sum('count'),
-                        ];
-                    })
+                    ->map(fn (array $items, string $name): array => ['name' => $name, 'items' => $items])
                     ->values()
                     ->all();
-                $params = request();
-                $currentMainFolder = (string) $params->input('main_folder', '');
-                $currentSubfolder = (string) $params->input('document_type', '');
             @endphp
 
             <div class="sidebar-shell">
-                <p class="sidebar-title">Folders</p>
                 <ul class="folder-menu" id="folderMenu">
                     @forelse($sidebarFolders as $index => $folder)
-                        @php
-                            $isOpen = $currentMainFolder === $folder['name']
-                                || ($currentSubfolder !== '' && collect($folder['items'])->contains(fn ($row) => $row['name'] === $currentSubfolder));
-                        @endphp
                         <li class="folder-item">
                             <button
                                 type="button"
-                                class="folder-toggle{{ $isOpen ? ' active' : '' }}"
+                                class="folder-toggle"
                                 data-folder-toggle
                                 data-folder-index="{{ $index }}"
-                                aria-expanded="{{ $isOpen ? 'true' : 'false' }}"
+                                aria-expanded="false"
                             >
-                                <span class="folder-toggle-label">{{ $folder['name'] }}</span>
-                                <span class="folder-count">{{ number_format($folder['count']) }}</span>
-                                <span class="caret" aria-hidden="true">&#9662;</span>
+                                <span>{{ $folder['name'] }}</span>
+                                <span class="caret">&#9662;</span>
                             </button>
-                            <ul class="folder-children" data-folder-children="{{ $index }}" @if(! $isOpen) hidden @endif>
-                                <li>
-                                    <a
-                                        class="folder-child-link{{ $currentMainFolder === $folder['name'] && $currentSubfolder === '' ? ' is-active' : '' }}"
-                                        href="{{ route('documents.search', array_filter(['from_sidebar' => 1, 'main_folder' => $folder['name'], 'entity_id' => $sidebarEntityId, 'project_id' => request('project_id') ?: null])) }}"
-                                    >
-                                        <span>All {{ $folder['name'] }}</span>
-                                        <span class="folder-count">{{ number_format($folder['count']) }}</span>
-                                    </a>
-                                </li>
-                                @foreach($folder['items'] as $item)
-                                    <li>
-                                        <a
-                                            class="folder-child-link{{ $currentSubfolder === $item['name'] ? ' is-active' : '' }}"
-                                            href="{{ route('documents.search', array_filter(['from_sidebar' => 1, 'main_folder' => $folder['name'], 'document_type' => $item['name'], 'entity_id' => $sidebarEntityId, 'project_id' => request('project_id') ?: null])) }}"
-                                        >
-                                            <span>{{ $item['name'] }}</span>
-                                            <span class="folder-count">{{ number_format($item['count']) }}</span>
-                                        </a>
-                                    </li>
-                                @endforeach
-                            </ul>
                         </li>
                     @empty
-                        <li class="folder-item" style="color:var(--sidebar-muted);font-size:0.85rem;padding:8px 4px;">
+                        <li class="folder-item" style="color:var(--text-muted);font-size:0.85rem;padding:8px 4px;">
                             No folders available for your access.
                         </li>
                     @endforelse
@@ -1152,6 +1034,12 @@
         </aside>
     @endif
     <main class="main-content">
+        <div id="folderBlocksMain" class="folder-blocks-main" hidden>
+            <div class="folder-blocks-main-inner">
+                <h2 class="folder-blocks-main-heading" id="folderBlocksTitle">Document types</h2>
+                <div class="folder-blocks-main-grid" id="folderBlocksGrid"></div>
+            </div>
+        </div>
         <div class="container" id="mainPageContainer">
             @yield('content')
         </div>
@@ -1160,31 +1048,146 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        var folderData = @json($sidebarFolders ?? []);
         var toggles = document.querySelectorAll('.sidebar [data-folder-toggle]');
-        if (!toggles.length) {
+        var folderBlocksMain = document.getElementById('folderBlocksMain');
+        var folderBlocksTitle = document.getElementById('folderBlocksTitle');
+        var folderBlocksGrid = document.getElementById('folderBlocksGrid');
+        var mainPageContainer = document.getElementById('mainPageContainer');
+        if (!folderBlocksMain || !folderBlocksGrid || !mainPageContainer || !toggles.length) {
             return;
+        }
+        var params = new URLSearchParams(window.location.search);
+        var currentMainFolder = params.get('main_folder') || '';
+        var currentSubfolder = params.get('document_type') || '';
+        var currentProjectId = params.get('project_id') || '';
+        var currentEntityId = @json($currentEntityId ?? (request()->filled('entity_id') ? (int) request('entity_id') : null)) || params.get('entity_id') || '';
+
+        function setFolderBlocksOpen(open) {
+            if (open) {
+                folderBlocksMain.hidden = false;
+                mainPageContainer.style.display = 'none';
+            } else {
+                folderBlocksMain.hidden = true;
+                mainPageContainer.style.display = '';
+            }
+        }
+
+        function renderSubfolders(index) {
+            var selectedFolder = folderData[index];
+            var items = selectedFolder && selectedFolder.items ? selectedFolder.items : [];
+            folderBlocksTitle.textContent = selectedFolder ? selectedFolder.name : 'Document types';
+            folderBlocksGrid.innerHTML = '';
+
+            if (!items.length) {
+                var empty = document.createElement('div');
+                empty.className = 'folder-blocks-main-empty';
+                empty.textContent = 'No document types.';
+                folderBlocksGrid.appendChild(empty);
+                return;
+            }
+
+            var allBlock = document.createElement('div');
+            allBlock.className = 'folder-block-card';
+            var allLink = document.createElement('a');
+            var allHref = '{{ route('documents.search') }}?from_sidebar=1&main_folder=' + encodeURIComponent(selectedFolder.name);
+            if (currentEntityId) {
+                allHref += '&entity_id=' + encodeURIComponent(currentEntityId);
+            }
+            if (currentProjectId) {
+                allHref += '&project_id=' + encodeURIComponent(currentProjectId);
+            }
+            allLink.href = allHref;
+            if (currentMainFolder === selectedFolder.name && !currentSubfolder) {
+                allLink.classList.add('is-active');
+            }
+            var allIcon = document.createElement('span');
+            allIcon.className = 'folder-block-icon';
+            allIcon.setAttribute('aria-hidden', 'true');
+            allIcon.textContent = '📁';
+            var allTitle = document.createElement('span');
+            allTitle.className = 'folder-block-title';
+            allTitle.textContent = 'All ' + selectedFolder.name;
+            allLink.appendChild(allIcon);
+            allLink.appendChild(allTitle);
+            allBlock.appendChild(allLink);
+            folderBlocksGrid.appendChild(allBlock);
+
+            items.forEach(function (item) {
+                var block = document.createElement('div');
+                block.className = 'folder-block-card';
+                var link = document.createElement('a');
+                var href = '{{ route('documents.search') }}?from_sidebar=1&main_folder=' + encodeURIComponent(selectedFolder.name) + '&document_type=' + encodeURIComponent(item);
+                if (currentEntityId) {
+                    href += '&entity_id=' + encodeURIComponent(currentEntityId);
+                }
+                if (currentProjectId) {
+                    href += '&project_id=' + encodeURIComponent(currentProjectId);
+                }
+                link.href = href;
+                var icon = document.createElement('span');
+                icon.className = 'folder-block-icon';
+                icon.setAttribute('aria-hidden', 'true');
+                icon.textContent = '📁';
+                var titleEl = document.createElement('span');
+                titleEl.className = 'folder-block-title';
+                titleEl.textContent = item;
+                link.appendChild(icon);
+                link.appendChild(titleEl);
+                if (currentSubfolder && currentSubfolder === item) {
+                    link.classList.add('is-active');
+                }
+                block.appendChild(link);
+                folderBlocksGrid.appendChild(block);
+            });
         }
 
         toggles.forEach(function (toggle) {
             toggle.addEventListener('click', function () {
-                var index = toggle.getAttribute('data-folder-index');
-                var children = document.querySelector('.sidebar [data-folder-children="' + index + '"]');
-                var willOpen = !toggle.classList.contains('active');
+                var folderIndex = toggle.getAttribute('data-folder-index');
+
+                if (toggle.classList.contains('active')) {
+                    toggle.classList.remove('active');
+                    toggle.setAttribute('aria-expanded', 'false');
+                    setFolderBlocksOpen(false);
+                    return;
+                }
 
                 toggles.forEach(function (btn) {
                     btn.classList.remove('active');
                     btn.setAttribute('aria-expanded', 'false');
-                    var other = document.querySelector('.sidebar [data-folder-children="' + btn.getAttribute('data-folder-index') + '"]');
-                    if (other) other.hidden = true;
                 });
 
-                if (willOpen) {
-                    toggle.classList.add('active');
-                    toggle.setAttribute('aria-expanded', 'true');
-                    if (children) children.hidden = false;
-                }
+                toggle.classList.add('active');
+                toggle.setAttribute('aria-expanded', 'true');
+                renderSubfolders(folderIndex);
+                setFolderBlocksOpen(true);
             });
         });
+
+        if (currentMainFolder && !currentSubfolder) {
+            var folderIndexOpen = folderData.findIndex(function (folder) {
+                return folder.name === currentMainFolder;
+            });
+            if (folderIndexOpen >= 0 && toggles[folderIndexOpen]) {
+                toggles.forEach(function (btn) {
+                    btn.classList.remove('active');
+                    btn.setAttribute('aria-expanded', 'false');
+                });
+                toggles[folderIndexOpen].classList.add('active');
+                toggles[folderIndexOpen].setAttribute('aria-expanded', 'true');
+                renderSubfolders(String(folderIndexOpen));
+                setFolderBlocksOpen(true);
+            }
+        } else if (currentSubfolder) {
+            var inferredIndex = folderData.findIndex(function (folder) {
+                return Array.isArray(folder.items) && folder.items.indexOf(currentSubfolder) !== -1;
+            });
+            if (inferredIndex >= 0 && toggles[inferredIndex]) {
+                toggles[inferredIndex].classList.add('active');
+                toggles[inferredIndex].setAttribute('aria-expanded', 'true');
+            }
+        }
     });
 </script>
 
