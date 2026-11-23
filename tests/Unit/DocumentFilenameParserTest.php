@@ -692,7 +692,7 @@ test('code-only TVD with junk material description keeps the register and blank 
         'TVD-8674-WIM-PAR-MS-CVL-002-R00.pdf'
     );
 
-    expect($meta['reference_no'])->toBe('TVD-8674-WIM-PAR-MS-CVL-002-(00)');
+    expect($meta['reference_no'])->toBe('TVD-8674-WIM-PAR-MS-CVL-002-R00');
     expect($meta['subject'])->toBe('—');
 });
 
@@ -838,6 +838,28 @@ test('subject stops before the document type label on the next line', function (
     expect(DocumentFilenameParser::stripTrailingFormLabels(
         'Material Submittal for PC BUBBLER 1400 SERIES Document Type:'
     ))->toBe('Material Submittal for PC BUBBLER 1400 SERIES');
+});
+
+test('site filename revisions are shown on the reference', function () {
+    $cases = [
+        ['DXB2-PSP-LS-MAR-00025-00_B&W_B.pdf', null, 'DXB2-PSP-LS-MAR-00025-(00)'],
+        ['PSE2024-1011-PRS-PAR-MIR-HLS-00018 R.00 (B)_Approved as noted.pdf', null, 'PSE2024-1011-PRS-PAR-MIR-HLS-00018-(00)'],
+        ['PSE2024-1011-PRS-PAR-MIR-HLS-00006 R.00 (B)_Approved as noted.pdf', null, 'PSE2024-1011-PRS-PAR-MIR-HLS-00006-(00)'],
+        ['JH-INF-WIR-GAS-PSC-PAR-6594_00-A.pdf', null, 'JH-INF-WIR-GAS-PSC-PAR-6594-(00)'],
+        ['JH-INF-WIR-IRR-PSC-PAR-0618_02-A.pdf', "Ref. No: JH-INF-WIR-IRR-PSC-PAR-0618\nRev: 02\n", 'JH-INF-WIR-IRR-PSC-PAR-0618-(02)'],
+        ['PSE2024-1011-PRS-PAR-DT-PQ-00001 R.00 - Pre-Qualification for Axendo.pdf', null, 'PSE2024-1011-PRS-PAR-DT-PQ-00001-(00)'],
+    ];
+
+    foreach ($cases as [$file, $ocr, $expected]) {
+        $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $file);
+        expect($meta['reference_no'])->toBe($expected);
+    }
+
+    $full = DocumentFilenameParser::extractReferenceAndSubject(
+        null,
+        'PSE2024-1011-PRS-PAR-MIR-HLS-00006 R.00 (B)_Approved as noted.pdf'
+    );
+    expect(DocumentFilenameParser::referenceExtends('PSE2024-1011-PRS', $full['reference_no']))->toBeTrue();
 });
 
 test('reference includes the revision from the rev box', function () {

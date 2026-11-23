@@ -1034,7 +1034,7 @@ class DocumentFilenameParser
             return null;
         }
 
-        $pattern = '/'.preg_quote($reference, '/').'(?:\s*R\.?\s*(\d{1,2})(?!\d)|[_\-]R(?:EV(?:ISION)?)?\.?\s*(\d{1,2})(?!\d)|[_\-](\d{2})(?=[_\s(]|$))/i';
+        $pattern = '/'.preg_quote($reference, '/').'(?:\s*R\.?\s*(\d{1,2})(?!\d)|[_\-]R(?:EV(?:ISION)?)?\.?\s*(\d{1,2})(?!\d)|[_\-](\d{2})(?=[_\s(]|-[A-Za-z]|$))/i';
         if (! preg_match($pattern, $stem, $m)) {
             return null;
         }
@@ -1170,13 +1170,17 @@ class DocumentFilenameParser
         if ($current === '' || $current === '—' || $candidate === '' || $candidate === '—' || $current === $candidate) {
             return false;
         }
-        if (! str_ends_with($candidate, $current)) {
-            return false;
+        if (str_ends_with($candidate, $current)) {
+            $at = strlen($candidate) - strlen($current);
+
+            return $at > 0 && ($candidate[$at - 1] ?? '') === '-';
+        }
+        // OCR kept only the start of the register: PSE2024-1011-PRS → …-PAR-MIR-HLS-00006.
+        if (str_starts_with($candidate, $current)) {
+            return ($candidate[strlen($current)] ?? '') === '-';
         }
 
-        $at = strlen($candidate) - strlen($current);
-
-        return $at > 0 && $candidate[$at - 1] === '-';
+        return false;
     }
 
     protected static function looksLikeDateToken(string $value): bool
@@ -2010,6 +2014,19 @@ class DocumentFilenameParser
                 // e.g. "…-00001 R.00 (B)_Approved as noted" — keep register, ignore status tail.
                 return ['reference_no' => $left, 'subject' => ''];
             }
+        }
+
+        // DXB2-PSP-LS-MAR-00025-00_B&W_B and JH-INF-WIR-GAS-PSC-PAR-6594_00-A.
+        // Do not peel LSC-MAS-0605-01_B — there the 01 is part of the register.
+        if (preg_match(
+            '/^([A-Z0-9]+(?:-[A-Z0-9]+)+)(?:-\d{2}_B&W.*|_\d{2}-[A-Z]\d?)$/iu',
+            $name,
+            $m
+        )) {
+            return [
+                'reference_no' => trim((string) $m[1]),
+                'subject' => '',
+            ];
         }
 
         return [
