@@ -4,7 +4,9 @@ use App\Models\Document;
 use App\Models\Entity;
 use App\Models\Project;
 use App\Services\DocumentMetaService;
+use App\Services\PdfFirstPageOcrService;
 use App\Support\LocalDateTime;
+use Illuminate\Support\Facades\Storage;
 
 test('displayFor repairs without throwing', function () {
     $entity = Entity::create(['name' => 'Proscape']);
@@ -85,4 +87,48 @@ test('displayFor keeps the filename document number and folder for a proscape re
     expect($meta['subject'])->toBe('Instruction to Commence Layer Works');
     expect($saved->document_type)->toBe('Work Inspection');
     expect($saved->display_folder)->toBe('Work Inspection');
+});
+
+test('displayFor rereads an employer instruction that was saved as the mail number', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put('docs/ei-page.pdf', '%PDF-1.4');
+
+    $page = <<<'TXT'
+MAIL TYPE
+Employers Instruction
+MAIL NUMBER
+AMA02012-EMPI-000086
+REFERENCE NUMBER
+AMA02012-WTRAN-180892
+Employer's Instruction_EI No. 002_012C20_PIC_Hardscape Package - Subject Instruction to Commence Layer Works to Walkways, Pathways and Decking Areas
+TXT;
+
+    $reader = Mockery::mock(PdfFirstPageOcrService::class);
+    $reader->shouldReceive('extractTextForClassification')->once()->andReturn($page);
+    app()->instance(PdfFirstPageOcrService::class, $reader);
+
+    $entity = Entity::create(['name' => 'Proscape']);
+    $project = Project::create([
+        'entity_id' => $entity->id,
+        'project_number' => 'PKE20231003',
+        'project_name' => 'Amaala',
+    ]);
+    $doc = Document::create([
+        'entity_id' => $entity->id,
+        'project_id' => $project->id,
+        'discipline' => 'Landscape',
+        'document_type' => 'Work Inspection',
+        'file_name' => '1TB02012-012C20-AMA-EMI-CM-0002 - EI Subject Instruction to Commence Layer Works.pdf',
+        'file_path' => 'docs/ei-page.pdf',
+        'reference_no' => 'AMA02012-EMPI-000086',
+        'subject' => 'Instruction to Commence Layer Works to Walkways, Pathways and Decking Areas',
+        'ocr_text' => "WORK INSPECTION REQUEST\nRef. No.: AMA02012-EMPI-000086\nSubject: Subject Instruction to Commence Layer Works to Walkways, Pathways and Decking Areas",
+    ]);
+
+    $meta = DocumentMetaService::displayFor($doc->fresh());
+    $saved = $doc->fresh();
+
+    expect($meta['reference_no'])->toBe('AMA02012-WTRAN-180892');
+    expect($saved->document_type)->toBe('Engineers Instruction');
+    expect($saved->display_folder)->toBe('Engineers Instruction');
 });

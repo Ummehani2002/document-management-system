@@ -1144,6 +1144,7 @@ class DocumentFilenameParser
      */
     protected static function explicitReferenceNumber(string $text): string
     {
+        $text = preg_replace('/(?<=[A-Z0-9])-[ \t\r\n]+(?=[A-Z0-9]{2,})/i', '-', $text) ?? $text;
         if (! preg_match('/REFERENCE\s+NUMBER/i', $text)) {
             return '';
         }
@@ -1154,10 +1155,26 @@ class DocumentFilenameParser
             $mailNumber = strtoupper((string) $mail[1]);
         }
 
-        if (preg_match('/MAIL\s+NUMBER\s+REFERENCE\s+NUMBER(.{0,800})/is', $text, $block)) {
-            $paired = self::registerCodesIn((string) $block[1]);
-            if (count($paired) >= 2) {
-                return $paired[1];
+        if (preg_match('/MAIL\s+NUMBER\s+REFERENCE\s+NUMBER/i', $text, $label, PREG_OFFSET_CAPTURE)) {
+            $pos = (int) $label[0][1];
+            $afterCodes = self::registerCodesIn(substr($text, $pos + strlen((string) $label[0][0]), 800));
+            if (count($afterCodes) >= 2) {
+                return $afterCodes[1];
+            }
+            $beforeLines = preg_split('/\R/u', substr($text, 0, $pos)) ?: [];
+            $checked = 0;
+            for ($i = count($beforeLines) - 1; $i >= 0 && $checked < 3; $i--) {
+                if (trim($beforeLines[$i]) === '') {
+                    continue;
+                }
+                $checked++;
+                $lineCodes = self::registerCodesIn($beforeLines[$i]);
+                if (count($lineCodes) >= 2) {
+                    return $lineCodes[count($lineCodes) - 1];
+                }
+            }
+            if (count($afterCodes) === 1 && ($mailNumber === '' || $afterCodes[0] !== $mailNumber)) {
+                return $afterCodes[0];
             }
         }
 

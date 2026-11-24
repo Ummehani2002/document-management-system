@@ -982,4 +982,8 @@ TXT;
     $rowFolder = DocumentFilenameParser::classifyForAutomation($filename, $row);
     expect($rowMeta['reference_no'])->toBe('AMA02012-WTRAN-180892');
     expect($rowFolder['document_category'])->toBe('Engineers Instruction');
+
+    $above = "Employers Instruction AMA02012-EMPI-000086 AMA02012-WTRAN-180892\nMAIL TYPE MAIL NUMBER REFERENCE NUMBER\nEmployer's Instruction_EI No. 002";
+    $aboveMeta = DocumentFilenameParser::extractReferenceAndSubject($above, $filename);
+    expect($aboveMeta['reference_no'])->toBe('AMA02012-WTRAN-180892');
 });

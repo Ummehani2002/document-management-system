@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Document;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Microsoft-DMS style document properties: persist Reference + Subject on upload.
@@ -18,6 +20,9 @@ class DocumentMetaService
         $storedSubject = self::normalizeStored((string) ($document->subject ?? ''));
 
         try {
+            self::rereadEmployerInstructionPage($document);
+            $storedRef = self::normalizeStored((string) ($document->reference_no ?? ''));
+            $storedSubject = self::normalizeStored((string) ($document->subject ?? ''));
             self::repairStoredFolder($document);
             [$storedRef, $storedSubject] = self::repairStoredMeta($document, $storedRef, $storedSubject);
         } catch (\Throwable $e) {
@@ -52,6 +57,84 @@ class DocumentMetaService
             'subject' => $storedSubject ?? ($parsed['subject'] ?? '—'),
         ];
     }
+
+    /**
+     * The saved text can be an earlier read that kept the mail number.
+     * Open the PDF once and keep the first page when it has the reference-number field.
+     */
+    private static function rereadEmployerInstructionPage(Document $document): void
+    {
+        if ($document->folder_locked || ! $document->exists) {
+            return;
+        }
+        if (! preg_match('/\.pdf$/i', (string) $document->file_name)) {
+            return;
+        }
+        if (self::$employerPageRereads >= 4) {
+            return;
+        }
+
+        $ocr = (string) $document->ocr_text;
+        if (preg_match('/REFERENCE\s+NUMBER/i', $ocr)) {
+            return;
+        }
+
+        $ref = (string) $document->reference_no;
+        $isMailNumber = (bool) preg_match('/-EMPI-/i', $ref);
+        $mentionsMail = (bool) preg_match('/MAIL\s+(?:TYPE|NUMBER)/i', $ocr);
+        $filedAsInspection = strcasecmp((string) $document->document_type, 'Work Inspection') === 0
+            && (bool) preg_match('/\b(?:EMI|EI)\b|INSTRUCTION/i', (string) $document->file_name);
+        if (! $isMailNumber && ! $mentionsMail && ! $filedAsInspection) {
+            return;
+        }
+
+        $cacheKey = 'dms-ei-reread:'.$document->id.':'.substr(sha1($ocr), 0, 12);
+        if (! Cache::add($cacheKey, 1, now()->addHours(12))) {
+            return;
+        }
+
+        $location = DocumentLocationResolver::resolve((string) $document->file_path);
+        if ($location === null) {
+            Cache::forget($cacheKey);
+
+            return;
+        }
+
+        self::$employerPageRereads++;
+        $tempPath = null;
+        try {
+            if ($location['source'] === 'file') {
+                $pdfPath = $location['path'];
+            } else {
+                $tempPath = tempnam(sys_get_temp_dir(), 'dms_ei_').'.pdf';
+                file_put_contents($tempPath, Storage::disk($location['disk'])->get($location['path']));
+                $pdfPath = $tempPath;
+            }
+
+            $reader = app(PdfFirstPageOcrService::class);
+            $fresh = trim($reader->extractTextForClassification($pdfPath));
+            if (! preg_match('/REFERENCE\s+NUMBER|EMPLOYER\'?S?\s+INSTRUCTION|MAIL\s+TYPE/i', $fresh)) {
+                $alt = trim($reader->extractFirstPageText($pdfPath));
+                if (preg_match('/REFERENCE\s+NUMBER|EMPLOYER\'?S?\s+INSTRUCTION|MAIL\s+TYPE/i', $alt)) {
+                    $fresh = $alt;
+                }
+            }
+            if (! preg_match('/REFERENCE\s+NUMBER|EMPLOYER\'?S?\s+INSTRUCTION|MAIL\s+TYPE/i', $fresh)) {
+                return;
+            }
+
+            $document->ocr_text = mb_substr($fresh, 0, 50000);
+            $document->save();
+        } catch (\Throwable $e) {
+            self::reportQuietly($e);
+        } finally {
+            if ($tempPath !== null && is_file($tempPath)) {
+                @unlink($tempPath);
+            }
+        }
+    }
+
+    private static int $employerPageRereads = 0;
 
     /**
      * Settle the folder from the first-page text. The filename is not used.
