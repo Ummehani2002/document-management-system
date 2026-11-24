@@ -916,7 +916,7 @@ class DocumentFilenameParser
                     if (preg_match($re, $normalized, $m)) {
                         $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
                         $candidate = preg_replace(
-                            '/\s*(?:REV(?:ISION)?|DATE|TO|FROM|CC|REGARDS|PLEASE\s+FIND|ATTACHMENTS?)\s*[:\-].*$/i',
+                            '/\s*(?:(?:REV(?:ISION)?(?:\s*(?:NO\.?|NUMBER))?\s*:)|(?:DATE|TO|FROM|CC|REGARDS|PLEASE\s+FIND|ATTACHMENTS?)\s*[:\-]).*$/i',
                             '',
                             $candidate
                         ) ?? $candidate;
@@ -965,8 +965,26 @@ class DocumentFilenameParser
             $referenceNo = $splitRef;
         }
 
+        // The filename document number wins over a different number printed inside the PDF
+        // (for example AMA02012-EMPI-000045 on a 1TB…-EMI-… file). A real form whose
+        // number is unrelated to its filename is left alone when this register code is absent.
+        $registerFolder = self::folderFromFilenameRegisterCode($nameWithoutExt);
+        if ($registerFolder !== null
+            && self::looksLikeFormReference($splitRef)
+            && ($referenceNo === '' || ! self::referencesAreSameDocument($referenceNo, $splitRef))) {
+            $referenceNo = $splitRef;
+        }
+
         if ($subject === '' && $filenameSubject !== '' && ! self::isJunkSubject($filenameSubject)) {
             $subject = $filenameSubject;
+        }
+
+        $subject = self::cleanDisplayedSubject($subject === '—' ? '' : $subject, $fileName);
+        if (($subject === '' || self::isJunkSubject($subject)) && $filenameSubject !== '') {
+            $fromFile = self::cleanDisplayedSubject($filenameSubject, $fileName);
+            if ($fromFile !== '' && ! self::isJunkSubject($fromFile)) {
+                $subject = $fromFile;
+            }
         }
 
         $subject = $subject !== '' && ! self::isJunkSubject($subject) ? $subject : '—';
@@ -1331,7 +1349,7 @@ class DocumentFilenameParser
         $stop = 'Document\s+Type\s*[:\-]?|Area\s+of\s+Use\s*[:\-]?|Specification(?:\s+Clause)?\s+Ref|Drawing\s+(?:No|Number|Ref(?:erence)?(?:\s*No)?)|Local\s+Supplier'
             .'|Received(?:\s+by)?|Enclosures?|Contractor(?:\'s)?\s+(?:Certification|Remarks)|B\.?O\.?Q\.?\s+Item'
             .'|Section\s+[A-Z0-9]|Submittal\s+Details|DWG\s*Ref|Item\s+Ref(?:\.?\s*No)?'
-            .'|Attachments?|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bScale\s*[:\-]|\bRev(?:ision)?\s*[:\-]'
+            .'|Attachments?|\bDate\b|Ref(?:erence)?\.?\s*[:\-]|\bScale\s*[:\-]|\bRev(?:ision)?\s*:'
             .'|With\s+reference|Dear\s+Sir|Date\s+of\s+Inspection|Time\s+of\s+Inspection|Discipline';
         $descriptionStop = $stop.'|Manufacturer|Purpose\s*(?:&(?:amp;)?|AND)\s*Location|Submittal\s+Checklist|Table\s+of\s+Contents'
             .'|Location\s+(?:Where\s+Item(?:\s+will\s+be\s+used)?|of\s+(?:the\s+)?(?:item|works?|area)|[A-Z0-9])'
@@ -1796,7 +1814,71 @@ class DocumentFilenameParser
             $subject
         ) ?? $subject;
 
-        return trim($subject);
+        return self::cleanDisplayedSubject(trim($subject));
+    }
+
+    /**
+     * Remove a form label or clause header that was saved as the subject.
+     */
+    public static function cleanDisplayedSubject(string $subject, string $fileName = ''): string
+    {
+        $subject = trim(preg_replace('/\s+/u', ' ', $subject) ?? $subject);
+        $subject = preg_replace('/^(?:(?:EI|EMI)\s+)?Subject\s+(?![:\-])/iu', '', $subject) ?? $subject;
+        $subject = preg_replace(
+            '/^(?:[A-Z0-9]+(?:[_-][A-Z0-9]+)*[_-])?Sub-?Clause\s+[\d.]+(?:\s*\[[^\]]{1,80}\])?\s*[-–:]\s*/iu',
+            '',
+            $subject
+        ) ?? $subject;
+        $subject = trim($subject, " \t-–:");
+
+        if ($fileName !== '' && preg_match('/^inspection\s+request\s+for\b/iu', $subject)) {
+            $folder = self::folderFromFilenameRegisterCode($fileName);
+            if (in_array($folder, ['Shop Drawing', 'As Built Drawing Submittal'], true)) {
+                return '';
+            }
+        }
+
+        return $subject;
+    }
+
+    /**
+     * Folder named by a document-number segment such as -EMI-, -ABD-, -SDW-, or -LTR-.
+     * Only a long register is locked. A short name like "LTR-0174 Taking Over Certificate" is not.
+     */
+    public static function folderFromFilenameRegisterCode(string $filename): ?string
+    {
+        $stem = strtoupper(pathinfo(trim($filename), PATHINFO_FILENAME));
+        if (! preg_match('/^([A-Z0-9]+(?:-[A-Z0-9]+){3,})/', $stem, $m)) {
+            return null;
+        }
+
+        $folders = [
+            'EMI' => 'Engineers Instruction',
+            'ABD' => 'As Built Drawing Submittal',
+            'SDW' => 'Shop Drawing',
+            'LTR' => 'Incoming Or Outgoing Letter',
+            'LOR' => 'Incoming Or Outgoing Letter',
+        ];
+        foreach (explode('-', (string) $m[1]) as $part) {
+            if (isset($folders[$part])) {
+                return $folders[$part];
+            }
+        }
+
+        return null;
+    }
+
+    public static function referencesAreSameDocument(string $left, string $right): bool
+    {
+        $left = trim($left);
+        $right = trim($right);
+        if ($left === '' || $right === '' || $left === '—' || $right === '—') {
+            return false;
+        }
+
+        return strcasecmp($left, $right) === 0
+            || self::referenceExtends($left, $right)
+            || self::referenceExtends($right, $left);
     }
 
     protected static function cleanFilenameSubject(string $subject): string
@@ -1810,7 +1892,7 @@ class DocumentFilenameParser
         $subject = preg_replace('/\s+HERE\s*$/i', '', $subject) ?? $subject;
         $subject = preg_replace('/\s*\(\d+\)\s*$/', '', $subject) ?? $subject;
 
-        return trim($subject, " \t-_,.");
+        return self::cleanDisplayedSubject(trim($subject, " \t-_,."));
     }
 
     protected static function isJunkSubject(string $value): bool
@@ -1963,6 +2045,10 @@ class DocumentFilenameParser
             return ['reference_no' => '', 'subject' => ''];
         }
 
+        // Drawing issue/status tails: 31076[AA](A), 0001[C4], 11077[CO] (B).
+        $name = preg_replace('/\s*\[[A-Z0-9]{1,4}\](?:\s*\([A-Z0-9]{1,4}\))?\s*$/iu', '', $name) ?? $name;
+        $name = trim($name);
+
         // Tanseeq: 3501B-IR-L-1822_R0_B_20260904
         // 3501B-MAR-L-026 R1_B_20260213 - Graphic Paving
         if (preg_match(
@@ -2059,6 +2145,18 @@ class DocumentFilenameParser
                 'reference_no' => trim((string) $m[1]),
                 'subject' => '',
             ];
+        }
+
+        // 1TB02012-012C20-AMA-EMI-CM-0001_Employerss Instruction_Rate of Progress
+        if (preg_match('/^([A-Z0-9]+(?:-[A-Z0-9]+){2,})_(.+)$/u', $name, $m)) {
+            $ref = trim((string) $m[1]);
+            $right = self::cleanFilenameSubject(trim(str_replace('_', ' ', (string) $m[2])));
+            if (self::looksLikeRegisterCode($ref)) {
+                return [
+                    'reference_no' => $ref,
+                    'subject' => ($right !== '' && self::looksLikeDescriptiveSubject($right)) ? $right : '',
+                ];
+            }
         }
 
         return [
@@ -2533,6 +2631,17 @@ class DocumentFilenameParser
             }
         }
 
+        // -EMI-, -ABD-, -SDW-, and -LTR- in the document number are the folder.
+        // A sentence inside the PDF must not move the file to another folder.
+        $registerFolder = self::folderFromFilenameRegisterCode($upperName);
+        if ($registerFolder !== null
+            && $category !== $registerFolder
+            && ! preg_match('/TAKING\s*OVER\s*CERTIFICATE|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|\bMOM\b/i', $upperName)) {
+            $category = $registerFolder;
+            $source = 'filename';
+            $confidence = max($confidence, 0.92);
+        }
+
         $meta = self::extractReferenceAndSubject($ocrText, $filename);
 
         return [
@@ -2789,7 +2898,7 @@ class DocumentFilenameParser
         }
 
         $codeMatches = [];
-        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|EI|RFI|BOQ|MTS|MST|MEST|MSS|MOS|MT|SDR|SDS|SD|DS|DWG|ASB|ABS|AB|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR|IR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
+        preg_match_all('/(?:^|[^A-Z0-9])(DTF|DT|TRS|TRM|MIR|WIR|EMI|EI|RFI|BOQ|MTS|MST|MEST|MSS|MOS|MT|SDW|SDR|SDS|SD|DS|DWG|ABD|ASB|ABS|AB|MAT|MSA|MAS|MB|PQ|PREQ|PREQUL|MIRR|IR)(?:[^A-Z0-9]|$)/i', $upper, $codeMatches);
         $codes = array_unique(array_map('strtoupper', $codeMatches[1] ?? []));
         $hasPrequalificationKeyword = (bool) preg_match('/PRE[\s\-]*QUALIF(?:ICATION|ICATIONS)?|\bPREQUAL\b|\bPREQ\b/i', $upper);
         $hasMethodKeyword = (bool) preg_match('/METHOD\s*STATEMENT|METHOD\s+OF\s+STATEMENT|METHOD\s*ST(?:\.|ATEMENT)?|STATEMENT\s+SUBMITTAL|\bMTS\b|\bMST\b|\bMSS\b|\bMOS\b/i', $upper);
@@ -2847,7 +2956,7 @@ class DocumentFilenameParser
         if (in_array('MIR', $codes, true) || in_array('MIRR', $codes, true)) {
             return 'Material Inspection Request';
         }
-        if (in_array('EI', $codes, true)) {
+        if (in_array('EMI', $codes, true) || in_array('EI', $codes, true)) {
             return 'Engineers Instruction';
         }
         if (in_array('RFI', $codes, true)) {
@@ -2859,10 +2968,10 @@ class DocumentFilenameParser
         if (in_array('WIR', $codes, true) || (in_array('IR', $codes, true) && ! in_array('MAT', $codes, true))) {
             return 'Work Inspection';
         }
-        if (in_array('ASB', $codes, true) || in_array('ABS', $codes, true) || in_array('AB', $codes, true)) {
+        if (in_array('ABD', $codes, true) || in_array('ASB', $codes, true) || in_array('ABS', $codes, true) || in_array('AB', $codes, true)) {
             return 'As Built Drawing Submittal';
         }
-        if (in_array('SDR', $codes, true) || in_array('SDS', $codes, true) || in_array('SD', $codes, true)) {
+        if (in_array('SDW', $codes, true) || in_array('SDR', $codes, true) || in_array('SDS', $codes, true) || in_array('SD', $codes, true)) {
             return 'Shop Drawing';
         }
         if (in_array('DWG', $codes, true)) {
@@ -3239,11 +3348,13 @@ class DocumentFilenameParser
             'Material Inspection Request' => ['%-MIR-%', '%-MIRR-%'],
             'BOQ Bill Of Quantities' => ['%-BOQ-%'],
             'Work Inspection' => ['%-WIR-%', '%-IR-L-%', '%-IR-%'],
-            'Shop Drawing' => ['%-SD-%', '%-DS-%'],
+            'Shop Drawing' => ['%-SD-%', '%-DS-%', '%-SDW-%'],
+            'Engineers Instruction' => ['%-EMI-%', '%-EI-%'],
+            'As Built Drawing Submittal' => ['%-ABD-%', '%-ASB-%', '%-ABS-%'],
+            'Incoming Or Outgoing Letter' => ['%-LTR-%', '%-LOR-%'],
             'Document Transmittal' => ['%-DTF-%', '%-TRS-%', '%-TRM-%'],
             'Request For Information' => ['%-RFI-%'],
             'Method Statement' => ['%-MST-%', '%-MTS-%', '%-MSS-%', '%-MS-%'],
-            'As Built Drawing Submittal' => ['%-ASB-%', '%-ABS-%'],
             default => [],
         };
     }

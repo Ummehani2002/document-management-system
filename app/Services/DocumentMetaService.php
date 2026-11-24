@@ -18,6 +18,7 @@ class DocumentMetaService
         $storedSubject = self::normalizeStored((string) ($document->subject ?? ''));
 
         try {
+            self::repairStoredFolder($document);
             [$storedRef, $storedSubject] = self::repairStoredMeta($document, $storedRef, $storedSubject);
         } catch (\Throwable $e) {
             self::reportQuietly($e);
@@ -53,6 +54,29 @@ class DocumentMetaService
     }
 
     /**
+     * Keep the folder named by the document number (EMI, LTR, SDW, ABD).
+     * The file on disk is left where it is; reclassification moves it later.
+     */
+    private static function repairStoredFolder(Document $document): void
+    {
+        if ($document->folder_locked || ! $document->exists) {
+            return;
+        }
+
+        $folder = DocumentFilenameParser::folderFromFilenameRegisterCode((string) $document->file_name);
+        if ($folder === null || $folder === (string) $document->document_type) {
+            return;
+        }
+
+        try {
+            $document->document_type = $folder;
+            $document->save();
+        } catch (\Throwable $e) {
+            self::reportQuietly($e);
+        }
+    }
+
+    /**
      * Fix a bad stored subject, and lengthen a short reference from the filename.
      * Full OCR is read only when the stored subject is unusable, so a normal
      * search row does not re-parse the document text.
@@ -63,10 +87,18 @@ class DocumentMetaService
     {
         $dirty = false;
         if ($storedSubject !== null) {
-            $trimmedSubject = self::normalizeStored(DocumentFilenameParser::stripTrailingFormLabels($storedSubject));
-            if ($trimmedSubject !== null && $trimmedSubject !== $storedSubject && ! DocumentFilenameParser::isUnusableSubject($trimmedSubject)) {
-                $document->subject = mb_substr($trimmedSubject, 0, 1000);
-                $storedSubject = $trimmedSubject;
+            $trimmedSubject = self::normalizeStored(DocumentFilenameParser::cleanDisplayedSubject(
+                DocumentFilenameParser::stripTrailingFormLabels($storedSubject),
+                (string) $document->file_name
+            ));
+            if ($trimmedSubject !== $storedSubject) {
+                if ($trimmedSubject !== null && ! DocumentFilenameParser::isUnusableSubject($trimmedSubject)) {
+                    $document->subject = mb_substr($trimmedSubject, 0, 1000);
+                    $storedSubject = $trimmedSubject;
+                } else {
+                    $document->subject = null;
+                    $storedSubject = null;
+                }
                 $dirty = true;
             }
         }
@@ -76,7 +108,14 @@ class DocumentMetaService
         if ($storedRef !== null) {
             $fromName = DocumentFilenameParser::extractReferenceAndSubject(null, (string) $document->file_name);
             $filenameRef = self::normalizeStored((string) ($fromName['reference_no'] ?? ''));
+            $registerFolder = DocumentFilenameParser::folderFromFilenameRegisterCode((string) $document->file_name);
             if ($filenameRef !== null && DocumentFilenameParser::referenceExtends($storedRef, $filenameRef)) {
+                $document->reference_no = mb_substr($filenameRef, 0, 255);
+                $storedRef = $filenameRef;
+                $dirty = true;
+            } elseif ($registerFolder !== null
+                && $filenameRef !== null
+                && ! DocumentFilenameParser::referencesAreSameDocument($storedRef, $filenameRef)) {
                 $document->reference_no = mb_substr($filenameRef, 0, 255);
                 $storedRef = $filenameRef;
                 $dirty = true;

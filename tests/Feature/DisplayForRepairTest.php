@@ -58,3 +58,31 @@ test('displayFor drops a document type label glued onto the subject', function (
     expect($meta['subject'])->toBe('Material Submittal for PC BUBBLER 1400 SERIES');
     expect($doc->fresh()->subject)->toBe('Material Submittal for PC BUBBLER 1400 SERIES');
 });
+
+test('displayFor keeps the filename document number and folder for a proscape register', function () {
+    $entity = Entity::create(['name' => 'Proscape']);
+    $project = Project::create([
+        'entity_id' => $entity->id,
+        'project_number' => 'PKE20231003',
+        'project_name' => 'Amaala',
+    ]);
+    $doc = Document::create([
+        'entity_id' => $entity->id,
+        'project_id' => $project->id,
+        'discipline' => 'Landscape',
+        'document_type' => 'Work Inspection',
+        'file_name' => '1TB02012-012C20-AMA-EMI-CM-0002 - EI Subject Instruction to Commence Layer Works.pdf',
+        'file_path' => 'docs/ei.pdf',
+        'reference_no' => 'AMA02012-EMPI-000086',
+        'subject' => 'Subject Instruction to Commence Layer Works',
+        'ocr_text' => "WORK INSPECTION REQUEST\nRef. No.: AMA02012-EMPI-000086",
+    ]);
+
+    $meta = DocumentMetaService::displayFor($doc->fresh());
+    $saved = $doc->fresh();
+
+    expect($meta['reference_no'])->toBe('1TB02012-012C20-AMA-EMI-CM-0002');
+    expect($meta['subject'])->toBe('Instruction to Commence Layer Works');
+    expect($saved->document_type)->toBe('Engineers Instruction');
+    expect($saved->display_folder)->toBe('Engineers Instruction');
+});
