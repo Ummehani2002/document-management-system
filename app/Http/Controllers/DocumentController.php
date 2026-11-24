@@ -1638,8 +1638,7 @@ class DocumentController extends Controller
     }
 
     /**
-     * Auto Upload: read the first page of the file, then choose the folder.
-     * Filename is only used when the page has no form title.
+     * Auto Upload: the first page chooses the folder. The filename is not used.
      *
      * @param  array<int, string>  $validSubfolders
      */
@@ -1649,7 +1648,10 @@ class DocumentController extends Controller
         if ($ocr === null) {
             $ocr = $this->extractUploadTextForClassification($file, $originalName);
         }
-        $result = DocumentFilenameParser::classifyForAutomation($originalName, $ocr);
+        if (! is_string($ocr) || trim($ocr) === '') {
+            return 'Other';
+        }
+        $result = DocumentFilenameParser::classifyForAutomation('', $ocr);
         $predicted = trim((string) ($result['document_category'] ?? 'Other'));
         if ($predicted === '' || ! in_array($predicted, $validSubfolders, true)) {
             return 'Other';

@@ -64,7 +64,7 @@ class ReclassifyDocuments extends Command
 
                 if ($metadataOnly) {
                     $result = DocumentFilenameParser::classifyForAutomation(
-                        (string) $doc->file_name,
+                        '',
                         (string) ($doc->ocr_text ?? '')
                     );
                     $newType = (string) ($result['document_category'] ?? '');

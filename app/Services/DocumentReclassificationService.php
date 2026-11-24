@@ -34,7 +34,7 @@ class DocumentReclassificationService
         ]);
 
         // Automated mixed-format classification with confidence gating.
-        $placement = DocumentFilenameParser::classifyForAutomation($document->file_name, $ocr !== '' ? $ocr : null);
+        $placement = DocumentFilenameParser::classifyForAutomation('', $ocr !== '' ? $ocr : null);
         $newCategory = $placement['document_category'] ?? 'Other';
         $confidence = (float) ($placement['confidence'] ?? 0.0);
 

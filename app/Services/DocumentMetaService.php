@@ -54,8 +54,7 @@ class DocumentMetaService
     }
 
     /**
-     * Keep the folder named by the document number (EMI, LTR, SDW, ABD).
-     * The file on disk is left where it is; reclassification moves it later.
+     * Settle the folder from the first-page text. The filename is not used.
      */
     private static function repairStoredFolder(Document $document): void
     {
@@ -63,8 +62,13 @@ class DocumentMetaService
             return;
         }
 
-        $folder = DocumentFilenameParser::folderFromFilenameRegisterCode((string) $document->file_name);
-        if ($folder === null || $folder === (string) $document->document_type) {
+        $ocr = trim((string) $document->ocr_text);
+        if ($ocr === '') {
+            return;
+        }
+
+        $folder = (string) (DocumentFilenameParser::classifyForAutomation('', $ocr)['document_category'] ?? 'Other');
+        if ($folder === '' || $folder === 'Other' || $folder === (string) $document->document_type) {
             return;
         }
 
@@ -105,19 +109,21 @@ class DocumentMetaService
 
         $subjectNeedsRepair = $storedSubject !== null && DocumentFilenameParser::isUnusableSubject($storedSubject);
 
-        if ($storedRef !== null) {
-            $fromName = DocumentFilenameParser::extractReferenceAndSubject(null, (string) $document->file_name);
-            $filenameRef = self::normalizeStored((string) ($fromName['reference_no'] ?? ''));
-            $registerFolder = DocumentFilenameParser::folderFromFilenameRegisterCode((string) $document->file_name);
-            if ($filenameRef !== null && DocumentFilenameParser::referenceExtends($storedRef, $filenameRef)) {
-                $document->reference_no = mb_substr($filenameRef, 0, 255);
-                $storedRef = $filenameRef;
+        $pageText = trim((string) $document->ocr_text);
+        if ($pageText !== '') {
+            $fromPage = DocumentFilenameParser::extractReferenceAndSubject($pageText, '');
+            $pageRef = self::normalizeStored((string) ($fromPage['reference_no'] ?? ''));
+            $pageSubject = self::normalizeStored((string) ($fromPage['subject'] ?? ''));
+            if ($pageRef !== null && $pageRef !== $storedRef) {
+                $document->reference_no = mb_substr($pageRef, 0, 255);
+                $storedRef = $pageRef;
                 $dirty = true;
-            } elseif ($registerFolder !== null
-                && $filenameRef !== null
-                && ! DocumentFilenameParser::referencesAreSameDocument($storedRef, $filenameRef)) {
-                $document->reference_no = mb_substr($filenameRef, 0, 255);
-                $storedRef = $filenameRef;
+            }
+            if ($pageSubject !== null
+                && ! DocumentFilenameParser::isUnusableSubject($pageSubject)
+                && $pageSubject !== $storedSubject) {
+                $document->subject = mb_substr($pageSubject, 0, 1000);
+                $storedSubject = $pageSubject;
                 $dirty = true;
             }
         }
@@ -125,7 +131,7 @@ class DocumentMetaService
         if ($subjectNeedsRepair) {
             $parsed = DocumentFilenameParser::extractReferenceAndSubject(
                 $document->ocr_text,
-                (string) $document->file_name
+                ''
             );
             $repaired = self::normalizeStored((string) ($parsed['subject'] ?? ''));
             if ($repaired !== null && ! DocumentFilenameParser::isUnusableSubject($repaired)) {
@@ -192,10 +198,7 @@ class DocumentMetaService
         string $source = 'ocr'
     ): array {
         $text = $ocrText !== null ? $ocrText : $document->ocr_text;
-        $parsed = DocumentFilenameParser::extractReferenceAndSubject(
-            $text,
-            (string) $document->file_name
-        );
+        $parsed = DocumentFilenameParser::extractReferenceAndSubject($text, '');
 
         $reference = $this->pickValue(
             $preferred['reference_no'] ?? null,

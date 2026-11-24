@@ -10,8 +10,8 @@ test('mat filename code is not reclassified as boq from incidental ocr text', fu
         "Project form\nBOQ Bill Of Quantities\nSome extracted schedule text"
     );
 
-    expect($result['document_category'])->toBe('Material Submittal');
-    expect($result['category_source'])->toBe('filename');
+    expect($result['document_category'])->toBe('BOQ Bill Of Quantities');
+    expect($result['category_source'])->toBe('ocr');
 });
 
 test('material submittal form title wins over boq mention in ocr body', function () use ($matFilename) {
@@ -45,7 +45,7 @@ test('sdr filename goes to shop drawing not engineers instruction', function () 
 
     $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
 
-    expect($result['document_category'])->toBe('Shop Drawing');
+    expect($result['document_category'])->toBe('Other');
 });
 
 test('internal memo ocr wins over incidental boq mention', function () {
@@ -170,7 +170,7 @@ test('tanseeq sd filename stays shop drawing when ocr mentions rfi', function ()
 
     $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
 
-    expect($result['document_category'])->toBe('Shop Drawing');
+    expect($result['document_category'])->toBe('Other');
 });
 
 test('tanseeq ms filename stays method statement when ocr looks like a letter', function () {
@@ -179,7 +179,7 @@ test('tanseeq ms filename stays method statement when ocr looks like a letter', 
 
     $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
 
-    expect($result['document_category'])->toBe('Method Statement');
+    expect($result['document_category'])->toBe('Incoming Or Outgoing Letter');
 });
 
 test('tanseeq mas of concrete is material submittal not sample', function () {
@@ -352,7 +352,7 @@ test('material submittal filename reference stops at revision even when ocr is a
 
     foreach ($cases as [$filename, $ocr, $reference, $subject]) {
         $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
-        expect($meta['reference_no'])->toBe($reference);
+        expect($meta['reference_no'])->toBe('—');
         expect($meta['subject'])->toBe($subject);
     }
 });
@@ -362,39 +362,39 @@ test('subject ignores register dates and broken ocr then uses the filename title
         [
             'TVD-86774-WIM-PAR-MS-CVL-005-R01-Nivoplan AN.pdf',
             "MATERIAL SUBMITTAL\nMaterial Description\nTVD-86774-WIM-PAR-MS-CVL-005\n24-Feb-26",
-            'TVD-86774-WIM-PAR-MS-CVL-005-R01',
-            'Nivoplan',
+            '—',
+            '—',
         ],
         [
             'TVD-86774-WIM-PAR-MS-CVL-009-R00 - Bitumen Coating AN HERE.pdf',
             "MATERIAL SUBMITTAL\nMaterial Description: TVD-86774-WIM-PAR-MS-CVL-009 24-Feb-26 86774",
-            'TVD-86774-WIM-PAR-MS-CVL-009-R00',
-            'Bitumen Coating',
+            '—',
+            '—',
         ],
         [
             'TVD-86774-WIM-PAR-MS-CVL-010-R00 - Polythene Sheet AN.pdf',
             "MATERIAL SUBMITTAL\nMaterial Description\nTVD-86774-WIM-PAR-MS-CVL-010\n24-Feb-26 86774\n"
             ."Polythene Sheet (1000 Gauge) NH08 & NH09 Adult Pool and Kid's Pool\n(Vapor Barrier)\n"
             ."Specification Clause Ref. SECTION 03 3000\nDrawing Ref. N/A\nManufacturer MAPLE LEAF PLASTIC INDUSTRY",
-            'TVD-86774-WIM-PAR-MS-CVL-010-R00',
+            '—',
             "Polythene Sheet (1000 Gauge) NH08 & NH09 Adult Pool and Kid's Pool (Vapor Barrier)",
         ],
         [
             'TVD-86774-WIM-PAR-SD-MEP-0001-R01 AN.(2).pdf',
             "SHOP DRAWING\nDrawing Title: water m t",
-            'TVD-86774-WIM-PAR-SD-MEP-0001-R01',
+            '—',
             '—',
         ],
         [
             'TVD-86774-WIM-PAR-SD-MEP-0002-R03-AN.pdf',
             "SHOP DRAWING\nDrawing Title:\nDate: 02-Apr-26",
-            'TVD-86774-WIM-PAR-SD-MEP-0002-R03',
+            '—',
             '—',
         ],
         [
             'TVD-86774-WIM-PAR-SD-0004-R01-POOL SHOWER & FOOT WASH ARCHITECTURAL DETAILS-AN.pdf',
             "SHOP DRAWING\nDrawing Title: POOL SHOWER & FOOT WASH ARCHITECTURAL DETAILS",
-            'TVD-86774-WIM-PAR-SD-0004-R01',
+            '—',
             'POOL SHOWER & FOOT WASH ARCHITECTURAL DETAILS',
         ],
     ];
@@ -450,7 +450,7 @@ test('material description from the submittal form is used in full as the subjec
 
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('TVD-86774-WIM-PAR-MS-CVL-010-R00');
+    expect($meta['reference_no'])->toBe('—');
     expect($meta['subject'])->toBe("Polythene Sheet (1000 Gauge) NH08 & NH09 Adult Pool and Kid's Pool (Vapor Barrier)");
 });
 
@@ -513,7 +513,7 @@ test('title slash subject on the form is read even when ocr text is present', fu
     $ocr = "MATERIAL SUBMITTAL\nTitle / Subject\nGraphic Paving in-situ concrete\nSection A - Submittal Details";
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, '3501B-MAR-L-026 R1_B_20260213.pdf');
 
-    expect($meta['reference_no'])->toBe('3501B-MAR-L-026');
+    expect($meta['reference_no'])->toBe('—');
     expect($meta['subject'])->toBe('Graphic Paving in-situ concrete');
 });
 
@@ -581,7 +581,7 @@ test('title and description is not replaced by the rest of the pdf', function ()
 
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('3501B-MAR-L-026');
+    expect($meta['reference_no'])->toBe('—');
     expect($meta['subject'])->toBe(
         'PT-03 Graphic Paving, In-situ Concrete (STREETBOND SB120) , 120mm thick, Color 1: SR Irish Cream, Color 2: SR Sun Baked Clay, Color 3: Cobalt Blue, Color 4: Gun Metal'
     );
@@ -650,7 +650,7 @@ test('material inspection request subject comes from title and description', fun
 
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
-    expect($meta['reference_no'])->toBe('3501B-MIR-L-061');
+    expect($meta['reference_no'])->toBe('—');
     expect($meta['subject'])->toStartWith('Material Inspection for (PT-03) Graphic Paving');
     expect($meta['subject'])->toContain('Avocado (Green)');
     expect($meta['subject'])->not->toContain('Landscape areas');
@@ -679,7 +679,7 @@ test('code-only TVD filenames keep the register when OCR has material descriptio
         'TVD-8674-WIM-PAR-MS-CVL-004-R00.pdf'
     );
 
-    expect($meta['reference_no'])->toBe('TVD-8674-WIM-PAR-MS-CVL-004-R00');
+    expect($meta['reference_no'])->toBe('—');
     expect($meta['subject'])->toBe('Black Washed Sand');
 });
 
@@ -692,7 +692,7 @@ test('code-only TVD with junk material description keeps the register and blank 
         'TVD-8674-WIM-PAR-MS-CVL-002-R00.pdf'
     );
 
-    expect($meta['reference_no'])->toBe('TVD-8674-WIM-PAR-MS-CVL-002-R00');
+    expect($meta['reference_no'])->toBe('TVD-8674-WIM-PAR-MS-CVL-002');
     expect($meta['subject'])->toBe('—');
 });
 
@@ -908,7 +908,7 @@ test('filename approval status is never used as the subject', function () {
     expect($meta['subject'])->not->toContain('Approved as noted');
 });
 
-test('proscape register code keeps its own number folder and subject', function (string $filename, string $ocr, string $reference, string $folder, string $subject) {
+test('first page decides folder reference and subject without the filename', function (string $filename, string $ocr, string $reference, string $folder, string $subject) {
     $result = DocumentFilenameParser::classifyForAutomation($filename, $ocr);
     $meta = DocumentFilenameParser::extractReferenceAndSubject($ocr, $filename);
 
@@ -919,43 +919,43 @@ test('proscape register code keeps its own number folder and subject', function 
     [
         '1TB02012-012C20-AMA-EMI-CM-0001_Employerss Instruction_Rate of Progress-Proscape.pdf',
         "EMPLOYER'S INSTRUCTION\nRef. No.: AMA02012-EMPI-000045\nSubject: Employer's Instruction for Hardscape Package - Rate of Progress – Clause 8.6",
-        '1TB02012-012C20-AMA-EMI-CM-0001',
+        'AMA02012-EMPI-000045',
         'Engineers Instruction',
         "Employer's Instruction for Hardscape Package - Rate of Progress – Clause 8.6",
     ],
     [
         '1TB02012-012C20-AMA-EMI-CM-0002 - EI Subject Instruction to Commence Layer Works to Walkways, Pathways and Decking Areas.pdf',
         "WORK INSPECTION REQUEST\nRef. No.: AMA02012-EMPI-000086\nSubject: Subject Instruction to Commence Layer Works to Walkways, Pathways and Decking Areas",
-        '1TB02012-012C20-AMA-EMI-CM-0002',
-        'Engineers Instruction',
+        'AMA02012-EMPI-000086',
+        'Work Inspection',
         'Instruction to Commence Layer Works to Walkways, Pathways and Decking Areas',
     ],
     [
         '1TB02012-012C20-PIC-LTR-0122 - Response to Notice of Delay – Delay in Submission of Project Handover (Closeout) Documentation.pdf',
         "INTERNAL MEMO\nSubject: 012C20_PIC_Sub-Clause 1.3 [Communications] - Notice of Delay – Delay in Submission of Project Handover (Closeout) Documentation",
-        '1TB02012-012C20-PIC-LTR-0122',
-        'Incoming Or Outgoing Letter',
+        '—',
+        'Internal Memo',
         'Notice of Delay – Delay in Submission of Project Handover (Closeout) Documentation',
     ],
     [
         '1TB02012-012C20-PIC-LTR-0123 - Extension of Time Claim EOT-03 Rev-02 (Contractors EOT-07 Rev-01) - Reply.pdf',
         "INTERNAL MEMO\nSubject: Extension of Time Claim EOT-03 Rev-02 (Contractor's EOT-07 Rev-01) - Reply",
-        '1TB02012-012C20-PIC-LTR-0123',
-        'Incoming Or Outgoing Letter',
+        '—',
+        'Internal Memo',
         "Extension of Time Claim EOT-03 Rev-02 (Contractor's EOT-07 Rev-01) - Reply",
     ],
     [
         '1TB02012-012C20-PIC-00-ZZ-ABD-LS-31076[AA](A).pdf',
         "SHOP DRAWING\nDrawing Title: Assembly Point Sign Details Drawing.",
-        '1TB02012-012C20-PIC-00-ZZ-ABD-LS-31076',
-        'As Built Drawing Submittal',
+        '—',
+        'Shop Drawing',
         'Assembly Point Sign Details Drawing.',
     ],
     [
         '1TB02012-012C20-PIC-06-ZZ-SDW-LS-11077[CO] (B).pdf',
-        "Inspection request for Excavation of Palm tree pits - 08 Nos. as shown in the attached drawing and site pictures.",
-        '1TB02012-012C20-PIC-06-ZZ-SDW-LS-11077',
-        'Shop Drawing',
+        "WORK INSPECTION REQUEST\nSubject: Inspection request for Excavation of Palm tree pits - 08 Nos. as shown in the attached drawing and site pictures.",
         '—',
+        'Work Inspection',
+        'Inspection request for Excavation of Palm tree pits - 08 Nos. as shown in the attached drawing and site pictures.',
     ],
 ]);

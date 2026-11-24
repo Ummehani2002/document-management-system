@@ -81,8 +81,8 @@ test('displayFor keeps the filename document number and folder for a proscape re
     $meta = DocumentMetaService::displayFor($doc->fresh());
     $saved = $doc->fresh();
 
-    expect($meta['reference_no'])->toBe('1TB02012-012C20-AMA-EMI-CM-0002');
+    expect($meta['reference_no'])->toBe('AMA02012-EMPI-000086');
     expect($meta['subject'])->toBe('Instruction to Commence Layer Works');
-    expect($saved->document_type)->toBe('Engineers Instruction');
-    expect($saved->display_folder)->toBe('Engineers Instruction');
+    expect($saved->document_type)->toBe('Work Inspection');
+    expect($saved->display_folder)->toBe('Work Inspection');
 });

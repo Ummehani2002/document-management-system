@@ -827,7 +827,10 @@ class DocumentDirectUploadController extends Controller
         )));
 
         $ocr = is_string($extractedText) && trim($extractedText) !== '' ? trim($extractedText) : null;
-        $result = DocumentFilenameParser::classifyForAutomation($originalName, $ocr);
+        if ($ocr === null) {
+            return ['category' => 'Other', 'key' => $key];
+        }
+        $result = DocumentFilenameParser::classifyForAutomation('', $ocr);
         $category = trim((string) ($result['document_category'] ?? 'Other'));
         if ($category === '' || ! in_array($category, $validSubfolders, true)) {
             $category = 'Other';

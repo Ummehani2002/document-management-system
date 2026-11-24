@@ -99,7 +99,7 @@ class DocumentFilenameParser
             return 'Other';
         }
 
-        $normalized = self::normalizeOcrText($text);
+        $normalized = self::stripLegendLines(self::normalizeOcrText($text));
         // Pre-qualification forms often say "laboratory testing" — that is not T&C.
         // A Material Submittal banner must not be stolen by a weak PRE-Q match.
         if (self::textLooksLikePrequalification($normalized) && ! self::textLooksLikeMaterialSubmittal($normalized)) {
@@ -286,7 +286,7 @@ class DocumentFilenameParser
             if (preg_match('/REQUEST\s+FOR\s+INFORMATION/', $u)) {
                 return 'Request For Information';
             }
-            if (preg_match('/ENGINEER\S*\s*INSTRUCTION/', $u)) {
+            if (preg_match('/ENGINEER\S*\s*INSTRUCTION|EMPLOYER\'?S?\s+INSTRUCTION/', $u)) {
                 return 'Engineers Instruction';
             }
             if (preg_match('/PRE[\s\-]*QUALIF/', $u)) {
@@ -317,7 +317,7 @@ class DocumentFilenameParser
      */
     protected static function guessSubfolderFromOcrHeadingsOnly(string $text): string
     {
-        $normalized = self::normalizeOcrText($text);
+        $normalized = self::stripLegendLines(self::normalizeOcrText($text));
         if (self::textLooksLikePrequalification($normalized) && ! self::textLooksLikeMaterialSubmittal($normalized)) {
             return 'Prequalification';
         }
@@ -545,6 +545,14 @@ class DocumentFilenameParser
     }
 
     /**
+     * Drop drawing-legend rows such as "EI = Engineers Instruction".
+     */
+    protected static function stripLegendLines(string $text): string
+    {
+        return preg_replace('/(?:^|\n)\s*[A-Z]{1,8}\s*=\s*[^\n]+/u', "\n", $text) ?? $text;
+    }
+
+    /**
      * True when OCR looks like an Engineers Instruction document, not a drawing legend.
      */
     protected static function looksLikeEngineersInstructionDocument(string $text): bool
@@ -557,7 +565,7 @@ class DocumentFilenameParser
             $upper
         ) ?? $upper;
 
-        if (preg_match('/(?:^|\n)\s*ENGINEER\S*\s*INSTRUCTION\b/u', $upper)) {
+        if (preg_match('/(?:^|\n)\s*(?:ENGINEER\S*\s*INSTRUCTION|EMPLOYER\'?S?\s+INSTRUCTION)\b/u', $upper)) {
             return true;
         }
 
@@ -950,37 +958,13 @@ class DocumentFilenameParser
                 : (self::looksLikeFormReference($fromName['reference_no'])
                     ? $fromName['reference_no']
                     : (self::looksLikeFormReference($nameWithoutExt) ? $nameWithoutExt : ($referenceNo !== '' ? $referenceNo : $nameWithoutExt)));
-        } elseif (! self::looksLikeFormReference($referenceNo)) {
-            // Prefer a real register/project code from the filename even when it is the whole stem
-            // (e.g. TVD-…-004-R00.pdf) or a project id (PSE20241028 - …).
-            $splitRef = trim((string) ($fromName['reference_no'] ?? ''));
-            if (self::looksLikeFormReference($splitRef) || self::looksLikeProjectDocumentCode($splitRef)) {
-                $referenceNo = $splitRef;
+            if ($subject === '' && $filenameSubject !== '' && ! self::isJunkSubject($filenameSubject)) {
+                $subject = $filenameSubject;
             }
         }
 
-        // OCR often wraps PSE2024-1011-PRS- / PAR-MIR-HLS-00042 and keeps only the tail.
-        $splitRef = trim((string) ($fromName['reference_no'] ?? ''));
-        if (self::referenceExtends($referenceNo, $splitRef)) {
-            $referenceNo = $splitRef;
-        }
-
-        // The filename document number wins over a different number printed inside the PDF
-        // (for example AMA02012-EMPI-000045 on a 1TB…-EMI-… file). A real form whose
-        // number is unrelated to its filename is left alone when this register code is absent.
-        $registerFolder = self::folderFromFilenameRegisterCode($nameWithoutExt);
-        if ($registerFolder !== null
-            && self::looksLikeFormReference($splitRef)
-            && ($referenceNo === '' || ! self::referencesAreSameDocument($referenceNo, $splitRef))) {
-            $referenceNo = $splitRef;
-        }
-
-        if ($subject === '' && $filenameSubject !== '' && ! self::isJunkSubject($filenameSubject)) {
-            $subject = $filenameSubject;
-        }
-
         $subject = self::cleanDisplayedSubject($subject === '—' ? '' : $subject, $fileName);
-        if (($subject === '' || self::isJunkSubject($subject)) && $filenameSubject !== '') {
+        if ($ocr === '' && ($subject === '' || self::isJunkSubject($subject)) && $filenameSubject !== '') {
             $fromFile = self::cleanDisplayedSubject($filenameSubject, $fileName);
             if ($fromFile !== '' && ! self::isJunkSubject($fromFile)) {
                 $subject = $fromFile;
@@ -1831,13 +1815,6 @@ class DocumentFilenameParser
         ) ?? $subject;
         $subject = trim($subject, " \t-–:");
 
-        if ($fileName !== '' && preg_match('/^inspection\s+request\s+for\b/iu', $subject)) {
-            $folder = self::folderFromFilenameRegisterCode($fileName);
-            if (in_array($folder, ['Shop Drawing', 'As Built Drawing Submittal'], true)) {
-                return '';
-            }
-        }
-
         return $subject;
     }
 
@@ -2294,14 +2271,16 @@ class DocumentFilenameParser
      */
     public static function classifyForAutomation(string $filename, ?string $ocrText): array
     {
-        $fileCategory = self::parse($filename)['document_category'] ?? 'Other';
         $ocr = trim(self::sanitizeOcrText((string) $ocrText));
         if (strlen($ocr) > 25000) {
             $ocr = substr($ocr, 0, 25000);
         }
+        // Once the first page has been read, the filename is not evidence.
+        $rulesName = $ocr !== '' ? '' : $filename;
+        $fileCategory = self::parse($rulesName)['document_category'] ?? 'Other';
         $contentCategory = $ocr !== '' ? self::guessSubfolderFromDocumentText($ocr) : 'Other';
         $ocrHeadlineCategory = $ocr !== '' ? self::guessSubfolderFromOcrHeadingsOnly($ocr) : 'Other';
-        $upperName = strtoupper(pathinfo($filename, PATHINFO_FILENAME));
+        $upperName = strtoupper(pathinfo($rulesName, PATHINFO_FILENAME));
         $hasStrongShopDrawingSignal = self::filenameHasShopDrawingCode($upperName)
             || (bool) preg_match(
                 '/(?:^|[^A-Z0-9])(?:SD|SDR)(?:[^A-Z0-9]|$)|SHOP\s*DRAWING\s*SUBMITTAL|SHOP\s*DRAWING|\bDWG\b|(?:^|[^A-Z0-9])DS[-_]\d{2,}[-_]\d{2,}|CODE\s+[A-Z0-9]/iu',
@@ -2623,7 +2602,11 @@ class DocumentFilenameParser
         // Fallback for Folder Master names that have no hard-coded OCR/filename rules:
         // if still unclassified, match subfolder names from the DB tree against filename/OCR.
         if ($category === 'Other') {
-            $catalogMatch = self::matchCatalogSubfolderName($filename, $ocr !== '' ? $ocr : null);
+            try {
+                $catalogMatch = self::matchCatalogSubfolderName($rulesName, $ocr !== '' ? $ocr : null);
+            } catch (\Throwable) {
+                $catalogMatch = null;
+            }
             if ($catalogMatch !== null) {
                 $category = $catalogMatch['category'];
                 $source = 'catalog_name';
@@ -2631,18 +2614,7 @@ class DocumentFilenameParser
             }
         }
 
-        // -EMI-, -ABD-, -SDW-, and -LTR- in the document number are the folder.
-        // A sentence inside the PDF must not move the file to another folder.
-        $registerFolder = self::folderFromFilenameRegisterCode($upperName);
-        if ($registerFolder !== null
-            && $category !== $registerFolder
-            && ! preg_match('/TAKING\s*OVER\s*CERTIFICATE|MINUTES\s+OF\s+(?:PROGRESS\s+)?MEETING|\bMOM\b/i', $upperName)) {
-            $category = $registerFolder;
-            $source = 'filename';
-            $confidence = max($confidence, 0.92);
-        }
-
-        $meta = self::extractReferenceAndSubject($ocrText, $filename);
+        $meta = self::extractReferenceAndSubject($ocrText, $rulesName);
 
         return [
             'document_category' => $category,
@@ -3269,8 +3241,8 @@ class DocumentFilenameParser
         }
 
         $ocr = is_string($ocrText) && trim($ocrText) !== '' ? $ocrText : null;
-        if ($ocr !== null && $fileName !== null && $fileName !== '') {
-            $auto = self::classifyForAutomation($fileName, $ocr);
+        if ($ocr !== null) {
+            $auto = self::classifyForAutomation('', $ocr);
             $autoCat = (string) ($auto['document_category'] ?? '');
             $autoConf = (float) ($auto['confidence'] ?? 0);
             if ($autoCat === 'Incoming Or Outgoing Letter' && self::textLooksLikePaymentApplication($ocr)) {
@@ -3284,22 +3256,6 @@ class DocumentFilenameParser
             }
 
             return $type;
-        }
-
-        if ($fileName !== null && $fileName !== '') {
-            $parsed = self::parse($fileName);
-            $cat = $parsed['document_category'] ?? null;
-            if ($cat !== null && $cat !== '' && $cat !== 'Other') {
-                if ($cat === 'Incoming Or Outgoing Letter'
-                    && $type !== null
-                    && $type !== ''
-                    && $type !== 'Other'
-                    && $type !== 'Incoming Or Outgoing Letter') {
-                    return $type;
-                }
-
-                return $cat;
-            }
         }
 
         return $type;
