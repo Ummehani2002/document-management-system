@@ -959,3 +959,27 @@ test('first page decides folder reference and subject without the filename', fun
         'Inspection request for Excavation of Palm tree pits - 08 Nos. as shown in the attached drawing and site pictures.',
     ],
 ]);
+
+test('employer instruction keeps the reference number and not the mail number', function () {
+    $filename = '1TB02012-012C20-AMA-EMI-CM-0002 - EI Subject Instruction to Commence Layer Works to Walkways, Pathways and Decking Areas.pdf';
+    $stacked = <<<'TXT'
+MAIL TYPE
+Employers Instruction
+MAIL NUMBER
+AMA02012-EMPI-000086
+REFERENCE NUMBER
+AMA02012-WTRAN-180892
+Employer's Instruction_EI No. 002_012C20_PIC_Hardscape Package - Subject Instruction to Commence Layer Works to Walkways, Pathways and Decking Areas
+Please arrange the work inspection for the layer works.
+TXT;
+    $stackedMeta = DocumentFilenameParser::extractReferenceAndSubject($stacked, $filename);
+    $stackedFolder = DocumentFilenameParser::classifyForAutomation($filename, $stacked);
+    expect($stackedMeta['reference_no'])->toBe('AMA02012-WTRAN-180892');
+    expect($stackedFolder['document_category'])->toBe('Engineers Instruction');
+
+    $row = "MAIL TYPE MAIL NUMBER REFERENCE NUMBER\nEmployers Instruction AMA02012-EMPI-000086 AMA02012-WTRAN-180892\nEmployer's Instruction_EI No. 002_012C20_PIC_Hardscape Package";
+    $rowMeta = DocumentFilenameParser::extractReferenceAndSubject($row, $filename);
+    $rowFolder = DocumentFilenameParser::classifyForAutomation($filename, $row);
+    expect($rowMeta['reference_no'])->toBe('AMA02012-WTRAN-180892');
+    expect($rowFolder['document_category'])->toBe('Engineers Instruction');
+});

@@ -119,6 +119,10 @@ class DocumentFilenameParser
         if (preg_match('/PROJECT\s+AWARD\s+NOTIFICATION|\bPAN\s*REPORT\b|\bPANREPORT\b|\(\s*PAN\s*\)/iu', $normalized)) {
             return 'Project Award Notification';
         }
+        $employerInstruction = self::folderFromEmployerInstruction($normalized);
+        if ($employerInstruction !== 'Other') {
+            return $employerInstruction;
+        }
         // Banner titles win before body mentions like "approved shop drawings" or checklist "TOC".
         if (preg_match('/WORK\s*INSPECTION\s*REQUEST|(?:^|\n)\s*WIR\b/iu', $normalized)) {
             return 'Work Inspection';
@@ -244,6 +248,10 @@ class DocumentFilenameParser
     protected static function extractFormBannerCategory(string $text): string
     {
         $head = substr(self::normalizeOcrText($text), 0, 2500);
+        $employerInstruction = self::folderFromEmployerInstruction($head);
+        if ($employerInstruction !== 'Other') {
+            return $employerInstruction;
+        }
         $lines = preg_split('/\n+/u', $head) ?: [];
         $checked = 0;
         foreach ($lines as $line) {
@@ -326,6 +334,10 @@ class DocumentFilenameParser
         }
         if (self::textLooksLikeTestingAndCommissioningLoose($normalized)) {
             return 'Testing And Commissioning';
+        }
+        $employerInstruction = self::folderFromEmployerInstruction($normalized);
+        if ($employerInstruction !== 'Other') {
+            return $employerInstruction;
         }
         $head = substr($normalized, 0, min(1200, strlen($normalized)));
         if (preg_match('/WORK\s*INSPECTION\s*REQUEST|(?:^|\n)\s*WIR\b/iu', $head)) {
@@ -886,6 +898,8 @@ class DocumentFilenameParser
         if ($ocr !== '') {
             $normalized = self::normalizeOcrText($ocr);
 
+            $referenceNo = self::explicitReferenceNumber($normalized);
+
             $referencePatterns = [
                 '/(?:^|\n)\s*IR\s*REF(?:ERENCE)?\s*(?:NO\.?|NUMBER|#)\s*[:\-]?\s*(.{0,220})/is',
                 '/(?:^|\n)\s*(?:WIR|IR)\s*(?:NO\.?|NUMBER|#|REF(?:ERENCE)?)\s*[:\-]?\s*(.{0,220})/is',
@@ -899,6 +913,9 @@ class DocumentFilenameParser
                 '/(?:^|\n)\s*DOC(?:UMENT)?\s*TRANS(?:\.|MITTAL)?\s*NO\.?\s*[:\-]?\s*(.{0,220})/is',
             ];
             foreach ($referencePatterns as $re) {
+                if ($referenceNo !== '') {
+                    break;
+                }
                 if (preg_match($re, $normalized, $m, PREG_OFFSET_CAPTURE)) {
                     $prefix = strtoupper(substr($normalized, max(0, (int) $m[0][1] - 40), 40));
                     if (preg_match('/(?:CONTRACT|DRAWING|DWG|SPEC(?:IFICATION)?|SPC|BQ|COC|SUBMITTAL|APPROVAL)\s*$/', trim($prefix))) {
@@ -1120,6 +1137,83 @@ class DocumentFilenameParser
 
         return (bool) preg_match('/^(?:PSE|WME|TVD|PRO|PRJ|IMO|MEM|DMS)[A-Z0-9]*\d{5,}$/i', $value)
             || (bool) preg_match('/^[A-Z]{2,6}\d{6,12}$/i', $value);
+    }
+
+    /**
+     * Aconex header: REFERENCE NUMBER is the document reference. MAIL NUMBER is not.
+     */
+    protected static function explicitReferenceNumber(string $text): string
+    {
+        if (! preg_match('/REFERENCE\s+NUMBER/i', $text)) {
+            return '';
+        }
+
+        $mailNumber = '';
+        if (preg_match('/MAIL\s+NUMBER\s*[:\-]?\s*(?:\R\s*)?([A-Z0-9]+(?:[-_\/][A-Z0-9]+){2,})/i', $text, $mail)
+            && self::looksLikeFormReference((string) $mail[1])) {
+            $mailNumber = strtoupper((string) $mail[1]);
+        }
+
+        if (preg_match('/MAIL\s+NUMBER\s+REFERENCE\s+NUMBER(.{0,800})/is', $text, $block)) {
+            $paired = self::registerCodesIn((string) $block[1]);
+            if (count($paired) >= 2) {
+                return $paired[1];
+            }
+        }
+
+        if (! preg_match('/REFERENCE\s+NUMBER(.{0,500})/is', $text, $after)) {
+            return '';
+        }
+        foreach (self::registerCodesIn((string) $after[1]) as $code) {
+            if ($mailNumber !== '' && $code === $mailNumber) {
+                continue;
+            }
+
+            return $code;
+        }
+
+        return '';
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected static function registerCodesIn(string $blob): array
+    {
+        if (! preg_match_all('/[A-Z0-9]+(?:[-_\/][A-Z0-9]+){2,}/i', $blob, $found)) {
+            return [];
+        }
+        $codes = [];
+        foreach ($found[0] as $code) {
+            $code = strtoupper(trim((string) $code));
+            if ($code !== '' && self::looksLikeFormReference($code) && ! self::looksLikeDateToken($code)) {
+                $codes[] = $code;
+            }
+        }
+
+        return $codes;
+    }
+
+    /**
+     * Mail Type "Employers Instruction" is the folder, even if the letter mentions an inspection.
+     */
+    protected static function folderFromEmployerInstruction(string $text): string
+    {
+        $head = substr($text, 0, 2500);
+        if (preg_match('/MAIL\s+TYPE\s*[:\-]?\s*(?:\R\s*)?([^\n]{0,80})/i', $head, $mailType)) {
+            $value = strtoupper(trim((string) $mailType[1]));
+            if (preg_match('/(?:EMPLOYER|ENGINEER)\'?S?\s+INSTRUCTION/', $value)) {
+                return 'Engineers Instruction';
+            }
+        }
+        if (preg_match('/(?:^|\n)\s*(?:EMPLOYER|ENGINEER)\'?S?\s+INSTRUCTION\b/i', $head)) {
+            return 'Engineers Instruction';
+        }
+        if (preg_match('/(?:EMPLOYER|ENGINEER)\'?S?\s+INSTRUCTION(?:_|\s*[-–])/i', $head)) {
+            return 'Engineers Instruction';
+        }
+
+        return 'Other';
     }
 
     protected static function firstFormReferenceIn(string $blob): string
