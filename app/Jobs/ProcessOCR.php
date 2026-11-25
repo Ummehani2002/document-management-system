@@ -75,8 +75,12 @@ class ProcessOCR implements ShouldQueue
 
                 $existing = trim((string) ($document->ocr_text ?? ''));
                 $text = trim((string) $text);
+                $existingHasMailHeader = (bool) preg_match('/REFERENCE\s+NUMBER|MAIL\s+TYPE|EMPLOYER\'?S?\s+INSTRUCTION/i', $existing);
+                $newHasMailHeader = (bool) preg_match('/REFERENCE\s+NUMBER|MAIL\s+TYPE|EMPLOYER\'?S?\s+INSTRUCTION/i', $text);
                 // Never wipe browser/upload OCR with an empty Cloud extraction.
                 if ($text === '' && $existing !== '') {
+                    $text = $existing;
+                } elseif ($existingHasMailHeader && ! $newHasMailHeader) {
                     $text = $existing;
                 } elseif ($text !== '' && $existing !== '' && strlen($existing) > strlen($text)) {
                     $existingHasSubject = app(\App\Services\PdfFirstPageOcrService::class)

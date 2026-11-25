@@ -1115,7 +1115,7 @@
                                     data-ocr-url="{{ route('documents.ocr-text', ['id' => $doc->id]) }}"
                                 @endif
                             >{{ $subject }}</td>
-                            <td>{{ $doc->display_folder }}</td>
+                            <td class="doc-folder-cell" data-doc-id="{{ $doc->id }}">{{ $doc->display_folder }}</td>
                             <td>{{ $doc->project?->project_number ?? '—' }}@if($doc->project) — {{ $doc->project->project_name }}@endif</td>
                             <td>{{ format_model_datetime($doc, 'updated_at') }}</td>
                             <td>{{ $doc->modifiedBy?->name ?? ($doc->modifiedBy?->username ?? '—') }}</td>
@@ -1954,7 +1954,7 @@
 {{-- Browser OCR for scanned forms (Cloud has no Tesseract). Reads Title/Subject from page 1–2. --}}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-<script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261123a"></script>
+<script src="{{ asset('js/dms-pdf-ocr.js') }}?v=20261125a"></script>
 <script>
 (function () {
     var csrf = document.querySelector('meta[name="csrf-token"]');
@@ -1976,7 +1976,7 @@
         if (!viewUrl || !ocrUrl) {
             return;
         }
-        var triedKey = 'dms-ocr-tried:v5:' + docId;
+        var triedKey = 'dms-ocr-tried:v6:' + docId;
         try {
             if (sessionStorage.getItem(triedKey) === '1') {
                 cell.removeAttribute('data-needs-ocr');
@@ -2021,6 +2021,10 @@
             var revCell = document.querySelector('.doc-rev-cell[data-doc-id="' + docId + '"]');
             if (revCell && data.revision_no) {
                 revCell.textContent = data.revision_no;
+            }
+            var folderCell = document.querySelector('.doc-folder-cell[data-doc-id="' + docId + '"]');
+            if (folderCell && data.folder) {
+                folderCell.textContent = data.folder;
             }
         } catch (e) {
             cell.textContent = '—';

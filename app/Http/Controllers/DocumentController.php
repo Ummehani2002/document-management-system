@@ -1609,12 +1609,25 @@ class DocumentController extends Controller
         }
 
         $meta = app(DocumentMetaService::class)->syncFromText($document, $text, null, 'ocr');
+        $folder = (string) $document->document_type;
+        if (! $document->folder_locked) {
+            $classified = DocumentFilenameParser::classifyForAutomation('', $text);
+            $next = (string) ($classified['document_category'] ?? '');
+            if ($next !== '' && $next !== 'Other') {
+                $folder = $next;
+                if ($folder !== (string) $document->document_type) {
+                    $document->document_type = $folder;
+                    $document->save();
+                }
+            }
+        }
 
         return response()->json([
             'ok' => true,
             'reference_no' => $meta['reference_no'] ?? '—',
             'revision_no' => $meta['revision_no'] ?? '—',
             'subject' => $meta['subject'] ?? '—',
+            'folder' => $folder !== '' ? $folder : '—',
         ]);
     }
 

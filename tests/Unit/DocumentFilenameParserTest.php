@@ -986,4 +986,15 @@ TXT;
     $above = "Employers Instruction AMA02012-EMPI-000086 AMA02012-WTRAN-180892\nMAIL TYPE MAIL NUMBER REFERENCE NUMBER\nEmployer's Instruction_EI No. 002";
     $aboveMeta = DocumentFilenameParser::extractReferenceAndSubject($above, $filename);
     expect($aboveMeta['reference_no'])->toBe('AMA02012-WTRAN-180892');
+
+    $curly = "MAIL TYPE\nEmployer\u{2019}s Instruction\nREFERENCE NUMBER\nAMA02012-WTRAN-180892";
+    expect(DocumentFilenameParser::classifyForAutomation($filename, $curly)['document_category'])->toBe('Engineers Instruction');
+    expect(DocumentFilenameParser::extractReferenceAndSubject($curly, $filename)['reference_no'])->toBe('AMA02012-WTRAN-180892');
+
+    expect(DocumentFilenameParser::shouldAttemptBrowserSubjectOcr(
+        "WORK INSPECTION REQUEST\nRef. No.: AMA02012-EMPI-000086\nSubject: Instruction to Commence Layer Works",
+        'Instruction to Commence Layer Works to Walkways, Pathways and Decking Areas',
+        $filename,
+        'AMA02012-EMPI-000086'
+    ))->toBeTrue();
 });

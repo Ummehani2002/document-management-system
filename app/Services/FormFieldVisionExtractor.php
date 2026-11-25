@@ -48,12 +48,13 @@ You are reading page 1 of a construction document form for a Document Management
 Return ONLY valid JSON with these keys:
 {
   "folder": "one folder name from this exact list: {$folderChoices}",
-  "reference_no": "IR Ref No / Submittal No / Ref No / MIR No from the form (not drawing ref unless that is the only ref). Empty string if none.",
+  "reference_no": "The value labeled REFERENCE NUMBER. If that label is missing, use IR Ref No / Submittal No / Ref No / MIR No. Never use MAIL NUMBER when REFERENCE NUMBER is present.",
   "subject": "The filled Description / Title / Subject text from the form body ONLY."
 }
 
 Rules for folder (choose exactly one from the list):
-- INSPECTION REQUEST / WORK INSPECTION REQUEST / WIR → Work Inspection
+- MAIL TYPE "Employers Instruction" or "Employer's Instruction", or a title that starts with Employer's Instruction / Engineers Instruction → Engineers Instruction. The word Instruction by itself is not a work inspection.
+- Use Work Inspection only when the form title is WORK INSPECTION REQUEST or INSPECTION REQUEST.
 - MATERIAL INSPECTION REQUEST / MIR → Material Inspection Request
 - MATERIAL SUBMITTAL / MAT → Material Submittal
 - METHOD STATEMENT → Method Statement
@@ -62,7 +63,12 @@ Rules for folder (choose exactly one from the list):
 - INTERNAL MEMO → Internal Memo
 - If unsure, pick the closest list value.
 
+Rules for reference_no:
+- On an Aconex mail, MAIL NUMBER and REFERENCE NUMBER are different. Example: MAIL NUMBER AMA02012-EMPI-000086 and REFERENCE NUMBER AMA02012-WTRAN-180892 means reference_no is AMA02012-WTRAN-180892.
+- Do not return the mail number when a Reference Number is printed.
+
 Rules for subject:
+- On an Employer's Instruction, subject is the full bold title under the mail header, starting with Employer's Instruction. Keep the words after "Subject" as part of that title. Do not shorten it to only "Instruction to Commence…".
 - Prefer, in this order: "Material Title", "Materials for Inspection", "Description of Materials for Inspection", "Description of Works to be inspected and /or tested", "Title / Subject", "Title & Description", "Material Description", "Drawing Title", "Method Statement Title", or "Subject:".
 - For MATERIAL INSPECTION REQUEST forms, subject is the filled item name in "Materials for Inspection" or "Description of Materials for Inspection" (example: "Picnic table Round"). Do NOT use the photo column, "We confirm that the materials for inspection have been previously approved…", supplier, test report, or delivery note.
 - For MATERIAL SUBMITTAL forms, subject is the "Material Title" line (example: "Material Submittal for Isolator for Swimming Pool and Water Features"). Do NOT use a later checklist row such as "Material Submittal for PVC Conduits… Yes No N/A Remark".
@@ -160,6 +166,23 @@ PROMPT;
 
     protected function toOcrText(string $reference, string $subject, string $folder = ''): string
     {
+        if (strcasecmp($folder, 'Engineers Instruction') === 0) {
+            $lines = [
+                'MAIL TYPE',
+                'Employers Instruction',
+                "Employer's Instruction",
+            ];
+            if ($reference !== '') {
+                $lines[] = 'REFERENCE NUMBER';
+                $lines[] = $reference;
+            }
+            if ($subject !== '') {
+                $lines[] = $subject;
+            }
+
+            return implode("\n", $lines);
+        }
+
         $lines = ['DOCUMENT FORM PAGE 1'];
         if ($folder !== '') {
             $lines[] = strtoupper($folder);

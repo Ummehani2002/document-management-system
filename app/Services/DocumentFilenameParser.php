@@ -666,6 +666,11 @@ class DocumentFilenameParser
     protected static function normalizeOcrText(string $text): string
     {
         $normalized = str_replace(["\r\n", "\r"], "\n", self::sanitizeOcrText($text));
+        $normalized = str_replace(
+            ["\u{00A0}", "\u{202F}", "\u{2007}", "\u{2009}", "\u{2019}", "\u{2018}", "\u{2011}", "\u{2010}"],
+            [' ', ' ', ' ', ' ', "'", "'", '-', '-'],
+            $normalized
+        );
         $normalized = preg_replace('/[ \t]+/', ' ', $normalized) ?? $normalized;
 
         // Join OCR outputs like "M A T E R I A L S" into "MATERIALS".
@@ -859,13 +864,19 @@ class DocumentFilenameParser
             $subject = '—';
         }
 
+        $ocr = trim((string) $ocrText);
         $ref = trim((string) ($referenceNo ?? ''));
+        // A mail number was stored as the reference. Read the page image so AI can
+        // take the field labeled Reference Number instead.
+        if (preg_match('/-EMPI-/i', $ref) && ! preg_match('/REFERENCE\s+NUMBER/i', $ocr)) {
+            return true;
+        }
+
         $needsDetails = ($subject === '—') || ($ref === '' || $ref === '—');
         if (! $needsDetails) {
             return false;
         }
 
-        $ocr = trim((string) $ocrText);
         if ($ocr === '' || strlen($ocr) < 40) {
             return true;
         }

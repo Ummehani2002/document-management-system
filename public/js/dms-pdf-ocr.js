@@ -138,6 +138,39 @@
         };
     }
 
+    async function extractEmbeddedPageText(source, maxPages) {
+        var pdf = await loadPdf(source);
+        var pages = Math.min(maxPages || 1, pdf.numPages || 1);
+        var chunks = [];
+        for (var p = 1; p <= pages; p++) {
+            var page = await pdf.getPage(p);
+            var textContent = await page.getTextContent();
+            var items = textContent.items || [];
+            var lines = [];
+            var currentY = null;
+            var buffer = [];
+            items.forEach(function (item) {
+                var y = item.transform ? Math.round(item.transform[5]) : 0;
+                if (currentY !== null && Math.abs(y - currentY) > 2) {
+                    var line = buffer.join(' ').replace(/\s+/g, ' ').trim();
+                    if (line) lines.push(line);
+                    buffer = [];
+                }
+                currentY = y;
+                buffer.push(item.str || '');
+            });
+            var last = buffer.join(' ').replace(/\s+/g, ' ').trim();
+            if (last) lines.push(last);
+            var text = lines.join('\n').trim();
+            if (text) chunks.push(text);
+        }
+        return chunks.join('\n\n').trim();
+    }
+
+    function pageTextHasMailHeader(text) {
+        return /REFERENCE\s+NUMBER|MAIL\s+TYPE|EMPLOYER'?S?\s+INSTRUCTION/i.test(String(text || ''));
+    }
+
     async function extractViaAi(source, options, onProgress) {
         if (!options.aiExtractUrl) {
             return null;
@@ -227,7 +260,18 @@
         var onProgress = typeof options.onProgress === 'function' ? options.onProgress : function () {};
 
         var work = (async function () {
-            // Every document: try vision AI first (reads italic Description/Title reliably).
+            // The printed page wins when it already has Reference Number / Mail Type.
+            // A wrong AI summary must not replace that text.
+            var embedded = '';
+            try {
+                embedded = await extractEmbeddedPageText(source, 2);
+            } catch (err) {
+                embedded = '';
+            }
+            if (pageTextHasMailHeader(embedded)) {
+                return embedded;
+            }
+
             try {
                 var ai = await extractViaAi(source, options, onProgress);
                 if (ai && ai.subject && ai.subject !== '—' && ai.ocr_text) {
