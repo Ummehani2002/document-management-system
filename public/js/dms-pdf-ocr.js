@@ -171,6 +171,15 @@
         return /REFERENCE\s+NUMBER|MAIL\s+TYPE|EMPLOYER'?S?\s+INSTRUCTION/i.test(String(text || ''));
     }
 
+    function embeddedLooksLikePage(text) {
+        var value = String(text || '').replace(/\s+/g, ' ').trim();
+        if (value.length < 80) {
+            return false;
+        }
+        var words = value.match(/[A-Za-z]{3,}/g) || [];
+        return words.length >= 8;
+    }
+
     async function extractViaAi(source, options, onProgress) {
         if (!options.aiExtractUrl) {
             return null;
@@ -268,7 +277,7 @@
             } catch (err) {
                 embedded = '';
             }
-            if (pageTextHasMailHeader(embedded)) {
+            if (pageTextHasMailHeader(embedded) || embeddedLooksLikePage(embedded)) {
                 return embedded;
             }
 

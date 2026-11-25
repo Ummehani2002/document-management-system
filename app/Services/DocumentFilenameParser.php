@@ -916,6 +916,7 @@ class DocumentFilenameParser
                 '/(?:^|\n)\s*(?:WIR|IR)\s*(?:NO\.?|NUMBER|#|REF(?:ERENCE)?)\s*[:\-]?\s*(.{0,220})/is',
                 '/(?:^|\n)\s*INSPECTION\s*REQUEST\s*(?:NO\.?|NUMBER|REF(?:ERENCE)?)\s*[:\-]?\s*(.{0,220})/is',
                 '/(?:^|\n)\s*REL\.?\s*NO\.?\s*[:\-]?\s*(.{0,220})/is',
+                '/(?:^|\n)\s*DOC(?:UMENT)?\s*(?:NO\.?|NUMBER|#)\s*[:\-]?\s*(.{0,220})/is',
                 '/(?:^|\n)\s*REF(?:ERENCE)?\s*\.?\s*(?:NO\.?|NUMBER)\s*[:\-]?\s*(.{0,220})/is',
                 '/(?:^|\n)\s*REF(?:ERENCE)?\s*\.?\s*[:\-]\s*(.{0,220})/is',
                 '/(?:^|\n)\s*SUBMITTAL\s*(?:NO\.?|NUMBER)\s*[:\-]?\s*(.{0,220})/is',
@@ -941,6 +942,10 @@ class DocumentFilenameParser
             }
 
             $subject = self::extractLabeledSubject($normalized);
+
+            if ($subject === '') {
+                $subject = self::extractCoverTitleLine($normalized);
+            }
 
             if ($subject === '') {
                 $subjectPatterns = [
@@ -1368,7 +1373,7 @@ class DocumentFilenameParser
         }
 
         foreach (preg_split('/[-_\/.]+/', $value) as $part) {
-            if (preg_match('/^(?:submittal|material|description|drawing|revision|cable|armoured|flexible|pipes?|fittings?|accessories|isolator|conduits?)$/i', $part)) {
+            if (preg_match('/^(?:submittal|material|description|drawing|revision|cable|armoured|flexible|pipes?|fittings?|accessories|isolator|conduits?|operation|maintenance|manual|hardscape|softscape|package|signage|works|prequalification|finding|instruction|transmittal)$/i', $part)) {
                 return false;
             }
             if (strlen($part) >= 10 && preg_match('/[AEIOUaeiou].*[AEIOUaeiou]/', $part)) {
@@ -1474,6 +1479,30 @@ class DocumentFilenameParser
             $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]));
             $candidate = self::cleanOcrSubject($candidate);
             if ($candidate !== '' && ! self::isJunkSubject($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Cover heading when the page has no Subject: label, such as an O&M manual or prequalification.
+     */
+    protected static function extractCoverTitleLine(string $text): string
+    {
+        $patterns = [
+            '/(?:^|\n)\s*(Final\s*\(WF-\d+\)[^\n]{10,240})/i',
+            '/((?:Operation\s+and\s+Maintenance\s+Manual|O\s*&\s*M\s+Manual)(?:\s+for)?[^\n]{3,200})/i',
+            '/((?:Pre[\s\-]*qualification)\s+(?:of|for)\s+[^\n]{3,180})/i',
+        ];
+        foreach ($patterns as $re) {
+            if (! preg_match($re, $text, $m)) {
+                continue;
+            }
+            $candidate = trim(preg_replace('/\s+/', ' ', (string) $m[1]) ?? '');
+            $candidate = self::cleanOcrSubject($candidate);
+            if ($candidate !== '' && ! self::isJunkSubject($candidate) && mb_strlen($candidate) >= 12) {
                 return $candidate;
             }
         }

@@ -998,3 +998,21 @@ TXT;
         'AMA02012-EMPI-000086'
     ))->toBeTrue();
 });
+
+test('omm and prequalification keep the document number and the cover title', function () {
+    $omm = "OPERATION AND MAINTENANCE MANUAL\nDocument No. 1TB02012-012C20-PIC-OMM-LS-0006\n012C20_PIC_Operation and Maintenance Manual for Metal Works\n";
+    $ommMeta = DocumentFilenameParser::extractReferenceAndSubject(
+        $omm,
+        '1TB02012-012C20-PIC-OMM-LS-0006[C0] (A) - OMM for Metal Works.pdf'
+    );
+    expect($ommMeta['reference_no'])->toBe('1TB02012-012C20-PIC-OMM-LS-0006');
+    expect($ommMeta['subject'])->toBe('Operation and Maintenance Manual for Metal Works');
+
+    $prq = "PREQUALIFICATION\nDocument No: 1TB02012-012C20-PIC-PRQ-LS-0004\n012C20_PIC_PRQ_HARDSCAPE\nPrequalification for Hardscape Works\n";
+    $prqMeta = DocumentFilenameParser::extractReferenceAndSubject(
+        $prq,
+        '1TB02012-012C20-PIC-PRQ-LS-0004[C0] (B).pdf'
+    );
+    expect($prqMeta['reference_no'])->toBe('1TB02012-012C20-PIC-PRQ-LS-0004');
+    expect($prqMeta['subject'])->toBe('Prequalification for Hardscape Works');
+});

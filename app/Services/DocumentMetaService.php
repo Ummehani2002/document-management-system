@@ -84,7 +84,9 @@ class DocumentMetaService
         $mentionsMail = (bool) preg_match('/MAIL\s+(?:TYPE|NUMBER)/i', $ocr);
         $filedAsInspection = strcasecmp((string) $document->document_type, 'Work Inspection') === 0
             && (bool) preg_match('/\b(?:EMI|EI)\b|INSTRUCTION/i', (string) $document->file_name);
-        if (! $isMailNumber && ! $mentionsMail && ! $filedAsInspection) {
+        $badReference = (bool) preg_match('/(?:^|[-_])(?:OPERATION|HARDSCAPE|SOFTSCAPE|MANUAL|MAINTENANCE|PACKAGE|SIGNAGE|PREQUALIFICATION)(?:$|[-_])/i', $ref);
+        $subjectBlank = trim((string) $document->subject) === '';
+        if (! $isMailNumber && ! $mentionsMail && ! $filedAsInspection && ! $badReference && ! $subjectBlank) {
             return;
         }
 
@@ -111,15 +113,16 @@ class DocumentMetaService
                 $pdfPath = $tempPath;
             }
 
+            $useful = '/REFERENCE\s+NUMBER|MAIL\s+TYPE|EMPLOYER\'?S?\s+INSTRUCTION|DOC(?:UMENT)?\s*(?:NO\.?|NUMBER)|OPERATION\s+AND\s+MAINTENANCE|PRE[\s\-]*QUALIF/i';
             $reader = app(PdfFirstPageOcrService::class);
             $fresh = trim($reader->extractTextForClassification($pdfPath));
-            if (! preg_match('/REFERENCE\s+NUMBER|EMPLOYER\'?S?\s+INSTRUCTION|MAIL\s+TYPE/i', $fresh)) {
+            if (! preg_match($useful, $fresh)) {
                 $alt = trim($reader->extractFirstPageText($pdfPath));
-                if (preg_match('/REFERENCE\s+NUMBER|EMPLOYER\'?S?\s+INSTRUCTION|MAIL\s+TYPE/i', $alt)) {
+                if (preg_match($useful, $alt)) {
                     $fresh = $alt;
                 }
             }
-            if (! preg_match('/REFERENCE\s+NUMBER|EMPLOYER\'?S?\s+INSTRUCTION|MAIL\s+TYPE/i', $fresh)) {
+            if (! preg_match($useful, $fresh)) {
                 return;
             }
 
