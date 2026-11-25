@@ -1161,8 +1161,25 @@ class DocumentFilenameParser
     protected static function explicitReferenceNumber(string $text): string
     {
         $text = preg_replace('/(?<=[A-Z0-9])-[ \t\r\n]+(?=[A-Z0-9]{2,})/i', '-', $text) ?? $text;
-        if (! preg_match('/REFERENCE\s+NUMBER/i', $text)) {
+        $text = preg_replace('/(?<=[A-Z0-9])[ \t\r\n]+(?=[A-Z]{2,4}-\d{2,})/i', '-', $text) ?? $text;
+        if (! preg_match('/REFERENCE\s+NUMBER/i', $text, $label, PREG_OFFSET_CAPTURE)) {
             return '';
+        }
+
+        $labelPos = (int) $label[0][1];
+        if (preg_match_all('/\bAMA\d{4,}-WTRAN-\d{3,}\b/i', $text, $transmittals, PREG_OFFSET_CAPTURE)) {
+            $nearest = '';
+            $nearestDistance = PHP_INT_MAX;
+            foreach ($transmittals[0] as $hit) {
+                $distance = abs((int) $hit[1] - $labelPos);
+                if ($distance < $nearestDistance) {
+                    $nearestDistance = $distance;
+                    $nearest = strtoupper((string) $hit[0]);
+                }
+            }
+            if ($nearest !== '' && $nearestDistance < 4000) {
+                return $nearest;
+            }
         }
 
         $mailNumber = '';
@@ -1258,6 +1275,7 @@ class DocumentFilenameParser
 
         // Rejoin a register code wrapped after a hyphen: "PSE2024-1011-PRS-\nPAR-MIR-HLS-00042".
         $blob = preg_replace('/(?<=[A-Z0-9])-[ \t\r\n]+(?=[A-Z0-9]{2,})/i', '-', $blob) ?? $blob;
+        $blob = preg_replace('/(?<=[A-Z0-9])[ \t\r\n]+(?=[A-Z]{2,4}-\d{2,})/i', '-', $blob) ?? $blob;
 
         $found = [];
         if (preg_match_all('/[A-Z0-9]+(?:[-_\/.][A-Z0-9]+){2,}/i', $blob, $m)) {
@@ -1269,6 +1287,18 @@ class DocumentFilenameParser
                 $found[] = $token;
             }
         }
+
+        $found = array_values(array_filter($found, static function (string $code) use ($found): bool {
+            $upper = strtoupper($code);
+            foreach ($found as $other) {
+                $longer = strtoupper($other);
+                if ($longer !== $upper && str_starts_with($longer, $upper.'-')) {
+                    return false;
+                }
+            }
+
+            return true;
+        }));
 
         if ($found === []) {
             $direct = trim(preg_replace('/\s+/', ' ', strtok($blob, "\n") ?: $blob));
@@ -1368,12 +1398,15 @@ class DocumentFilenameParser
         if ($value === '' || str_contains($value, ' ') || self::isGenericFormLabel($value)) {
             return false;
         }
+        if (preg_match('/\.(?:com|html?|php|org|net)\b|aconex|^https?:/i', $value)) {
+            return false;
+        }
         if (! preg_match('/^[A-Z0-9]+(?:[-_\/.][A-Z0-9]+){1,}$/i', $value)) {
             return false;
         }
 
         foreach (preg_split('/[-_\/.]+/', $value) as $part) {
-            if (preg_match('/^(?:submittal|material|description|drawing|revision|cable|armoured|flexible|pipes?|fittings?|accessories|isolator|conduits?|operation|maintenance|manual|hardscape|softscape|package|signage|works|prequalification|finding|instruction|transmittal)$/i', $part)) {
+            if (preg_match('/^(?:submittal|material|description|drawing|revision|cable|armoured|flexible|pipes?|fittings?|accessories|isolator|conduits?|operation|maintenance|manual|hardscape|softscape|package|signage|works|prequalification|finding|instruction|transmittal|com|html?|https?|www|aconex|php|org|net)$/i', $part)) {
                 return false;
             }
             if (strlen($part) >= 10 && preg_match('/[AEIOUaeiou].*[AEIOUaeiou]/', $part)) {

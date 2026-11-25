@@ -84,7 +84,7 @@ class DocumentMetaService
         $mentionsMail = (bool) preg_match('/MAIL\s+(?:TYPE|NUMBER)/i', $ocr);
         $filedAsInspection = strcasecmp((string) $document->document_type, 'Work Inspection') === 0
             && (bool) preg_match('/\b(?:EMI|EI)\b|INSTRUCTION/i', (string) $document->file_name);
-        $badReference = (bool) preg_match('/(?:^|[-_])(?:OPERATION|HARDSCAPE|SOFTSCAPE|MANUAL|MAINTENANCE|PACKAGE|SIGNAGE|PREQUALIFICATION)(?:$|[-_])/i', $ref);
+        $badReference = (bool) preg_match('/(?:^|[-_])(?:OPERATION|HARDSCAPE|SOFTSCAPE|MANUAL|MAINTENANCE|PACKAGE|SIGNAGE|PREQUALIFICATION)(?:$|[-_])|aconex|\.html?$|^https?:/i', $ref);
         $subjectBlank = trim((string) $document->subject) === '';
         if (! $isMailNumber && ! $mentionsMail && ! $filedAsInspection && ! $badReference && ! $subjectBlank) {
             return;

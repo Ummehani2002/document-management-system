@@ -1016,3 +1016,26 @@ test('omm and prequalification keep the document number and the cover title', fu
     expect($prqMeta['reference_no'])->toBe('1TB02012-012C20-PIC-PRQ-LS-0004');
     expect($prqMeta['subject'])->toBe('Prequalification for Hardscape Works');
 });
+
+test('aconex reference number is not the website address or the attachment file name', function () {
+    $page = <<<'TXT'
+ksa1.aconex.com/hub/index.html
+MAIL TYPE MAIL NUMBER REFERENCE NUMBER
+Transmittal AMA02012-EMPI-000010 AMA02012-WTRAN-207159
+FILE ATTACHMENTS
+1TB02012-012C20-PIC-PRQ-LS-0005[C1] (B).pdf
+TXT;
+    $meta = DocumentFilenameParser::extractReferenceAndSubject(
+        $page,
+        '1TB02012-012C20-PIC-PRQ-LS-0005[C1] (B).pdf'
+    );
+    expect($meta['reference_no'])->toBe('AMA02012-WTRAN-207159');
+
+    $split = "Document No.\n1TB02012-012C20-PIC-PRQ\nLS-0004\nksa1.aconex.com/hub/index.html";
+    $splitMeta = DocumentFilenameParser::extractReferenceAndSubject(
+        $split,
+        '1TB02012-012C20-PIC-PRQ-LS-0004[C0] (B).pdf'
+    );
+    expect($splitMeta['reference_no'])->toBe('1TB02012-012C20-PIC-PRQ-LS-0004');
+    expect($splitMeta['reference_no'])->not->toBe('ksa1.aconex.com/hub/index.html');
+});
