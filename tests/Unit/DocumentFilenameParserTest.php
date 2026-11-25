@@ -1031,6 +1031,27 @@ TXT;
     );
     expect($meta['reference_no'])->toBe('AMA02012-WTRAN-207159');
 
+    $withDocumentNo = <<<'TXT'
+MAIL TYPE
+Workflow Transmittal
+MAIL NUMBER
+AMA02012-WTRAN-043238
+REFERENCE NUMBER
+AMA02012-WTRAN-043238
+Final (WF-014175) Hardscape Work Package - Decking Work Subcontractor's Prequalification - M/s. Timber Decking LLC
+DOCUMENT ATTACHMENTS
+File Document No Revision Title Status
+1TB02012-012C20-PIC-
+PRQ-AR-0002
+C0
+Hardscape Work Package - Decking Work Subcontractor's Prequalification - M/s. Timber Decking LLC
+TXT;
+    $docNo = DocumentFilenameParser::extractReferenceAndSubject(
+        $withDocumentNo,
+        '1TB02012-012C20-PIC-PRQ-AR-0002[C0] (B).pdf'
+    );
+    expect($docNo['reference_no'])->toBe('1TB02012-012C20-PIC-PRQ-AR-0002');
+
     $split = "Document No.\n1TB02012-012C20-PIC-PRQ\nLS-0004\nksa1.aconex.com/hub/index.html";
     $splitMeta = DocumentFilenameParser::extractReferenceAndSubject(
         $split,

@@ -909,7 +909,10 @@ class DocumentFilenameParser
         if ($ocr !== '') {
             $normalized = self::normalizeOcrText($ocr);
 
-            $referenceNo = self::explicitReferenceNumber($normalized);
+            $referenceNo = self::attachmentDocumentNumber($normalized);
+            if ($referenceNo === '') {
+                $referenceNo = self::explicitReferenceNumber($normalized);
+            }
 
             $referencePatterns = [
                 '/(?:^|\n)\s*IR\s*REF(?:ERENCE)?\s*(?:NO\.?|NUMBER|#)\s*[:\-]?\s*(.{0,220})/is',
@@ -1153,6 +1156,34 @@ class DocumentFilenameParser
 
         return (bool) preg_match('/^(?:PSE|WME|TVD|PRO|PRJ|IMO|MEM|DMS)[A-Z0-9]*\d{5,}$/i', $value)
             || (bool) preg_match('/^[A-Z]{2,6}\d{6,12}$/i', $value);
+    }
+
+    /**
+     * Workflow transmittal: the attachment Document No is the reference.
+     * The mail's REFERENCE NUMBER (AMA…-WTRAN-…) is not.
+     */
+    protected static function attachmentDocumentNumber(string $text): string
+    {
+        $text = preg_replace('/(?<=[A-Z0-9])-[ \t\r\n]+(?=[A-Z0-9]{2,})/i', '-', $text) ?? $text;
+        $text = preg_replace('/(?<=[A-Z0-9])[ \t\r\n]+(?=[A-Z]{2,6}(?:-[A-Z0-9]+){1,})/i', '-', $text) ?? $text;
+        if (! preg_match_all('/DOCUMENT\s+NO\.?/i', $text, $labels, PREG_OFFSET_CAPTURE)) {
+            return '';
+        }
+
+        $best = '';
+        foreach ($labels[0] as $label) {
+            $pos = (int) $label[1] + strlen((string) $label[0]);
+            foreach (self::registerCodesIn(substr($text, $pos, 800)) as $code) {
+                if (preg_match('/-WTRAN-|-EMPI-/i', $code)) {
+                    continue;
+                }
+                if (strlen($code) > strlen($best)) {
+                    $best = $code;
+                }
+            }
+        }
+
+        return $best;
     }
 
     /**
