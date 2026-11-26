@@ -1101,3 +1101,45 @@ TXT;
     expect(DocumentFilenameParser::revisionNumber($stacked, $stackedFile, $stackedMeta['reference_no']))->toBe('C2');
     expect(DocumentFilenameParser::classifyForAutomation($stackedFile, $stacked)['document_category'])->toBe('Monthly Report');
 });
+
+test('a correspondence letter stays a letter when the subject mentions materials or the signatory is an engineer', function () {
+    $materials = <<<'TXT'
+DATE 08 May 2025
+REFERENCE
+UNEC/33408341/PROSCAPE/2025/0072
+FROM M/S. UNITED ENGINEERING CONSTRUCTION CO (L.L.C.) UNEC
+TO M/S PROSCAPE LLC
+ATTENTION Mr. Mohamed Nasar Ahmed
+SUBJECT Material submittals for DEWA WD Approval
+Dear Sir,
+With reference to the subject mentioned above, please find attached the ERC letter regarding the material submittals for DEWA WD Approval.
+Regards,
+Eng. Hussam Alfhili
+TXT;
+    $materialsFile = 'PROSCAPE-0072 - Material submittals for DEWA WD Approval.pdf';
+    expect(DocumentFilenameParser::classifyForAutomation($materialsFile, $materials)['document_category'])
+        ->toBe('Incoming Or Outgoing Letter');
+
+    $reply = <<<'TXT'
+DATE 03 JUNE 2025
+REFERENCE UNEC/33408341/PROSCAPE/2025/0095
+FROM M/S. UNITED ENGINEERING CONSTRUCTION CO (L.L.C.) UNEC
+TO M/S PROSCAPE LLC
+SUBJECT RE: Assignment of Project Proceeds- Frond K
+Dear Sir,
+With reference to the above-mentioned Subject and your letter regarding the Assignment of Project Proceeds.
+Regards,
+Eng. Hussam Alfhili Project Director
+TXT;
+    $replyFile = 'PROSCAPE-0095-RE- Assignment of Project Proceeds- Frond K.pdf';
+    expect(DocumentFilenameParser::classifyForAutomation($replyFile, $reply)['document_category'])
+        ->toBe('Incoming Or Outgoing Letter');
+
+    $savedAsSubmittal = "DOCUMENT FORM PAGE 1\nMATERIAL SUBMITTAL\nRef. No: UNEC/33408341/PROSCAPE/2025/0072\nTitle / Subject\nMaterial submittals for DEWA WD Approval\nMaterial Description:\nMaterial submittals for DEWA WD Approval";
+    expect(DocumentFilenameParser::classifyForAutomation('', $savedAsSubmittal)['document_category'])
+        ->toBe('Incoming Or Outgoing Letter');
+
+    $savedAsInstruction = "MAIL TYPE\nEmployers Instruction\nEmployer's Instruction\nREFERENCE NUMBER\nUNEC/33408341/PROSCAPE/2025/0095\nRE: Assignment of Project Proceeds- Frond K";
+    expect(DocumentFilenameParser::classifyForAutomation('', $savedAsInstruction)['document_category'])
+        ->toBe('Incoming Or Outgoing Letter');
+});

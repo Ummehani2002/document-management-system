@@ -53,6 +53,9 @@ Return ONLY valid JSON with these keys:
 }
 
 Rules for folder (choose exactly one from the list):
+- A correspondence letter has DATE, REFERENCE, FROM, TO and SUBJECT, and usually opens with "Dear Sir". File it as Incoming Or Outgoing Letter. A reference like UNEC/33408341/PROSCAPE/2025/0072 is a letter number.
+- Do not choose Material Submittal because the subject or the letter talks about material submittals. Material Submittal is only the submittal form itself (Material Title, Type of Submittal).
+- Do not choose Engineers Instruction because the company name contains Engineering or the signatory is "Eng.". Engineers Instruction is only when the document title or MAIL TYPE is an Employer's Instruction or Engineer's Instruction.
 - MAIL TYPE "Employers Instruction" or "Employer's Instruction", or a title that starts with Employer's Instruction / Engineers Instruction → Engineers Instruction. The word Instruction by itself is not a work inspection.
 - Use Work Inspection only when the form title is WORK INSPECTION REQUEST or INSPECTION REQUEST.
 - MATERIAL INSPECTION REQUEST / MIR → Material Inspection Request
@@ -179,6 +182,24 @@ PROMPT;
             if ($subject !== '') {
                 $lines[] = $subject;
             }
+
+            return implode("\n", $lines);
+        }
+
+        if (strcasecmp($folder, 'Incoming Or Outgoing Letter') === 0) {
+            $lines = ['CORRESPONDENCE LETTER'];
+            if ($reference !== '') {
+                $lines[] = 'REFERENCE';
+                $lines[] = $reference;
+                $lines[] = 'Ref. No: '.$reference;
+            }
+            if ($subject !== '') {
+                $lines[] = 'SUBJECT';
+                $lines[] = $subject;
+            }
+            $lines[] = 'FROM';
+            $lines[] = 'TO';
+            $lines[] = 'Dear Sir,';
 
             return implode("\n", $lines);
         }

@@ -100,6 +100,10 @@ class DocumentFilenameParser
         }
 
         $normalized = self::stripLegendLines(self::normalizeOcrText($text));
+        $correspondence = self::folderFromCorrespondence($normalized);
+        if ($correspondence !== 'Other') {
+            return $correspondence;
+        }
         // Pre-qualification forms often say "laboratory testing" — that is not T&C.
         // A Material Submittal banner must not be stolen by a weak PRE-Q match.
         if (self::textLooksLikePrequalification($normalized) && ! self::textLooksLikeMaterialSubmittal($normalized)) {
@@ -249,6 +253,10 @@ class DocumentFilenameParser
     {
         $normalized = self::normalizeOcrText($text);
         $head = substr($normalized, 0, 2500);
+        $correspondence = self::folderFromCorrespondence($normalized);
+        if ($correspondence !== 'Other') {
+            return $correspondence;
+        }
         $employerInstruction = self::folderFromEmployerInstruction($head);
         if ($employerInstruction !== 'Other') {
             return $employerInstruction;
@@ -331,6 +339,10 @@ class DocumentFilenameParser
     protected static function guessSubfolderFromOcrHeadingsOnly(string $text): string
     {
         $normalized = self::stripLegendLines(self::normalizeOcrText($text));
+        $correspondence = self::folderFromCorrespondence($normalized);
+        if ($correspondence !== 'Other') {
+            return $correspondence;
+        }
         if (self::textLooksLikePrequalification($normalized) && ! self::textLooksLikeMaterialSubmittal($normalized)) {
             return 'Prequalification';
         }
@@ -404,6 +416,10 @@ class DocumentFilenameParser
 
     protected static function detectCategoryFromTitle(string $window): string
     {
+        $correspondence = self::folderFromCorrespondence($window);
+        if ($correspondence !== 'Other') {
+            return $correspondence;
+        }
         if (self::textLooksLikePrequalification($window) && ! self::textLooksLikeMaterialSubmittal($window)) {
             return 'Prequalification';
         }
@@ -606,6 +622,65 @@ class DocumentFilenameParser
         }
 
         return false;
+    }
+
+    /**
+     * A contractor letter (Date, Reference, From, To, Dear Sir).
+     * The subject may mention material submittals, and the signatory may be "Eng.",
+     * without the file being a Material Submittal or an Engineer's Instruction.
+     */
+    protected static function folderFromCorrespondence(string $text): string
+    {
+        if (self::textIsDedicatedForm($text)) {
+            return 'Other';
+        }
+        if (self::textHasCorrespondenceReference($text) || self::looksLikeCorrespondenceLetter($text)) {
+            return 'Incoming Or Outgoing Letter';
+        }
+
+        return 'Other';
+    }
+
+    protected static function textHasCorrespondenceReference(string $text): bool
+    {
+        $number = '[A-Z]{2,12}\/(?:[A-Z0-9&.]{2,24}\/){1,6}(?:19|20)\d{2}\/\d{3,5}';
+
+        return (bool) preg_match(
+            '/(?:REFERENCE(?:\s+NUMBER)?|REF\.?\s*NO\.?)\s*[:.\-]?\s*(?:\R\s*)?(?:'.$number.')/i',
+            $text
+        );
+    }
+
+    /**
+     * Form banners only. A letter subject that says "material submittals" is not one of these.
+     */
+    protected static function textIsDedicatedForm(string $text): bool
+    {
+        $upper = strtoupper($text);
+        if (preg_match(
+            '/TYPE\s+OF\s+SUBMITTAL|MATERIAL\s+TITLE\s*[:\-]|WORK\s*INSPECTION\s*REQUEST|MATERIAL\s*INSPECTION\s*REQUEST|SHOP\s*DRAWING\s*(?:\/\s*)?(?:SKETCH\s*)?SUBMITTAL|(?:^|\n)\s*METHOD\s*STATEMENT\b/u',
+            $upper
+        )) {
+            return true;
+        }
+
+        return (bool) preg_match(
+            '/(?:EMPLOYER|ENGINEER)\'?S?\s+INSTRUCTION(?:_|\s*[-–]\s*EI\b|\s+NO\b)/u',
+            $upper
+        );
+    }
+
+    protected static function looksLikeCorrespondenceLetter(string $text): bool
+    {
+        $upper = strtoupper($text);
+        if (! preg_match('/\bDEAR\s+(?:SIR|SIRS|MADAM|ALL)\b/u', $upper)) {
+            return false;
+        }
+        $hasReference = (bool) preg_match('/(?:^|\n)\s*REFERENCE\b|(?:^|\n)\s*REF\.?\s*(?:NO\.?\s*)?[:.\-]/u', $upper);
+        $hasParties = (bool) preg_match('/(?:^|\n)\s*FROM\b/u', $upper)
+            && (bool) preg_match('/(?:^|\n)\s*TO\b/u', $upper);
+
+        return $hasReference || $hasParties;
     }
 
     /**

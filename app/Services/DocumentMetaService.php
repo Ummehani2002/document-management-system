@@ -152,6 +152,10 @@ class DocumentMetaService
         if ($ocr === '') {
             return;
         }
+        $storedRef = trim((string) ($document->reference_no ?? ''));
+        if ($storedRef !== '' && $storedRef !== '—' && ! str_contains($ocr, $storedRef)) {
+            $ocr .= "\nRef. No: ".$storedRef;
+        }
 
         $folder = (string) (DocumentFilenameParser::classifyForAutomation('', $ocr)['document_category'] ?? 'Other');
         if ($folder === '' || $folder === 'Other' || $folder === (string) $document->document_type) {
