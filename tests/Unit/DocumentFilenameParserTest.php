@@ -1060,3 +1060,44 @@ TXT;
     expect($splitMeta['reference_no'])->toBe('1TB02012-012C20-PIC-PRQ-LS-0004');
     expect($splitMeta['reference_no'])->not->toBe('ksa1.aconex.com/hub/index.html');
 });
+
+test('a monthly progress report keeps the attachment revision and is not a transmittal', function () {
+    $page = <<<'TXT'
+MAIL TYPE
+Workflow Transmittal
+MAIL NUMBER
+AMA02012-WTRAN-030162
+REFERENCE NUMBER
+AMA02012-WTRAN-030162
+Final (WF-030162) 012C20_PIC_AMA_Monthly Report Submittals_Hardscape Work Package (PIC)_Contractor Monthly
+DOCUMENT ATTACHMENTS
+File Document No Revision Title Status
+1TB02012-012C20-PIC-RPT-PM-0005[C2] (A).pdf
+1TB02012-012C20-PIC-RPT-PM-0005 C1 Hardscape Work Package - Contractor Monthly Progress Report for May 2024 Accepted
+Rev: 02
+TXT;
+    $file = '1TB02012-012C20-PIC-RPT-PM-0005[C1] (A) - Monthly Progress Report of May 2024.pdf';
+    $meta = DocumentFilenameParser::extractReferenceAndSubject($page, $file);
+    $folder = DocumentFilenameParser::classifyForAutomation($file, $page);
+
+    expect($meta['reference_no'])->toBe('1TB02012-012C20-PIC-RPT-PM-0005');
+    expect(DocumentFilenameParser::revisionNumber($page, $file, $meta['reference_no']))->toBe('C1');
+    expect($folder['document_category'])->toBe('Monthly Report');
+
+    $stacked = <<<'TXT'
+MAIL TYPE Workflow Transmittal
+DOCUMENT ATTACHMENTS
+Document No
+1TB02012-012C20-PIC-RPT-PM-0001
+Revision
+C2
+Title
+Hardscape Work Package - Contractor Monthly Progress Report for April 2024
+TXT;
+    $stackedFile = '1TB02012-012C20-PIC-RPT-PM-0001[C2] (B) - Monthly Progress Report of April 2024.pdf';
+    $stackedMeta = DocumentFilenameParser::extractReferenceAndSubject($stacked, $stackedFile);
+
+    expect($stackedMeta['reference_no'])->toBe('1TB02012-012C20-PIC-RPT-PM-0001');
+    expect(DocumentFilenameParser::revisionNumber($stacked, $stackedFile, $stackedMeta['reference_no']))->toBe('C2');
+    expect(DocumentFilenameParser::classifyForAutomation($stackedFile, $stacked)['document_category'])->toBe('Monthly Report');
+});

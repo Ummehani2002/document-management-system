@@ -247,7 +247,8 @@ class DocumentFilenameParser
      */
     protected static function extractFormBannerCategory(string $text): string
     {
-        $head = substr(self::normalizeOcrText($text), 0, 2500);
+        $normalized = self::normalizeOcrText($text);
+        $head = substr($normalized, 0, 2500);
         $employerInstruction = self::folderFromEmployerInstruction($head);
         if ($employerInstruction !== 'Other') {
             return $employerInstruction;
@@ -289,6 +290,10 @@ class DocumentFilenameParser
                 return 'Internal Memo';
             }
             if (preg_match('/DOCUMENT\s*TRANSMITTAL/', $u)) {
+                if (self::textLooksLikeMonthlyReport(substr($normalized, 0, 8000))) {
+                    return 'Monthly Report';
+                }
+
                 return 'Document Transmittal';
             }
             if (preg_match('/REQUEST\s+FOR\s+INFORMATION/', $u)) {
@@ -445,6 +450,9 @@ class DocumentFilenameParser
                 continue;
             }
             $cat = self::guessSubfolderFromTitle($line, $line);
+            if ($cat === 'Document Transmittal' && self::textLooksLikeMonthlyReport($window)) {
+                return 'Monthly Report';
+            }
             if ($cat !== 'Other') {
                 return $cat;
             }
@@ -531,6 +539,17 @@ class DocumentFilenameParser
         }
 
         return null;
+    }
+
+    /**
+     * The attached report, not the workflow-transmittal wrapper that carries it.
+     */
+    protected static function textLooksLikeMonthlyReport(string $text): bool
+    {
+        return (bool) preg_match(
+            '/MONTHLY\s+PROGRESS\s+REPORT|CONTRACTOR\s+MONTHLY|MONTHLY\s+REPORT|(?:^|[^A-Z0-9])MPR(?:[^A-Z0-9]|$)/i',
+            $text
+        );
     }
 
     /**
@@ -1028,6 +1047,11 @@ class DocumentFilenameParser
             $reference = trim((string) ($split['reference_no'] ?? ''));
         }
 
+        $fromTable = self::revisionFromAttachmentTable($ocrText);
+        if ($fromTable !== null) {
+            return self::formatRevisionToken($fromTable);
+        }
+
         $revision = self::revisionFromText($ocrText);
         if ($revision === null && $reference !== '' && $reference !== '—') {
             $revision = self::revisionFromFilename($fileName, $reference);
@@ -1039,7 +1063,58 @@ class DocumentFilenameParser
             return null;
         }
 
-        return str_pad((string) ((int) $revision), 2, '0', STR_PAD_LEFT);
+        return self::formatRevisionToken($revision);
+    }
+
+    /**
+     * Aconex attachment table: Document No, then the Revision cell (C1, C2, C0).
+     * That cell wins over a later numeric "Rev: 02" inside the attached report.
+     */
+    protected static function revisionFromAttachmentTable(?string $ocrText): ?string
+    {
+        $text = trim((string) $ocrText);
+        if ($text === '' || ! preg_match('/DOCUMENT\s+NO/i', $text)) {
+            return null;
+        }
+
+        if (preg_match('/\bREVISION\b(?!\s*(?:NO\.?|NUMBER|#)\b)\s*[:.\-]?\s*(?<!\[)([A-Z]\d{1,2})\b/i', $text, $m)) {
+            return strtoupper($m[1]);
+        }
+
+        if (! preg_match_all('/DOCUMENT\s+NO\.?/i', $text, $labels, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        foreach ($labels[0] as $label) {
+            $chunk = substr($text, (int) $label[1], 700);
+            if (! preg_match_all(
+                '/\b(\d[A-Z0-9]{2,}(?:-[A-Z0-9]+)+)\b.{0,160}?\b(?<!\[)([A-Z]\d{1,2})(?![\w-])/is',
+                $chunk,
+                $found,
+                PREG_SET_ORDER
+            )) {
+                continue;
+            }
+            foreach ($found as $hit) {
+                if (preg_match('/-WTRAN-|-EMPI-/i', (string) $hit[1])) {
+                    continue;
+                }
+
+                return strtoupper((string) $hit[2]);
+            }
+        }
+
+        return null;
+    }
+
+    protected static function formatRevisionToken(string $token): string
+    {
+        $token = strtoupper(trim($token));
+        if (preg_match('/^\d{1,2}$/', $token)) {
+            return str_pad((string) ((int) $token), 2, '0', STR_PAD_LEFT);
+        }
+
+        return $token;
     }
 
     protected static function revisionFromText(?string $ocrText): ?string
@@ -1049,14 +1124,14 @@ class DocumentFilenameParser
             return null;
         }
         if (! preg_match(
-            '/\bREV(?:ISION)?(?![A-Z])\.?\s*(?:NO\.?|NUMBER|#)?\s*[:.\-]?\s*(\d{1,2})\b/i',
+            '/\bREV(?:ISION)?(?![A-Z])\.?\s*(?:NO\.?|NUMBER|#)?\s*[:.\-]?\s*([A-Z]\d{1,2}|\d{1,2})\b/i',
             $text,
             $m
         )) {
             return null;
         }
 
-        return $m[1];
+        return strtoupper($m[1]);
     }
 
     protected static function revisionFromFilename(string $fileName, string $reference): ?string
